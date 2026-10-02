@@ -14,9 +14,11 @@ public class SyncRequestsTask : IScheduledTask
     private readonly RequestService _requests;
     private readonly ICatalog _catalog;
     private readonly ILogger<SyncRequestsTask> _log;
+    private readonly Ops.ITaskRunLog? _runs;
 
-    public SyncRequestsTask(RequestService requests, ICatalog catalog, ILogger<SyncRequestsTask> log)
+    public SyncRequestsTask(RequestService requests, ICatalog catalog, ILogger<SyncRequestsTask> log, Ops.ITaskRunLog? runs = null)
     {
+        _runs = runs;
         _log = log;
         _requests = requests;
         _catalog = catalog;
@@ -44,6 +46,7 @@ public class SyncRequestsTask : IScheduledTask
         catch (Exception ex)
         {
             _log.LogWarning(ex, "FullUI: syncing requested titles failed");
+            _runs?.Note(Key, "Could not check which requested titles have arrived. It will try again.", problem: true);
         }
 
         progress.Report(100);

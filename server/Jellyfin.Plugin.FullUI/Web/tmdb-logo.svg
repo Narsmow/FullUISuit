@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 190 80" width="95" height="40" role="img" aria-label="TMDB">
+  <defs>
+    <linearGradient id="tmdbg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#90cea1"/>
+      <stop offset="0.56" stop-color="#3cbec9"/>
+      <stop offset="1" stop-color="#00b3e5"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="190" height="80" rx="14" fill="#0d253f"/>
+  <text x="95" y="53" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="40" letter-spacing="1" fill="url(#tmdbg)">TMDB</text>
+</svg>

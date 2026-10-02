@@ -29,6 +29,7 @@ public class MaterializePlaylistsTask : IScheduledTask
     private readonly IPlaylistManager _playlists;
     private readonly ILibraryManager _library;
     private readonly ILogger<MaterializePlaylistsTask> _log;
+    private readonly Ops.ITaskRunLog? _runs;
 
     public MaterializePlaylistsTask(
         IServiceProvider sp,
@@ -36,8 +37,10 @@ public class MaterializePlaylistsTask : IScheduledTask
         IUserDirectory users,
         IPlaylistManager playlists,
         ILibraryManager library,
-        ILogger<MaterializePlaylistsTask> log)
+        ILogger<MaterializePlaylistsTask> log,
+        Ops.ITaskRunLog? runs = null)
     {
+        _runs = runs;
         _sp = sp;
         _config = config;
         _users = users;
@@ -66,6 +69,7 @@ public class MaterializePlaylistsTask : IScheduledTask
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _log.LogWarning(ex, "FullUI: writing playlists failed");
+            _runs?.Note(Key, "Could not write the recommendation playlists.", problem: true);
         }
     }
 
@@ -91,6 +95,7 @@ public class MaterializePlaylistsTask : IScheduledTask
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _log.LogWarning(ex, "FullUI: could not write playlists for a user");
+                _runs?.Note(Key, "Playlists could not be written for at least one user.", problem: true);
             }
 
             progress.Report(100.0 * (i + 1) / users.Count);

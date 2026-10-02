@@ -41,8 +41,8 @@
                         <input is="emby-input" type="text" id="serverName" label="Server name" />
                     </div>
                     <div class="inputContainer">
-                        <input is="emby-input" type="text" id="accentColor" label="Accent color (hex, e.g. #e50914)" maxlength="9" />
-                        <div class="fieldDescription" id="accentHint">A color like #e50914. Anything else falls back to the default red.</div>
+                        <input is="emby-input" type="text" id="accentColor" label="Accent color (hex, e.g. #e5383b)" maxlength="9" />
+                        <div class="fieldDescription" id="accentHint">A color like #e5383b. Anything else falls back to the default red.</div>
                     </div>
                 </fieldset>
 
@@ -93,6 +93,14 @@
                     <div id="fuiSaveResult" class="fieldDescription" style="margin-top:.6em" role="status"></div>
                 </div>
             </form>
+            <div class="fullui-tmdb" style="display:flex;align-items:center;gap:.8em;margin:2em 0 .5em 0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 190 80" width="76" height="32" role="img" aria-label="TMDB" style="flex:0 0 auto">
+                    <defs><linearGradient id="tmdbg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#90cea1"/><stop offset="0.56" stop-color="#3cbec9"/><stop offset="1" stop-color="#00b3e5"/></linearGradient></defs>
+                    <rect x="0" y="0" width="190" height="80" rx="14" fill="#0d253f"/>
+                    <text x="95" y="53" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="40" letter-spacing="1" fill="url(#tmdbg)">TMDB</text>
+                </svg>
+                <span class="fieldDescription">This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
+            </div>
         </div>
     </div>
 
@@ -137,7 +145,7 @@
                     $('tmdbLanguage').value = c.TmdbLanguage || 'en-US';
                     $('tmdbRegion').value = c.TmdbRegion || 'US';
                     $('serverName').value = c.ServerName || 'FullUI';
-                    $('accentColor').value = c.AccentColor || '#e50914';
+                    $('accentColor').value = c.AccentColor || '#e5383b';
                     $('ollamaEnabled').checked = !!c.OllamaEnabled;
                     $('ollamaUrl').value = c.OllamaUrl || 'http://localhost:11434';
                     $('ollamaEmbedModel').value = c.OllamaEmbedModel || 'nomic-embed-text';
@@ -208,7 +216,7 @@
                 var accent = $('accentColor').value.trim();
                 if (accent && accent.charAt(0) !== '#') { accent = '#' + accent; }
                 if (accent && !ACCENT_RE.test(accent)) {
-                    say('fuiSaveResult', 'The accent color must look like #e50914 (a # and 3, 4, 6 or 8 letters/digits 0-9, a-f). Nothing was saved.', false);
+                    say('fuiSaveResult', 'The accent color must look like #e5383b (a # and 3, 4, 6 or 8 letters/digits 0-9, a-f). Nothing was saved.', false);
                     return false;
                 }
                 var days = parseInt($('topTenWindowDays').value, 10);
@@ -221,7 +229,7 @@
                     c.TmdbLanguage = $('tmdbLanguage').value.trim();
                     c.TmdbRegion = $('tmdbRegion').value.trim();
                     c.ServerName = $('serverName').value.trim();
-                    c.AccentColor = accent || '#e50914';
+                    c.AccentColor = accent || '#e5383b';
                     c.OllamaEnabled = $('ollamaEnabled').checked;
                     c.OllamaUrl = $('ollamaUrl').value.trim();
                     c.OllamaEmbedModel = $('ollamaEmbedModel').value.trim();

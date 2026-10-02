@@ -38,7 +38,9 @@ public sealed record ComingSoonCard(
     string? BackdropPath,
     string? ReleaseDate,
     string? TrailerKey,
-    int MyVote);                  // 1 want, -1 not for me, 0 none
+    int MyVote,                   // 1 want, -1 not for me, 0 none
+    bool Upcoming = false,        // release date is today or later (a true "Coming Soon" title); false = already released, still requestable
+    bool Reminded = false);       // the caller asked to be reminded
 
 public sealed record HomeRow(
     string Id,

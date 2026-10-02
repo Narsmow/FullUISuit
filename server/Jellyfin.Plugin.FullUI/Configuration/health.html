@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>FullUI Health</title>
+</head>
+<body>
+<div id="FullUIHealthPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button">
+    <div data-role="content">
+        <div class="content-primary">
+            <h2>FullUI Health</h2>
+            <p class="fieldDescription">A quick check that everything FullUI needs is working, in plain English. Green is fine, yellow deserves a look, red needs fixing.</p>
+
+            <div id="hlSummary" style="margin:1em 0;padding:.8em 1em;border-radius:6px;background:rgba(128,128,128,.15);font-weight:600">Checking...</div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:.6em;align-items:center;margin:1em 0">
+                <button is="emby-button" type="button" id="hlRefresh" class="raised"><span>Check again</span></button>
+                <button is="emby-button" type="button" id="hlRebuild" class="raised"><span>Rebuild now</span></button>
+                <button is="emby-button" type="button" id="hlExport" class="raised"><span>Export my data</span></button>
+            </div>
+            <div id="hlMessage" style="margin:.5em 0;min-height:1.4em"></div>
+
+            <h3>Connections</h3>
+            <div id="hlServices"></div>
+
+            <h3>Background jobs</h3>
+            <div id="hlTasks"></div>
+
+            <h3>Stored data</h3>
+            <div id="hlData"></div>
+
+            <h3>Recent problems</h3>
+            <div id="hlErrors"></div>
+
+            <h3>Version</h3>
+            <div id="hlVersion" class="fieldDescription"></div>
+
+            <div class="fullui-tmdb" style="display:flex;align-items:center;gap:.8em;margin:2em 0 .5em 0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 190 80" width="76" height="32" role="img" aria-label="TMDB" style="flex:0 0 auto">
+                    <defs><linearGradient id="tmdbg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#90cea1"/><stop offset="0.56" stop-color="#3cbec9"/><stop offset="1" stop-color="#00b3e5"/></linearGradient></defs>
+                    <rect x="0" y="0" width="190" height="80" rx="14" fill="#0d253f"/>
+                    <text x="95" y="53" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="40" letter-spacing="1" fill="url(#tmdbg)">TMDB</text>
+                </svg>
+                <span class="fieldDescription">This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var page = document.querySelector('#FullUIHealthPage');
+            var $ = function (id) { return page.querySelector('#' + id); };
+            var COLORS = { green: '#4caf50', amber: '#ff9800', red: '#f44336', grey: '#9e9e9e' };
+            var WORDS = { green: 'OK', amber: 'Check', red: 'Problem', grey: 'Not in use' };
+
+            function say(text, ok) {
+                var m = $('hlMessage');
+                m.textContent = text || '';
+                m.style.color = ok === false ? '#f44336' : (ok === true ? '#4caf50' : '');
+            }
+
+            function friendly(err) {
+                // Never show raw server or exception text.
+                var status = err && err.status;
+                if (status === 401 || status === 403) { return 'You need to be signed in as an administrator.'; }
+                if (status === 0 || status === undefined) { return 'Could not reach the server. Check your connection and try again.'; }
+                return 'Something went wrong on the server. Please try again in a moment.';
+            }
+
+            function el(tag, props, children) {
+                var e = document.createElement(tag);
+                if (props) {
+                    Object.keys(props).forEach(function (k) {
+                        if (k === 'text') { e.textContent = props[k]; }
+                        else if (k === 'style') { e.style.cssText = props[k]; }
+                        else { e.setAttribute(k, props[k]); }
+                    });
+                }
+                (children || []).forEach(function (c) { if (c) { e.appendChild(c); } });
+                return e;
+            }
+
+            function badge(color, text, plain) {
+                return el('span', {
+                    text: plain ? text : (WORDS[color] || '') + (text ? ': ' + text : ''),
+                    style: 'display:inline-block;padding:.15em .6em;border-radius:1em;font-size:.85em;font-weight:600;color:#111;background:' + (COLORS[color] || COLORS.grey)
+                });
+            }
+
+            function row(color, title, status, detail, plain) {
+                return el('div', { style: 'display:flex;flex-wrap:wrap;gap:.6em;align-items:baseline;padding:.5em 0;border-bottom:1px solid rgba(128,128,128,.25)' }, [
+                    el('div', { text: title, style: 'font-weight:600;min-width:12em' }),
+                    badge(color, status, plain),
+                    detail ? el('div', { text: detail, class: 'fieldDescription', style: 'flex:1 1 20em' }) : null
+                ]);
+            }
+
+            function bytes(n) {
+                if (!n) { return '0 KB'; }
+                if (n < 1024 * 1024) { return Math.max(1, Math.round(n / 1024)) + ' KB'; }
+                return (n / 1024 / 1024).toFixed(1) + ' MB';
+            }
+
+            function when(s) {
+                if (!s) { return ''; }
+                var d = new Date(s);
+                return isNaN(d.getTime()) ? '' : d.toLocaleString();
+            }
+
+            function clear(id) {
+                var n = $(id);
+                while (n.firstChild) { n.removeChild(n.firstChild); }
+                return n;
+            }
+
+            function render(h) {
+                var overall = h.overall === 'ok' ? 'green' : (h.overall === 'problem' ? 'red' : 'amber');
+                var sum = $('hlSummary');
+                sum.textContent = h.summary || '';
+                sum.style.borderLeft = '6px solid ' + COLORS[overall];
+
+                var svc = clear('hlServices');
+                svc.appendChild(row(h.injection.color, 'FullUI home screen', h.injection.status, h.injection.message));
+                svc.appendChild(row(h.tmdb.color, 'TMDB (Coming Soon, trailers)', h.tmdb.status, h.tmdb.message));
+                svc.appendChild(row(h.ollama.color, 'AI search (Ollama)', h.ollama.status, h.ollama.message));
+
+                var tasks = clear('hlTasks');
+                (h.tasks || []).forEach(function (t) {
+                    var detail = [t.message, t.lastEndUtc ? 'Last run: ' + when(t.lastEndUtc) : ''].filter(Boolean).join('  ');
+                    tasks.appendChild(row(t.color, t.name, t.status, detail));
+                });
+
+                var data = clear('hlData');
+                data.appendChild(row('grey', 'Library titles seen', String(h.catalogItems), '', true));
+                (h.files || []).forEach(function (f) {
+                    data.appendChild(row('grey', f.name, bytes(f.bytes), f.count + ' entries', true));
+                });
+                var c = h.counts || {};
+                data.appendChild(el('div', {
+                    class: 'fieldDescription',
+                    style: 'margin-top:.5em',
+                    text: 'Ratings ' + (c.ratings || 0) + ', My List ' + (c.myList || 0) + ', votes ' + (c.votes || 0) + ', reminders ' + (c.reminders || 0) + ', notifications ' + (c.notifications || 0) + '.'
+                }));
+
+                var errs = clear('hlErrors');
+                if (!h.recentErrors || !h.recentErrors.length) {
+                    errs.appendChild(el('div', { class: 'fieldDescription', text: 'No problems recorded since the server started.' }));
+                } else {
+                    h.recentErrors.forEach(function (e) {
+                        errs.appendChild(el('div', { style: 'padding:.3em 0;border-bottom:1px solid rgba(128,128,128,.25)' }, [
+                            el('span', { text: when(e.at) + '  ', class: 'fieldDescription' }),
+                            el('span', { text: e.message })
+                        ]));
+                    });
+                }
+
+                $('hlVersion').textContent = 'FullUI ' + h.pluginVersion + ' - works with Jellyfin ' + h.supportedJellyfin + ' - stored data format ' + h.storeFormat + '.';
+            }
+
+            function load() {
+                say('');
+                ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('FullUI/Admin/Health'), dataType: 'json' }).then(render, function (err) {
+                    $('hlSummary').textContent = 'Could not load the health check. ' + friendly(err);
+                });
+            }
+
+            $('hlRefresh').addEventListener('click', load);
+
+            $('hlRebuild').addEventListener('click', function () {
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('FullUI/Admin/Rebuild') }).then(function () {
+                    say('Rebuild started. It runs in the background; check again in a minute.', true);
+                    setTimeout(load, 5000);
+                }, function (err) {
+                    say('Could not start the rebuild. ' + friendly(err), false);
+                });
+            });
+
+            $('hlExport').addEventListener('click', function () {
+                ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('FullUI/Admin/Export'), dataType: 'json' }).then(function (doc) {
+                    var blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+                    var a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'fullui-export.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+                    say('Saved your data as fullui-export.json.', true);
+                }, function (err) {
+                    say('Could not export the data. ' + friendly(err), false);
+                });
+            });
+
+            page.addEventListener('pageshow', load);
+        })();
+    </script>
+</div>
+</body>
+</html>

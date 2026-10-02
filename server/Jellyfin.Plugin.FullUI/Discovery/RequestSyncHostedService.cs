@@ -11,6 +11,9 @@ namespace Jellyfin.Plugin.FullUI.Discovery;
 /// <summary>Runs the request sync shortly after the library changes (debounced). Does nothing if no ICatalog exists.</summary>
 public sealed class RequestSyncHostedService : IHostedService, IDisposable
 {
+    internal const string RunKey = "FullUILibraryWatcher";
+    internal const string RunName = "Watch for new library titles";
+
     private readonly IServiceProvider _sp;
     private readonly ILogger<RequestSyncHostedService> _log;
     private readonly Timer _timer;
@@ -58,6 +61,8 @@ public sealed class RequestSyncHostedService : IHostedService, IDisposable
 
     private void Run()
     {
+        var start = DateTime.UtcNow;
+        var runs = _sp.GetService<Ops.ITaskRunLog>();
         try
         {
             var catalog = _catalog;
@@ -72,10 +77,20 @@ public sealed class RequestSyncHostedService : IHostedService, IDisposable
             {
                 _log.LogInformation("FullUI: {Count} requested title(s) are now available", n);
             }
+
+            // A reminded title that just arrived in the library fires its "now on <server>" notification.
+            var sent = _sp.GetService<ReminderService>()?.Process(DateTime.UtcNow) ?? 0;
+            if (sent > 0)
+            {
+                _log.LogInformation("FullUI: {Count} reminder(s) sent", sent);
+            }
+
+            runs?.Record(RunKey, RunName, start, DateTime.UtcNow, Ops.TaskOutcome.Success, $"{n} request(s) arrived, {sent} reminder(s) sent.");
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "FullUI: request sync failed");
+            runs?.Record(RunKey, RunName, start, DateTime.UtcNow, Ops.TaskOutcome.Failed, "Checking for newly added titles failed. It will try again after the next library change.");
         }
     }
 }

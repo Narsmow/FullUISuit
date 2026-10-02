@@ -12,11 +12,13 @@ public class DiscoverUpcomingTask : IScheduledTask
 {
     private readonly ComingSoonService _service;
     private readonly ILogger<DiscoverUpcomingTask> _log;
+    private readonly Ops.ITaskRunLog? _runs;
 
-    public DiscoverUpcomingTask(ComingSoonService service, ILogger<DiscoverUpcomingTask> log)
+    public DiscoverUpcomingTask(ComingSoonService service, ILogger<DiscoverUpcomingTask> log, Ops.ITaskRunLog? runs = null)
     {
         _service = service;
         _log = log;
+        _runs = runs;
     }
 
     public string Name => "FullUI: Discover upcoming titles";
@@ -40,6 +42,7 @@ public class DiscoverUpcomingTask : IScheduledTask
         catch (Exception ex)
         {
             _log.LogWarning(ex, "FullUI: discovering upcoming titles failed; Coming Soon stays as it was");
+            _runs?.Note(Key, "Could not refresh Coming Soon (is TMDB reachable and the key valid?). The old list stays.", problem: true);
         }
     }
 

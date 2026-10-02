@@ -22,7 +22,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     public override Guid Id => Guid.Parse("7c3f2d9a-5b1e-4a86-9d0c-2f8e6b4a1c57");
 
-    public override string Description => "Netflix-style UI, personalized rows and suggestions.";
+    public override string Description => "A cinematic home screen with personalized rows, Coming Soon, requests and optional local AI search.";
 
     public IEnumerable<PluginPageInfo> GetPages()
     {
@@ -40,6 +40,16 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             EnableInMainMenu = true,
             MenuSection = "server",
             MenuIcon = "star",
+        };
+
+        yield return new PluginPageInfo
+        {
+            Name = "FullUIHealth",
+            DisplayName = "FullUI Health",
+            EmbeddedResourcePath = $"{GetType().Namespace}.Configuration.health.html",
+            EnableInMainMenu = true,
+            MenuSection = "server",
+            MenuIcon = "healing",
         };
     }
 }

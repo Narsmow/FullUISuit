@@ -277,6 +277,8 @@ public sealed class PluginStore : IDisposable
             _data = new StoreData();
         }
 
+        MigrateSchema();
+
         // Older versions kept embeddings inside store.json. Move them to their own file once.
         if (_data.LegacyEmbeddings is { Count: > 0 } legacy)
         {
@@ -299,6 +301,77 @@ public sealed class PluginStore : IDisposable
         {
             _data.LegacyEmbeddings = null;
         }
+    }
+
+    private void MigrateSchema()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+            {
+                _data.Version = StoreMigrations.CurrentVersion; // brand new store: nothing to upgrade, nothing to save yet
+                return;
+            }
+
+            var r = StoreMigrations.Migrate(_data);
+            if (r.FromFuture)
+            {
+                _log.LogWarning("FullUI: store.json was written by a newer FullUI (format {Version}); keeping a backup copy and reading what is understood", r.From);
+                try
+                {
+                    File.Copy(_path, _path + ".v" + r.From + ".bak", overwrite: false);
+                }
+                catch (IOException)
+                {
+                    // The backup from an earlier start already exists.
+                }
+
+                return;
+            }
+
+            if (r.Changed)
+            {
+                if (r.From < StoreMigrations.CurrentVersion && File.Exists(_path))
+                {
+                    try
+                    {
+                        File.Copy(_path, _path + ".v" + r.From + ".bak", overwrite: false);
+                    }
+                    catch (IOException)
+                    {
+                    }
+                }
+
+                _log.LogInformation("FullUI: upgraded stored data from format {From} to {To}", r.From, r.To);
+                _dirty = true;
+                Arm(_saveDelay);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "FullUI: stored data could not be upgraded; continuing with what was read");
+        }
+    }
+
+    /// <summary>Folder that holds store.json, embeddings.json and events.jsonl.</summary>
+    public string DirectoryPath => Path.GetDirectoryName(_path)!;
+
+    /// <summary>Size in bytes of store.json and embeddings.json on disk (0 when a file does not exist yet).</summary>
+    public (long Store, long Embeddings) FileSizes()
+    {
+        static long Len(string p)
+        {
+            try
+            {
+                return File.Exists(p) ? new FileInfo(p).Length : 0;
+            }
+            catch (IOException)
+            {
+                return 0;
+            }
+        }
+
+        return (Len(_path), Len(_embPath));
     }
 
     private static void MoveAside(string path)

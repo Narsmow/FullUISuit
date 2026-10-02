@@ -60,9 +60,14 @@ public sealed class FakeUsers : IUserDirectory
 {
     public Dictionary<Guid, string> Names { get; } = new();
 
+    /// <summary>Parental-rating caps by user (absent = no cap).</summary>
+    public Dictionary<Guid, int> Caps { get; } = new();
+
     public IReadOnlyList<Guid> UserIds => Names.Keys.ToList();
 
     public string? NameOf(Guid userId) => Names.GetValueOrDefault(userId);
+
+    public int? MaxParentalRatingScore(Guid userId) => Caps.TryGetValue(userId, out var c) ? c : null;
 }
 
 public sealed class FakeCatalog : ICatalog
@@ -73,7 +78,11 @@ public sealed class FakeCatalog : ICatalog
 
     public IReadOnlyList<CatalogItem> All => Items;
 
-    public IReadOnlySet<Guid> VisibleTo(Guid userId) => Visible ?? Items.Select(i => i.Id).ToHashSet();
+    /// <summary>When set, <see cref="VisibleTo"/> throws for this user (to prove one user's failure does not stop the others).</summary>
+    public Guid? VisibleThrowsFor { get; set; }
+
+    public IReadOnlySet<Guid> VisibleTo(Guid userId)
+        => VisibleThrowsFor == userId ? throw new InvalidOperationException("boom") : Visible ?? Items.Select(i => i.Id).ToHashSet();
 
     public void Invalidate()
     {
@@ -86,11 +95,26 @@ public sealed class FakeCatalog : ICatalog
     }
 }
 
+public sealed class FakeHome : IHomeInvalidator
+{
+    public List<Guid> Invalidated { get; } = new();
+
+    public void Invalidate(Guid userId) => Invalidated.Add(userId);
+}
+
+public sealed class FakeCast : ICastIndex
+{
+    public Dictionary<Guid, string[]> Cast { get; } = new();
+
+    public IReadOnlyList<string> CastOf(Guid itemId) => Cast.GetValueOrDefault(itemId) ?? Array.Empty<string>();
+}
+
 public static class Make
 {
-    public static CatalogItem Item(string name, int? tmdb = null, CatalogKind kind = CatalogKind.Movie, string[]? genres = null, string? overview = null, int? year = null, string[]? tags = null)
+    public static CatalogItem Item(string name, int? tmdb = null, CatalogKind kind = CatalogKind.Movie, string[]? genres = null, string? overview = null, int? year = null, string[]? tags = null, float? rating = null)
         => new()
         {
+            Rating = rating,
             Id = Guid.NewGuid(),
             Name = name,
             Kind = kind,

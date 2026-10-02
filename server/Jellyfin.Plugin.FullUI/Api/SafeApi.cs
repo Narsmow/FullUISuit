@@ -39,6 +39,7 @@ internal static class SafeApi
     public static IActionResult Fail(ILogger log, Exception ex, string what)
     {
         log.LogWarning(ex, "FullUI: {What} failed", what);
+        Ops.ErrorLog.Add($"Something went wrong while {what}.");
         return Error(StatusCodes.Status500InternalServerError, $"Something went wrong while {what}. Please try again in a moment. The server log has the details.");
     }
 

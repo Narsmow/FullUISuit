@@ -141,7 +141,7 @@ public class JsonCasingTests : IDisposable
     [Fact]
     public async Task ComingSoon_UsesLowercaseKeys_WithAndWithoutTmdb()
     {
-        _ts.Store.Write(d => d.ComingSoon[Http.User.ToString("N")] = new() { new ComingSoonEntry { TmdbId = 9, MediaType = "movie", Title = "Soon", Score = 1 } });
+        _ts.Store.Write(d => d.ComingSoon[Http.User.ToString("N")] = new() { new ComingSoonEntry { TmdbId = 9, MediaType = "movie", Title = "Soon", Score = 1, ReleaseDate = Dates.Soon } });
 
         var (_, off, _) = await Http.Render(Discovery(tmdbConfigured: false).ComingSoon());
         Assert.Equal("{\"cards\":[]}", off);
@@ -257,12 +257,12 @@ public class SafeApiTests
     [InlineData("#FFF", "#fff")]
     [InlineData("e50914", "#e50914")]
     [InlineData("#12345678", "#12345678")]
-    [InlineData("red", "#e50914")]
-    [InlineData("#e5091", "#e50914")]
-    [InlineData("javascript:alert(1)", "#e50914")]
-    [InlineData("#e50914; background:url(x)", "#e50914")]
-    [InlineData("", "#e50914")]
-    [InlineData(null, "#e50914")]
+    [InlineData("red", "#e5383b")]
+    [InlineData("#e5091", "#e5383b")]
+    [InlineData("javascript:alert(1)", "#e5383b")]
+    [InlineData("#e50914; background:url(x)", "#e5383b")]
+    [InlineData("", "#e5383b")]
+    [InlineData(null, "#e5383b")]
     public void AccentColor_IsValidatedServerSide(string? input, string expected)
         => Assert.Equal(expected, Branding.NormalizeAccent(input));
 }
@@ -388,7 +388,7 @@ public class ComingSoonRowTests : IDisposable
 
     private void SeedEntries(params int[] tmdbIds)
         => _ts.Store.Write(d => d.ComingSoon[_u.ToString("N")] = tmdbIds
-            .Select(id => new ComingSoonEntry { TmdbId = id, MediaType = "movie", Title = "Soon" + id, PosterPath = "/p.jpg", Score = id })
+            .Select(id => new ComingSoonEntry { TmdbId = id, MediaType = "movie", Title = "Soon" + id, PosterPath = "/p.jpg", Score = id, ReleaseDate = Dates.Soon })
             .ToList());
 
     private HomeResponse Home(string? tmdbKey = "k")

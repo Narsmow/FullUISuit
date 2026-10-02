@@ -227,7 +227,8 @@ public sealed class OllamaClient : IOllamaClient
             {
                 model,
                 stream = false,
-                options = new { temperature = 0.8, num_predict = 40 },
+                // Low temperature and a fixed seed: the same question gets (nearly) the same answer, so row titles do not wander.
+                options = new { temperature = 0.2, seed = 42, num_predict = 40 },
                 messages = new[] { new { role = "system", content = system }, new { role = "user", content = user } },
             });
             using var resp = await client.PostAsync(new Uri(baseUri, "api/chat"), new StringContent(body, Encoding.UTF8, "application/json"), cts.Token).ConfigureAwait(false);
