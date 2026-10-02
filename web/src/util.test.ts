@@ -139,7 +139,7 @@ describe('formatting', () => {
     ).toBe(1);
     expect(badgeText(3)).toBe('3');
     expect(badgeText(25)).toBe('9+');
-    expect(timeAgo('2020-01-01T00:00:00Z', Date.parse('2020-01-01T00:05:00Z'))).toBe('5m ago');
+    expect(timeAgo('2020-01-01T00:00:00Z', Date.parse('2020-01-01T00:05:00Z'))).toMatch(/^5 min\.? ago$/);
     expect(timeAgo('nope')).toBe('');
   });
 });

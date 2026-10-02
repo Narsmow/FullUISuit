@@ -1,3 +1,4 @@
+import { formatDate, formatRelative, t } from './i18n';
 import type { ComingSoonCard, HomeRow, ItemCard, NotificationDto, Route, RouteKind } from './types';
 
 export type ImageKind = 'Primary' | 'Backdrop' | 'Logo';
@@ -66,7 +67,7 @@ export function parseRoute(hash: string): Route {
   const tab = params.get('tab');
   if (tab && tab !== '0') return { kind: 'native', q: '' };
   const fui = (params.get('fui') || '').toLowerCase();
-  const kinds: string[] = ['shows', 'movies', 'myserver', 'search'];
+  const kinds: string[] = ['shows', 'movies', 'myserver', 'search', 'row'];
   const kind = (kinds.includes(fui) ? fui : 'home') as RouteKind;
   return { kind, q: params.get('q') || '' };
 }
@@ -97,8 +98,8 @@ export function formatRuntime(min: number | null | undefined): string {
   if (!min || min <= 0) return '';
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
-  if (h === 0) return `${m}m`;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  if (h === 0) return t('time.m', { m });
+  return m === 0 ? t('time.h', { h }) : t('time.hm', { h, m });
 }
 
 export function metaParts(c: Pick<ItemCard, 'year' | 'rated' | 'runtimeMinutes'>): string[] {
@@ -111,10 +112,10 @@ export function metaParts(c: Pick<ItemCard, 'year' | 'rated' | 'runtimeMinutes'>
 }
 
 export function formatRelease(date: string | null | undefined): string {
-  if (!date) return 'Coming soon';
+  if (!date) return t('soon.comingSoon');
   const d = new Date(date.length === 10 ? date + 'T00:00:00Z' : date);
-  if (isNaN(d.getTime())) return 'Coming soon';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  if (isNaN(d.getTime())) return t('soon.comingSoon');
+  return formatDate(d, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
 export function unreadCount(items: NotificationDto[]): number {
@@ -126,13 +127,11 @@ export function badgeText(n: number): string {
 }
 
 export function timeAgo(iso: string, now = Date.now()): string {
-  const t = new Date(iso).getTime();
-  if (isNaN(t)) return '';
-  const s = Math.max(0, Math.round((now - t) / 1000));
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  const ts = new Date(iso).getTime();
+  if (isNaN(ts)) return '';
+  const s = Math.max(0, Math.round((now - ts) / 1000));
+  if (s < 60) return t('time.justNow');
+  return formatRelative(s);
 }
 
 // ---- row helpers --------------------------------------------------------------------------
@@ -226,5 +225,52 @@ export function pickNeighbor(from: Rect, cands: Rect[], dir: Dir): number {
       best = i;
     }
   });
+  return best;
+}
+
+// ---- images ---------------------------------------------------------------------------------
+export const WIDTH_BUCKETS = [240, 320, 480, 720, 960, 1280, 1920] as const;
+
+/** Smallest server-side width bucket that still covers `cssPx` device-independent pixels at `dpr`. */
+export function pickImageWidth(cssPx: number, dpr = 1): number {
+  const want = Math.ceil((cssPx > 0 ? cssPx : 320) * (dpr > 0 ? Math.min(dpr, 3) : 1));
+  for (const b of WIDTH_BUCKETS) if (b >= want) return b;
+  return WIDTH_BUCKETS[WIDTH_BUCKETS.length - 1];
+}
+
+/** "42m left" / "1h 5m left" for resumable titles; '' when unknown. */
+export function formatTimeLeft(minutes: number | null | undefined): string {
+  if (!minutes || minutes <= 0) return '';
+  return t('card.timeLeft', { time: formatRuntime(Math.round(minutes)) });
+}
+
+// ---- card expansion geometry ----------------------------------------------------------------
+export type Origin = 'left' | 'center' | 'right';
+
+/**
+ * Which horizontal transform-origin lets a card scaled by `scale` stay inside [boxLeft, boxRight]?
+ * `extent` is the width of the card plus anything hanging out to the right (the info panel of Top 10 cards).
+ * With origin 'right' that panel is anchored to the card's right edge instead, so it hangs out to the left
+ * by `flip` px. Prefers growing from the centre, then left, then right; if nothing fits, the least overflow wins.
+ */
+export function chooseOrigin(left: number, width: number, extent: number, scale: number, boxLeft: number, boxRight: number, flip = 0): Origin {
+  const ratios: Array<[Origin, number]> = [
+    ['center', 0.5],
+    ['left', 0],
+    ['right', 1],
+  ];
+  let best: Origin = 'center';
+  let bestOver = Infinity;
+  for (const [name, r] of ratios) {
+    const x0 = left + r * width;
+    const l = x0 + (left - (name === 'right' ? flip : 0) - x0) * scale;
+    const rt = x0 + (left + (name === 'right' ? width : Math.max(width, extent)) - x0) * scale;
+    const over = Math.max(0, boxLeft - l) + Math.max(0, rt - boxRight);
+    if (over < bestOver - 0.5) {
+      bestOver = over;
+      best = name;
+    }
+    if (over === 0) return name;
+  }
   return best;
 }

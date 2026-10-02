@@ -19,6 +19,14 @@ export interface ItemCard {
   myRating: number;
   inMyList: boolean;
   rank?: number | null;
+  /** 1..99 calibrated match, when the server knows it (cold start: absent). */
+  matchPercent?: number | null;
+  /** Short plain-English why, e.g. "Because you watched Dark". */
+  reason?: string | null;
+  /** Continue Watching label such as "S2:E5" (movies: absent). */
+  seriesLabel?: string | null;
+  /** Minutes left for resumable titles. */
+  minutesLeft?: number | null;
 }
 
 export interface ComingSoonCard {
@@ -53,9 +61,18 @@ export interface MyServerResponse {
   wanted: ComingSoonCard[];
 }
 
+export interface SearchGroup {
+  /** 'people' | 'genres' | 'titles' (anything else is shown with its own label) */
+  type: string;
+  label?: string | null;
+  items: ItemCard[];
+}
+
 export interface SearchResponse {
   mode: string;
   items: ItemCard[];
+  /** Optional grouped results (people / genres), when the server provides them. */
+  groups?: SearchGroup[] | null;
 }
 
 export interface NotificationDto {
@@ -73,9 +90,13 @@ export interface PluginStatus {
   ollamaEnabled?: boolean;
   /** Admin switch (server setting). Missing means enabled. */
   trailersEnabled?: boolean;
+  /** Admin switch for the player assist (skip intro / next episode). Missing means enabled. */
+  playerAssistEnabled?: boolean;
+  /** Present when the server wants the TMDB attribution shown: true, a sentence, or { text }. */
+  tmdbAttribution?: boolean | string | { text?: string } | null;
 }
 
-export type RouteKind = 'home' | 'shows' | 'movies' | 'myserver' | 'search' | 'native';
+export type RouteKind = 'home' | 'shows' | 'movies' | 'myserver' | 'search' | 'row' | 'native';
 export interface Route {
   kind: RouteKind;
   q: string;

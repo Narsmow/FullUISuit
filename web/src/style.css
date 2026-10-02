@@ -37,7 +37,7 @@ html.fui-owns body {
   --gutter: 4%;
   --card-w: 16em;
   --card-w-open: 22em;
-  --info-h: 12.5em;
+  --info-h: 16em;
   position: fixed;
   top: 0;
   right: 0;
@@ -379,10 +379,16 @@ html.fui-owns body {
   display: flex;
   gap: 0.8em;
 }
-.fui-hero-mute {
+.fui-hero-controls {
   position: absolute;
   right: var(--gutter);
   bottom: 24%;
+  display: flex;
+  gap: 0.6em;
+}
+.fui-hero-mute,
+.fui-hero-pause,
+.fui-hero-replay {
   width: 2.8em;
   height: 2.8em;
   display: flex;
@@ -509,7 +515,15 @@ html.fui-owns body {
   flex: none;
   width: var(--card-w);
   cursor: pointer;
-  transition: width 0.2s ease;
+  transform-origin: center top;
+  transition: transform 0.22s ease;
+  will-change: auto;
+}
+.fui-card[data-origin='left'] {
+  transform-origin: left top;
+}
+.fui-card[data-origin='right'] {
+  transform-origin: right top;
 }
 .fui-art {
   position: relative;
@@ -524,6 +538,17 @@ html.fui-owns body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.fui-art img,
+.fui-hero-img,
+.fui-logo {
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.fui-art img.loaded,
+.fui-hero-img.loaded,
+.fui-logo.loaded {
+  opacity: 1;
 }
 .fui-art.noimg {
   display: flex;
@@ -586,9 +611,13 @@ html.fui-owns body {
   height: 100%;
   background: var(--fullui-accent);
 }
+/* Expansion is a transform from the card's own box: neighbours never reflow and edge cards grow inward. */
 .fui-card.expanded {
-  width: var(--card-w-open);
+  transform: scale(1.35);
   z-index: 30;
+}
+.fui-row-top10 {
+  --info-h: 19em;
 }
 .fui-card.expanded .fui-art {
   border-radius: 0.6em 0.6em 0 0;
@@ -702,8 +731,8 @@ html.fui-owns body {
 }
 .fui-rank {
   flex: none;
-  width: 5.5em;
-  margin-right: -0.9em;
+  width: 0.62em; /* the numeral's own width: em here is the 9em font size, not the card's */
+  margin-right: -0.1em;
   font-size: 9em;
   font-weight: 900;
   line-height: 0.8;
@@ -719,12 +748,15 @@ html.fui-owns body {
   position: relative;
   z-index: 2;
 }
-.fui-card.top10.expanded {
-  width: 14.5em;
-}
+
 .fui-card.top10 .fui-info {
   left: 5em;
   width: 18em;
+}
+/* near the right edge the panel hangs out to the left instead */
+.fui-card.top10[data-origin='right'] .fui-info {
+  left: auto;
+  right: 0;
 }
 
 /* Coming soon */
@@ -980,7 +1012,7 @@ html.fui-owns body {
     font-size: 0.95em;
     -webkit-line-clamp: 2;
   }
-  .fui-hero-mute {
+  .fui-hero-controls {
     bottom: auto;
     top: 1em;
   }
@@ -999,7 +1031,6 @@ html.fui-owns body {
   }
   .fui-rank {
     font-size: 7em;
-    width: 4.6em;
   }
   .fui-card.top10 .fui-info {
     left: 4em;
@@ -1063,5 +1094,262 @@ html.fui-owns body {
   .fui-card.top10 .fui-art::before,
   .fui-soon .fui-art::before {
     padding-top: 150%;
+  }
+}
+
+/* ---- hero lifecycle, badges, match ---- */
+.fui-hero.trailer-ended .fui-hero-trailer {
+  opacity: 0;
+}
+.fui-hero-pause .fui-icon,
+.fui-hero-replay .fui-icon,
+.fui-hero-mute .fui-icon {
+  width: 1.4em;
+  height: 1.4em;
+}
+.fui-rated {
+  padding: 0 0.4em;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 0.2em;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+.fui-why {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2em 0.8em;
+  margin-bottom: 0.4em;
+}
+.fui-match {
+  color: #46d369;
+  font-weight: 800;
+}
+.fui-reason {
+  color: #d2d2d2;
+  font-size: 0.9em;
+}
+.fui-rankcap {
+  margin-bottom: 0.3em;
+  font-weight: 800;
+  color: #fff;
+}
+.fui-top10-glyph {
+  position: absolute;
+  top: 0;
+  right: 0.4em;
+  padding: 0.25em 0.4em 0.35em;
+  border-radius: 0 0 0.3em 0.3em;
+  background: var(--fullui-accent);
+  font-size: 0.6em;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+.fui-cwlabel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.28em;
+  padding: 1.2em 0.6em 0.3em;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+  font-size: 0.78em;
+  font-weight: 600;
+}
+
+/* ---- rows: header, explore all, lazy placeholder ---- */
+.fui-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8em;
+  margin: 0 var(--gutter) 0.5em;
+}
+.fui-row-head .fui-row-title {
+  margin: 0;
+}
+.fui-row-explore {
+  display: inline-flex;
+  align-items: center;
+  color: #54b9c5;
+  font-size: 0.9em;
+  font-weight: 700;
+  text-decoration: none;
+  opacity: 0;
+  transform: translateX(-0.5em);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.fui-row-explore .fui-icon {
+  width: 1.3em;
+  height: 1.3em;
+}
+.fui-row-head:hover .fui-row-explore,
+.fui-row-explore:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: none) {
+  .fui-row-explore {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fui-row-sk {
+  height: 9.8em;
+  margin: 0 var(--gutter);
+  border-radius: 0.6em;
+  background: linear-gradient(90deg, #1c1c1c, #262626, #1c1c1c);
+  background-size: 200% 100%;
+  animation: fui-shimmer 1.6s linear infinite;
+}
+.fui-row-top10 .fui-row-sk {
+  height: 14.2em;
+}
+.fui-row-comingsoon .fui-row-sk {
+  height: 21em;
+}
+@keyframes fui-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.fui-row-pagehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  margin-bottom: 1em;
+}
+.fui-page-row {
+  padding: 6em var(--gutter) 4em;
+}
+.fui-page-row .fui-page-title {
+  padding: 0;
+  margin: 0;
+}
+
+/* ---- TMDB attribution ---- */
+.fui-tmdb {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  margin: 0.6em var(--gutter) 0;
+  color: var(--fui-muted);
+  font-size: 0.75em;
+}
+.fui-tmdb-logo {
+  flex: none;
+  width: 4.5em;
+  height: auto;
+}
+
+/* ---- search: recents, try, groups ---- */
+.fui-search-extras {
+  margin-top: 1em;
+}
+.fui-search-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em 0.8em;
+  margin-bottom: 0.8em;
+}
+.fui-search-label {
+  color: var(--fui-muted);
+  font-size: 0.9em;
+}
+.fui-chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+.fui-qchip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #555;
+  border-radius: 2em;
+  background: #222;
+  color: #fff;
+  font-size: 0.9em;
+}
+.fui-qchip button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.fui-qchip-q {
+  padding: 0.3em 0.4em 0.3em 0.9em;
+}
+.fui-qchip-x {
+  padding: 0.3em 0.7em 0.3em 0.2em;
+  color: var(--fui-muted);
+}
+button.fui-qchip {
+  padding: 0.3em 0.9em;
+  cursor: pointer;
+}
+.fui-group-title {
+  margin: 1.2em 0 0.6em;
+  font-size: 1.2em;
+}
+.fui-search-results .fui-row {
+  margin-top: 1.6em;
+}
+.fui-search-results .fui-row-head,
+.fui-search-results .fui-tmdb {
+  margin-left: 0;
+}
+
+/* ---- player assist (overlay on the NATIVE video page; outside .fui-root, so everything is scoped to #fullui-assist) ---- */
+#fullui-assist {
+  position: fixed;
+  right: 4%;
+  bottom: 16%;
+  z-index: 1; /* low on purpose: the native OSD controls and dialogs stay on top */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.8em;
+  pointer-events: none;
+  font: 16px/1.3 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #fff;
+}
+#fullui-assist .fui-assist-hidden {
+  display: none !important;
+}
+#fullui-assist .fui-assist-btn {
+  pointer-events: auto;
+  padding: 0.6em 1.4em;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 0.3em;
+  background: rgba(20, 20, 20, 0.75);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+#fullui-assist .fui-assist-btn:hover,
+#fullui-assist .fui-assist-btn:focus-visible {
+  background: #fff;
+  color: #000;
+}
+#fullui-assist .fui-assist-next {
+  padding: 0.8em 1em;
+  border-radius: 0.4em;
+  background: rgba(20, 20, 20, 0.85);
+}
+#fullui-assist .fui-assist-next-text {
+  margin-bottom: 0.6em;
+  font-weight: 700;
+}
+#fullui-assist .fui-assist-next-btns {
+  display: flex;
+  gap: 0.6em;
+}
+@media (prefers-reduced-motion: reduce) {
+  #fullui-assist * {
+    transition: none !important;
+    animation: none !important;
   }
 }

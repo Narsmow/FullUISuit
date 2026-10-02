@@ -31,6 +31,15 @@ export function move(root: HTMLElement, dir: Dir): boolean {
     target.scrollIntoView({ block: 'center', inline: 'nearest' });
     return true;
   }
+  // Down from the artwork of an expanded card goes into that card's own action buttons (the scaled
+  // artwork can overlap the next row, so geometry alone would jump over them).
+  if (dir === 'down' && cur.classList.contains('fui-art')) {
+    const own = cur.closest('.fui-card.expanded')?.querySelector<HTMLElement>('.fui-info button:not([disabled])');
+    if (own && visible(own)) {
+      own.focus({ preventScroll: true });
+      return true;
+    }
+  }
   const others = list.filter((e) => e !== cur);
   const idx = pickNeighbor(
     cur.getBoundingClientRect(),
