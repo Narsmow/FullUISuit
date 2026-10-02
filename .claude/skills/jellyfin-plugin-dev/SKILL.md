@@ -41,3 +41,6 @@ The TMDB key lives only in `PluginConfiguration` on the server. Never return it 
 
 ## Definition of done for a change
 Web tests pass and bundle builds, C# changes reviewed against the CI build, no secret leaks (grep for `TmdbApiKey` in responses), and any new endpoint has the correct authorization attribute.
+
+## Local .NET toolchain (verified working in the Claude cloud sandbox)
+`dotnet.microsoft.com` hosts are blocked, but apt works: `apt-get update && apt-get install -y dotnet-sdk-10.0`. The .NET 10 SDK builds the `net9.0` plugin and restores `Jellyfin.Controller` from api.nuget.org, so C# can be compiled locally (`dotnet build -c Release`) and unit tests run with `dotnet test`. Use isolated clone/worktree directories when several agents build in parallel (shared `obj/` collides).
