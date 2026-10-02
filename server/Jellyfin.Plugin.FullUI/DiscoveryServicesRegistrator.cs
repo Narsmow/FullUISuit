@@ -21,8 +21,13 @@ public class DiscoveryServicesRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<RequestService>();
         serviceCollection.AddSingleton<ReminderService>();
         serviceCollection.AddSingleton<NewPopularService>();
-        // TryAdd: the recommendation engine may register a better trending source; the signal-based one is the fallback.
-        serviceCollection.TryAddSingleton<ITrendingProvider, SignalTrendingProvider>();
+        // New & Popular uses the engine's own Trending / Top 10 rows for the user, with the signal-based provider as the fallback.
+        // TryAdd: a different ITrendingProvider registered by another component still wins.
+        serviceCollection.AddSingleton<SignalTrendingProvider>();
+        serviceCollection.TryAddSingleton<ITrendingProvider>(sp => new EngineTrendingProvider(
+            sp.GetRequiredService<Services.HomeService>(),
+            sp.GetRequiredService<SignalTrendingProvider>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<EngineTrendingProvider>>()));
         serviceCollection.AddSingleton<IOllamaClient, OllamaClient>();
         serviceCollection.AddSingleton<EmbeddingIndexer>();
         serviceCollection.AddSingleton<RowTitleGenerator>();

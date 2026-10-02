@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "tmdbId": 1001,
+      "mediaType": "movie",
+      "title": "The Odyssey",
+      "posterPath": "/odyssey.jpg",
+      "releaseDate": "2026-07-17",
+      "seasonNumber": null,
+      "notified": false
+    }
+  ]
+}

@@ -1,0 +1,178 @@
+{
+  "continueWatching": [
+    {
+      "id": "0000001f000000000000000000000001",
+      "name": "Severance",
+      "type": "Series",
+      "year": 2022,
+      "rating": 8.7,
+      "rated": "TV-MA",
+      "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+      "genres": [
+        "Science Fiction",
+        "Drama",
+        "Thriller"
+      ],
+      "runtimeMinutes": 50,
+      "badges": [
+        "#5 in Shows",
+        "New Episodes",
+        "Top Rated"
+      ],
+      "trailerKey": "xEQP4VVuyrY",
+      "tmdbId": 95396,
+      "progress": 0.35,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f8110f",
+      "matchPercent": 78,
+      "reason": "Pick up where you left off",
+      "seriesLabel": "S2:E5",
+      "minutesLeft": 32
+    },
+    {
+      "id": "00000008000000000000000000000001",
+      "name": "Interstellar",
+      "type": "Movie",
+      "year": 2014,
+      "rating": 8.4,
+      "rated": "PG-13",
+      "overview": "A team of explorers travels through a wormhole in space in an attempt to ensure humanity's survival.",
+      "genres": [
+        "Science Fiction",
+        "Adventure",
+        "Drama"
+      ],
+      "runtimeMinutes": 169,
+      "badges": [
+        "#5 in Movies",
+        "Top Rated"
+      ],
+      "trailerKey": "zSWdZVtXT7E",
+      "tmdbId": 157336,
+      "progress": 0.42,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f68888",
+      "matchPercent": 82,
+      "reason": "Pick up where you left off",
+      "seriesLabel": null,
+      "minutesLeft": 98
+    }
+  ],
+  "myList": [
+    {
+      "id": "00000026000000000000000000000001",
+      "name": "Andor",
+      "type": "Series",
+      "year": 2022,
+      "rating": 8.4,
+      "rated": "TV-14",
+      "overview": "Cassian Andor discovers the difference he can make against the Empire.",
+      "genres": [
+        "Science Fiction",
+        "Drama"
+      ],
+      "runtimeMinutes": 45,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": null,
+      "tmdbId": 83867,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 0,
+      "inMyList": true,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f88886",
+      "matchPercent": 69,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "0000000a000000000000000000000001",
+      "name": "Parasite",
+      "type": "Movie",
+      "year": 2019,
+      "rating": 8.5,
+      "rated": "R",
+      "overview": "All unemployed, Ki-taek's family takes peculiar interest in the wealthy and glamorous Parks.",
+      "genres": [
+        "Thriller",
+        "Drama",
+        "Comedy"
+      ],
+      "runtimeMinutes": 132,
+      "badges": [
+        "#1 in Movies",
+        "Top Rated"
+      ],
+      "trailerKey": "5xH0HfJHsaY",
+      "tmdbId": 496243,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": true,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f6aaaa",
+      "matchPercent": 95,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000005000000000000000000000001",
+      "name": "Dune",
+      "type": "Movie",
+      "year": 2021,
+      "rating": 8,
+      "rated": "PG-13",
+      "overview": "A noble family becomes embroiled in a war for control over the galaxy's most valuable asset.",
+      "genres": [
+        "Science Fiction",
+        "Adventure"
+      ],
+      "runtimeMinutes": 155,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "n9xhJrPXop4",
+      "tmdbId": 438631,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": true,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f65555",
+      "matchPercent": 44,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    }
+  ],
+  "wanted": [
+    {
+      "tmdbId": 1002,
+      "mediaType": "movie",
+      "title": "Supergirl",
+      "overview": "Kara Zor-El takes on a cosmic road trip.",
+      "posterPath": "/supergirl.jpg",
+      "backdropPath": "/supergirl-b.jpg",
+      "releaseDate": "2026-06-26",
+      "trailerKey": "SUPERGIRL01",
+      "myVote": 1,
+      "upcoming": false,
+      "reminded": false
+    }
+  ]
+}

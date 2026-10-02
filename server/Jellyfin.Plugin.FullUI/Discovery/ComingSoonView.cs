@@ -33,7 +33,7 @@ public static class ComingSoonView
 
     /// <summary>Call inside <c>PluginStore.Read</c>. Upcoming cards, best score first.</summary>
     public static List<ComingSoonCard> Cards(StoreData d, Guid userId, ISet<string> libraryKeys)
-        => Cards(d, userId, libraryKeys, DateTime.UtcNow, ComingSoonKind.Upcoming);
+        => Cards(d, userId, libraryKeys, Clock.UtcNow, ComingSoonKind.Upcoming);
 
     /// <summary>Call inside <c>PluginStore.Read</c>. Best score first.</summary>
     public static List<ComingSoonCard> Cards(StoreData d, Guid userId, ISet<string> libraryKeys, DateTime now, ComingSoonKind kind)

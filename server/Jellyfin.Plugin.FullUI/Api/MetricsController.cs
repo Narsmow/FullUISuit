@@ -59,7 +59,7 @@ public class MetricsController : ControllerBase
                 return SafeApi.Json(new EventsResult(0, batch.Length));
             }
 
-            var now = DateTime.UtcNow;
+            var now = Clock.UtcNow;
             if (!_limiter.TryTake(userId, batch.Length, now))
             {
                 Response.Headers["Retry-After"] = "60";
@@ -75,5 +75,5 @@ public class MetricsController : ControllerBase
     [HttpGet("Admin/Metrics")]
     [Authorize(Policy = "RequiresElevation")]
     public IActionResult Metrics([FromQuery] int? days)
-        => SafeApi.Run(_log, "loading the usage statistics", () => SafeApi.Json(_metrics.Report(DateTime.UtcNow, days ?? 30)));
+        => SafeApi.Run(_log, "loading the usage statistics", () => SafeApi.Json(_metrics.Report(Clock.UtcNow, days ?? 30)));
 }

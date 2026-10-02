@@ -6,7 +6,7 @@ using Jellyfin.Plugin.FullUI.Api;
 namespace Jellyfin.Plugin.FullUI.Services;
 
 /// <summary>
-/// Netflix's biggest lever is row order. The contract order stays, but the discovery rows swap places among their own
+/// Row order is the biggest lever on a streaming home screen. The contract order stays, but the discovery rows swap places among their own
 /// slots so a user who acts on "Trending" more than on "Because you watched" sees Trending first. Anchor rows (Continue,
 /// Top Picks, charts, My List, Coming Soon) never move.
 /// </summary>

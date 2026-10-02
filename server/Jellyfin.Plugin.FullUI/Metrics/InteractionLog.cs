@@ -14,8 +14,19 @@ public static class EventTypes
 {
     public static readonly string[] All = { "rowShown", "cardExpanded", "cardClicked", "playStarted", "trailerViewed", "searchIssued", "searchClicked" };
 
+    /// <summary>
+    /// Written by the server itself (never accepted from a client) whenever Jellyfin reports that playback started, whatever
+    /// started it: the denominator for "how many plays did FullUI's rows cause".
+    /// </summary>
+    public const string ServerPlay = "serverPlayStarted";
+
+    /// <summary>A type a client may send.</summary>
     public static string? Canonical(string? type)
         => All.FirstOrDefault(t => string.Equals(t, type, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>A type that may be stored in the log: the client types plus the server's own.</summary>
+    public static string? CanonicalStored(string? type)
+        => Canonical(type) ?? (string.Equals(type, ServerPlay, StringComparison.OrdinalIgnoreCase) ? ServerPlay : null);
 }
 
 /// <summary>One validated interaction, as kept on disk. <c>UserId</c> is only ever used to compute that user's own engagement and distinct-user counts.</summary>
@@ -277,7 +288,7 @@ public sealed class InteractionLog
         try
         {
             var l = JsonSerializer.Deserialize<Line>(line, Json);
-            if (l is null || !Guid.TryParse(l.U, out var u) || EventTypes.Canonical(l.T) is not { } type
+            if (l is null || !Guid.TryParse(l.U, out var u) || EventTypes.CanonicalStored(l.T) is not { } type
                 || !DateTime.TryParse(l.A, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var at))
             {
                 return null;

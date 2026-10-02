@@ -1,0 +1,43 @@
+{
+  "events": [
+    {
+      "type": "rowShown",
+      "rowType": "toppicks",
+      "at": "2026-06-01T11:58:00Z"
+    },
+    {
+      "type": "cardExpanded",
+      "rowType": "toppicks",
+      "itemId": "00000006000000000000000000000001",
+      "at": "2026-06-01T11:58:05Z"
+    },
+    {
+      "type": "cardClicked",
+      "rowType": "toppicks",
+      "itemId": "00000006000000000000000000000001",
+      "at": "2026-06-01T11:58:09Z"
+    },
+    {
+      "type": "playStarted",
+      "rowType": "toppicks",
+      "itemId": "00000006000000000000000000000001",
+      "at": "2026-06-01T11:58:12Z"
+    },
+    {
+      "type": "trailerViewed",
+      "itemId": "00000006000000000000000000000001",
+      "at": 1780315093000
+    },
+    {
+      "type": "searchIssued",
+      "query": "space",
+      "at": "2026-06-01T11:59:00Z"
+    },
+    {
+      "type": "searchClicked",
+      "query": "space",
+      "itemId": "00000006000000000000000000000001",
+      "at": "2026-06-01T11:59:04Z"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "title": "Something went wrong",
+  "status": 500,
+  "detail": "Sorry, we couldn't load your home page right now. Please try again in a moment."
+}

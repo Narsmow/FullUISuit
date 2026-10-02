@@ -1,0 +1,290 @@
+{
+  "item": {
+    "id": "00000008000000000000000000000001",
+    "name": "Interstellar",
+    "type": "Movie",
+    "year": 2014,
+    "rating": 8.4,
+    "rated": "PG-13",
+    "overview": "A team of explorers travels through a wormhole in space in an attempt to ensure humanity's survival.",
+    "genres": [
+      "Science Fiction",
+      "Adventure",
+      "Drama"
+    ],
+    "runtimeMinutes": 169,
+    "badges": [
+      "#5 in Movies",
+      "Top Rated"
+    ],
+    "trailerKey": "zSWdZVtXT7E",
+    "tmdbId": 157336,
+    "progress": 0.42,
+    "hasBackdrop": true,
+    "hasLogo": false,
+    "myRating": 0,
+    "inMyList": false,
+    "rank": null,
+    "imageTag": "a1b2c3d4e5f68888",
+    "matchPercent": 82,
+    "reason": "Pick up where you left off",
+    "seriesLabel": null,
+    "minutesLeft": 98
+  },
+  "tagline": "Mankind was born on Earth. It was never meant to die here.",
+  "seasons": [],
+  "nextUp": null,
+  "people": [
+    {
+      "name": "Matthew McConaughey",
+      "role": "Cooper",
+      "type": "Actor",
+      "id": "00000385000000000000000000000001",
+      "hasImage": true
+    },
+    {
+      "name": "Anne Hathaway",
+      "role": "Brand",
+      "type": "Actor",
+      "id": "00000386000000000000000000000001",
+      "hasImage": true
+    },
+    {
+      "name": "Jessica Chastain",
+      "role": "Murph",
+      "type": "Actor",
+      "id": "00000387000000000000000000000001",
+      "hasImage": true
+    },
+    {
+      "name": "Christopher Nolan",
+      "role": null,
+      "type": "Director",
+      "id": "00000388000000000000000000000001",
+      "hasImage": true
+    },
+    {
+      "name": "Jonathan Nolan",
+      "role": null,
+      "type": "Writer",
+      "id": "00000389000000000000000000000001",
+      "hasImage": false
+    }
+  ],
+  "trailers": [
+    {
+      "key": "zSWdZVtXT7E",
+      "name": "Official Trailer"
+    }
+  ],
+  "similar": [
+    {
+      "id": "00000004000000000000000000000001",
+      "name": "The Martian",
+      "type": "Movie",
+      "year": 2015,
+      "rating": 8,
+      "rated": "PG-13",
+      "overview": "An astronaut is stranded alone on Mars and must find a way to survive until rescue.",
+      "genres": [
+        "Science Fiction",
+        "Adventure"
+      ],
+      "runtimeMinutes": 144,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "ej3ioOneTy8",
+      "tmdbId": 286217,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f64444",
+      "matchPercent": 73,
+      "reason": "Similar to Interstellar",
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000006000000000000000000000001",
+      "name": "Dune: Part Two",
+      "type": "Movie",
+      "year": 2024,
+      "rating": 8.3,
+      "rated": "PG-13",
+      "overview": "Paul Atreides unites with the Fremen while seeking revenge against those who destroyed his family.",
+      "genres": [
+        "Science Fiction",
+        "Adventure"
+      ],
+      "runtimeMinutes": 166,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "Way9Dexny3w",
+      "tmdbId": 693134,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f66666",
+      "matchPercent": 90,
+      "reason": "Similar to Interstellar",
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000005000000000000000000000001",
+      "name": "Dune",
+      "type": "Movie",
+      "year": 2021,
+      "rating": 8,
+      "rated": "PG-13",
+      "overview": "A noble family becomes embroiled in a war for control over the galaxy's most valuable asset.",
+      "genres": [
+        "Science Fiction",
+        "Adventure"
+      ],
+      "runtimeMinutes": 155,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "n9xhJrPXop4",
+      "tmdbId": 438631,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": true,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f65555",
+      "matchPercent": 44,
+      "reason": "Similar to Interstellar",
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000026000000000000000000000001",
+      "name": "Andor",
+      "type": "Series",
+      "year": 2022,
+      "rating": 8.4,
+      "rated": "TV-14",
+      "overview": "Cassian Andor discovers the difference he can make against the Empire.",
+      "genres": [
+        "Science Fiction",
+        "Drama"
+      ],
+      "runtimeMinutes": 45,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": null,
+      "tmdbId": 83867,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 0,
+      "inMyList": true,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f88886",
+      "matchPercent": 69,
+      "reason": "Similar to Interstellar",
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000007000000000000000000000001",
+      "name": "Moon",
+      "type": "Movie",
+      "year": 2009,
+      "rating": 7.8,
+      "rated": "R",
+      "overview": "Nearing the end of a lonely three-year stint on the moon, an astronaut begins to question what he knows.",
+      "genres": [
+        "Science Fiction",
+        "Drama"
+      ],
+      "runtimeMinutes": 97,
+      "badges": [],
+      "trailerKey": null,
+      "tmdbId": 17431,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f67777",
+      "matchPercent": 52,
+      "reason": "Similar to Interstellar",
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "0000001f000000000000000000000001",
+      "name": "Severance",
+      "type": "Series",
+      "year": 2022,
+      "rating": 8.7,
+      "rated": "TV-MA",
+      "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+      "genres": [
+        "Science Fiction",
+        "Drama",
+        "Thriller"
+      ],
+      "runtimeMinutes": 50,
+      "badges": [
+        "New Episodes",
+        "Top Rated"
+      ],
+      "trailerKey": "xEQP4VVuyrY",
+      "tmdbId": 95396,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f8110f",
+      "matchPercent": 78,
+      "reason": "Similar to Interstellar",
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000012000000000000000000000001",
+      "name": "Mad Max: Fury Road",
+      "type": "Movie",
+      "year": 2015,
+      "rating": 7.6,
+      "rated": "R",
+      "overview": "In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search of her homeland.",
+      "genres": [
+        "Action",
+        "Adventure"
+      ],
+      "runtimeMinutes": 120,
+      "badges": [],
+      "trailerKey": null,
+      "tmdbId": 76341,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f73332",
+      "matchPercent": 86,
+      "reason": "Similar to Interstellar",
+      "seriesLabel": null,
+      "minutesLeft": null
+    }
+  ]
+}

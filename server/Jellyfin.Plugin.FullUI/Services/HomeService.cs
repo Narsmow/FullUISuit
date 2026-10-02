@@ -92,13 +92,13 @@ public sealed class HomeService
     /// <summary>The user's home. Throws when it cannot be built, so the API can answer 5xx instead of an empty 200.</summary>
     public HomeResponse GetHomeStrict(Guid userId)
     {
-        if (_cache.TryGetValue(userId, out var hit) && DateTime.UtcNow - hit.At < Ttl)
+        if (_cache.TryGetValue(userId, out var hit) && Clock.UtcNow - hit.At < Ttl)
         {
             return hit.Home;
         }
 
         var home = Compose(userId);
-        _cache[userId] = (DateTime.UtcNow, home);
+        _cache[userId] = (Clock.UtcNow, home);
         return home;
     }
 
@@ -126,7 +126,7 @@ public sealed class HomeService
 
         var home = GetHome(userId);
         var inRow = home.Rows.SelectMany(r => r.Items).FirstOrDefault(c => c.Id == itemId.ToString("N"));
-        var now = DateTime.UtcNow;
+        var now = Clock.UtcNow;
         return _store.Read(d =>
         {
             var key = StoreData.UserItemKey(userId, itemId);
@@ -151,6 +151,43 @@ public sealed class HomeService
                 inRow?.SeriesLabel,
                 inRow?.MinutesLeft);
         });
+    }
+
+    /// <summary>
+    /// "More like this" for a title, as cards (at most <paramref name="count"/>): the engine's neighbours by content, AI embeddings
+    /// and collection siblings, through the same eligibility rule as every row (visible, not thumbed down, not finished or dropped).
+    /// The title itself is never included. Empty when the title is unknown or not visible to the user. Throws when the library
+    /// cannot be read (callers decide how to degrade). Nothing is cached here beyond what the home already caches.
+    /// </summary>
+    public IReadOnlyList<ItemCard> Similar(Guid userId, Guid itemId, int count)
+    {
+        if (count <= 0 || !_catalog.VisibleTo(userId).Contains(itemId))
+        {
+            return Array.Empty<ItemCard>();
+        }
+
+        var cfg = Cfg;
+        var serverName = string.IsNullOrWhiteSpace(cfg?.ServerName) ? "FullUI" : cfg!.ServerName;
+        var ranked = RecEngine.Similar(BuildInput(userId, cfg, serverName, Clock.UtcNow), itemId, count);
+        return _store.Read(d => ranked.Select(r =>
+        {
+            var key = StoreData.UserItemKey(userId, r.Item.Id);
+            return CardMapper.ToCard(r.Item, r.Badges, null, null, d.Ratings.GetValueOrDefault(key), d.MyList.Contains(key), d, r.Match, r.Reason);
+        }).ToList());
+    }
+
+    /// <summary>The next episode Jellyfin has ready for this series and user, or null (never throws).</summary>
+    public NextUpEntry? NextUpFor(Guid userId, Guid seriesId)
+    {
+        try
+        {
+            return _nextUp?.NextUpEntries(userId).FirstOrDefault(e => e.SeriesId == seriesId);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "FullUI: next-up unavailable for {User}", userId);
+            return null;
+        }
     }
 
     public MyServerResponse GetMyServer(Guid userId)
@@ -183,57 +220,9 @@ public sealed class HomeService
     {
         var cfg = Cfg;
         var serverName = string.IsNullOrWhiteSpace(cfg?.ServerName) ? "FullUI" : cfg!.ServerName;
-        var excluded = (cfg?.ExcludedUserIds ?? Array.Empty<string>())
-            .Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToHashSet();
-
         var catalog = _catalog.All;
-        var visible = _catalog.VisibleTo(userId);
-        var nextUpEntries = _nextUp?.NextUpEntries(userId) ?? Array.Empty<NextUpEntry>();
-        var nextUp = nextUpEntries.Select(e => e.SeriesId).ToList();
-        var nextUpEpisodes = nextUpEntries.Where(e => e.Season is not null || e.Episode is not null)
-            .ToDictionary(e => e.SeriesId, e => new NextUpEpisode(e.Season, e.Episode));
-        var watch = SafeWatch(userId);
-        var now = DateTime.UtcNow;
-        var kids = cfg?.ExcludeKidsFromSharedSignals ?? true
-            ? KidUsers(catalog, userId)
-            : new HashSet<Guid>();
-        var embeddings = EmbeddingsFor(catalog, cfg);
-        IReadOnlySet<Guid> hiddenForUser = new HashSet<Guid>();
-        try
-        {
-            hiddenForUser = _hiddenItems?.HiddenFor(userId) ?? hiddenForUser;
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "FullUI: could not read hidden titles for {User}", userId);
-        }
-
-        var input = _store.Read(d =>
-        {
-            var inp = new RecInput
-            {
-                UserId = userId,
-                HiddenItems = hiddenForUser,
-                Catalog = catalog,
-                Visible = visible,
-                Signals = d.Signals.ToList(),
-                Ratings = new Dictionary<string, int>(d.Ratings),
-                MyList = new HashSet<string>(d.MyList),
-                Now = now,
-                ServerName = serverName,
-                TopTenWindowDays = cfg?.TopTenWindowDays > 0 ? Math.Min(cfg.TopTenWindowDays, 90) : 7,
-                ExcludedUsers = excluded,
-                RowTitles = new Dictionary<string, string>(d.RowTitles),
-                NextUpSeries = nextUp,
-                NextUpEpisodes = nextUpEpisodes,
-                SeriesWatch = watch,
-                KidUsers = kids,
-                Embeddings = embeddings,
-                WeightsCache = _weights,
-                DataFingerprint = Fingerprint(d, now),
-            };
-            return inp;
-        });
+        var now = Clock.UtcNow;
+        var input = BuildInput(userId, cfg, serverName, now);
 
         var rows = RecEngine.Build(input);
         var result = new List<HomeRow>();
@@ -301,6 +290,62 @@ public sealed class HomeService
         }
 
         return new HomeResponse(serverName, Branding.NormalizeAccent(cfg?.AccentColor), unique);
+    }
+
+    /// <summary>Everything the engine needs for one user, read from the store, the catalog and Jellyfin's next-up / watch state.</summary>
+    private RecInput BuildInput(Guid userId, PluginConfiguration? cfg, string serverName, DateTime now)
+    {
+        var excluded = (cfg?.ExcludedUserIds ?? Array.Empty<string>())
+            .Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToHashSet();
+
+        var catalog = _catalog.All;
+        var visible = _catalog.VisibleTo(userId);
+        var nextUpEntries = _nextUp?.NextUpEntries(userId) ?? Array.Empty<NextUpEntry>();
+        var nextUp = nextUpEntries.Select(e => e.SeriesId).ToList();
+        var nextUpEpisodes = nextUpEntries.Where(e => e.Season is not null || e.Episode is not null)
+            .ToDictionary(e => e.SeriesId, e => new NextUpEpisode(e.Season, e.Episode));
+        var watch = SafeWatch(userId);
+        var kids = cfg?.ExcludeKidsFromSharedSignals ?? true
+            ? KidUsers(catalog, userId)
+            : new HashSet<Guid>();
+        var embeddings = EmbeddingsFor(catalog, cfg);
+        IReadOnlySet<Guid> hiddenForUser = new HashSet<Guid>();
+        try
+        {
+            hiddenForUser = _hiddenItems?.HiddenFor(userId) ?? hiddenForUser;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "FullUI: could not read hidden titles for {User}", userId);
+        }
+
+        var input = _store.Read(d =>
+        {
+            var inp = new RecInput
+            {
+                UserId = userId,
+                HiddenItems = hiddenForUser,
+                Catalog = catalog,
+                Visible = visible,
+                Signals = d.Signals.ToList(),
+                Ratings = new Dictionary<string, int>(d.Ratings),
+                MyList = new HashSet<string>(d.MyList),
+                Now = now,
+                ServerName = serverName,
+                TopTenWindowDays = cfg?.TopTenWindowDays > 0 ? Math.Min(cfg.TopTenWindowDays, 90) : 7,
+                ExcludedUsers = excluded,
+                RowTitles = new Dictionary<string, string>(d.RowTitles),
+                NextUpSeries = nextUp,
+                NextUpEpisodes = nextUpEpisodes,
+                SeriesWatch = watch,
+                KidUsers = kids,
+                Embeddings = embeddings,
+                WeightsCache = _weights,
+                DataFingerprint = Fingerprint(d, now),
+            };
+            return inp;
+        });
+        return input;
     }
 
     private IReadOnlyDictionary<Guid, SeriesWatchInfo> SafeWatch(Guid userId)

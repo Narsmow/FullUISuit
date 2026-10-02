@@ -45,6 +45,8 @@ public sealed class HealthService
         ("FullUISyncRequests", "Sync requested titles", false),
         ("FullUIDaily", "Send reminders and tidy up", true),
         ("FullUIMaterializePlaylists", "Write recommendation playlists", true),
+        (Events.EventTracker.RunKey, Events.EventTracker.RunName, false),
+        (Events.PlaybackBackfillService.RunKey, Events.PlaybackBackfillService.RunName, false),
     };
 
     private readonly PluginStore _store;

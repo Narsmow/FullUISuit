@@ -115,6 +115,14 @@ public sealed class DependencyInjectionTests : IDisposable
     }
 
     [Fact]
+    public void NewAndPopularUsesTheEnginesTrendingLists_WithTheSignalProviderAsFallback()
+    {
+        using var sp = Build();
+        Assert.IsType<EngineTrendingProvider>(sp.GetRequiredService<ITrendingProvider>());
+        Assert.Same(sp.GetRequiredService<ITrendingProvider>(), sp.GetRequiredService<ITrendingProvider>());
+    }
+
+    [Fact]
     public void HomeServiceIsASingleton_SoItsCacheIsShared()
     {
         using var sp = Build();

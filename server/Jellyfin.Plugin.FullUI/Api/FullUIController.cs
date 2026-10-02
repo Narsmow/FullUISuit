@@ -14,10 +14,12 @@ namespace Jellyfin.Plugin.FullUI.Api;
 public class FullUIController : ControllerBase
 {
     private readonly IHttpClientFactory _http;
+    private readonly Discovery.IConfigSource? _config;
 
-    public FullUIController(IHttpClientFactory http)
+    public FullUIController(IHttpClientFactory http, Discovery.IConfigSource? config = null)
     {
         _http = http;
+        _config = config;
     }
 
     public record TmdbTestRequest(string? ApiKey);
@@ -70,7 +72,7 @@ public class FullUIController : ControllerBase
     [Authorize]
     public IActionResult Status()
     {
-        var cfg = Plugin.Instance?.Configuration;
+        var cfg = _config?.Current ?? Plugin.Instance?.Configuration;
         return SafeApi.Json(new
         {
             serverName = string.IsNullOrWhiteSpace(cfg?.ServerName) ? "FullUI" : cfg!.ServerName,

@@ -70,3 +70,41 @@ public sealed record SearchResponse(string Mode, IReadOnlyList<ItemCard> Items);
 public sealed record NotificationDto(Guid Id, string Text, DateTime At, bool Read, string? ItemId);
 
 public sealed record MarkReadRequest(Guid[]? Ids);
+
+/// <summary>One episode in the title modal. <c>Progress</c> is 0..1 when partly watched, else null.</summary>
+public sealed record EpisodeDto(
+    string Id,
+    int? Number,
+    string Name,
+    string? Overview,
+    int? RuntimeMinutes,
+    double? Progress,
+    bool Played,
+    bool HasImage,
+    string? AirDate);
+
+/// <summary>One season (number 0 = specials, always last) with its episodes in order.</summary>
+public sealed record SeasonDto(
+    string Id,
+    int Number,
+    string Name,
+    int EpisodeCount,
+    int WatchedCount,
+    IReadOnlyList<EpisodeDto> Episodes);
+
+public sealed record NextUpDto(string EpisodeId, int? SeasonNumber, int? Number, string? Name, double? Progress);
+
+/// <summary>A cast or crew member. <c>Type</c> is Actor, Director or Writer.</summary>
+public sealed record PersonDto(string Name, string? Role, string Type, string? Id, bool HasImage);
+
+public sealed record TrailerDto(string Key, string? Name);
+
+/// <summary>Response of <c>GET Item/{id}/Details</c>.</summary>
+public sealed record ItemDetails(
+    ItemCard Item,
+    string? Tagline,
+    IReadOnlyList<SeasonDto> Seasons,
+    NextUpDto? NextUp,
+    IReadOnlyList<PersonDto> People,
+    IReadOnlyList<TrailerDto> Trailers,
+    IReadOnlyList<ItemCard> Similar);

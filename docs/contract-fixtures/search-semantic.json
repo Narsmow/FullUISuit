@@ -1,0 +1,363 @@
+{
+  "mode": "semantic",
+  "items": [
+    {
+      "id": "00000008000000000000000000000001",
+      "name": "Interstellar",
+      "type": "Movie",
+      "year": 2014,
+      "rating": 8.4,
+      "rated": "PG-13",
+      "overview": "A team of explorers travels through a wormhole in space in an attempt to ensure humanity's survival.",
+      "genres": [
+        "Science Fiction",
+        "Adventure",
+        "Drama"
+      ],
+      "runtimeMinutes": 169,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "zSWdZVtXT7E",
+      "tmdbId": 157336,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f68888",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000001000000000000000000000001",
+      "name": "Arrival",
+      "type": "Movie",
+      "year": 2016,
+      "rating": 7.9,
+      "rated": "PG-13",
+      "overview": "A linguist works with the military to communicate with alien visitors before the world slides into war.",
+      "genres": [
+        "Science Fiction",
+        "Drama"
+      ],
+      "runtimeMinutes": 116,
+      "badges": [],
+      "trailerKey": "tNQr0fKLvGE",
+      "tmdbId": 329865,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 2,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f61111",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000002000000000000000000000001",
+      "name": "Blade Runner 2049",
+      "type": "Movie",
+      "year": 2017,
+      "rating": 8,
+      "rated": "R",
+      "overview": "A young blade runner uncovers a long-buried secret that leads him to track down a missing legend.",
+      "genres": [
+        "Science Fiction",
+        "Thriller"
+      ],
+      "runtimeMinutes": 164,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "gCcx85zbxz4",
+      "tmdbId": 335984,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f62222",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000020000000000000000000000001",
+      "name": "Dark",
+      "type": "Series",
+      "year": 2017,
+      "rating": 8.7,
+      "rated": "TV-MA",
+      "overview": "A missing child sets four families on a frantic hunt for answers as they unearth a mind-bending mystery.",
+      "genres": [
+        "Science Fiction",
+        "Drama",
+        "Mystery"
+      ],
+      "runtimeMinutes": 55,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": null,
+      "tmdbId": 70523,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f82220",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000007000000000000000000000001",
+      "name": "Moon",
+      "type": "Movie",
+      "year": 2009,
+      "rating": 7.8,
+      "rated": "R",
+      "overview": "Nearing the end of a lonely three-year stint on the moon, an astronaut begins to question what he knows.",
+      "genres": [
+        "Science Fiction",
+        "Drama"
+      ],
+      "runtimeMinutes": 97,
+      "badges": [],
+      "trailerKey": null,
+      "tmdbId": 17431,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f67777",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "0000001f000000000000000000000001",
+      "name": "Severance",
+      "type": "Series",
+      "year": 2022,
+      "rating": 8.7,
+      "rated": "TV-MA",
+      "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+      "genres": [
+        "Science Fiction",
+        "Drama",
+        "Thriller"
+      ],
+      "runtimeMinutes": 50,
+      "badges": [
+        "New Episodes",
+        "Top Rated"
+      ],
+      "trailerKey": "xEQP4VVuyrY",
+      "tmdbId": 95396,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f8110f",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000026000000000000000000000001",
+      "name": "Andor",
+      "type": "Series",
+      "year": 2022,
+      "rating": 8.4,
+      "rated": "TV-14",
+      "overview": "Cassian Andor discovers the difference he can make against the Empire.",
+      "genres": [
+        "Science Fiction",
+        "Drama"
+      ],
+      "runtimeMinutes": 45,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": null,
+      "tmdbId": 83867,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 0,
+      "inMyList": true,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f88886",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000005000000000000000000000001",
+      "name": "Dune",
+      "type": "Movie",
+      "year": 2021,
+      "rating": 8,
+      "rated": "PG-13",
+      "overview": "A noble family becomes embroiled in a war for control over the galaxy's most valuable asset.",
+      "genres": [
+        "Science Fiction",
+        "Adventure"
+      ],
+      "runtimeMinutes": 155,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "n9xhJrPXop4",
+      "tmdbId": 438631,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": true,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f65555",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000006000000000000000000000001",
+      "name": "Dune: Part Two",
+      "type": "Movie",
+      "year": 2024,
+      "rating": 8.3,
+      "rated": "PG-13",
+      "overview": "Paul Atreides unites with the Fremen while seeking revenge against those who destroyed his family.",
+      "genres": [
+        "Science Fiction",
+        "Adventure"
+      ],
+      "runtimeMinutes": 166,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "Way9Dexny3w",
+      "tmdbId": 693134,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f66666",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000003000000000000000000000001",
+      "name": "Ex Machina",
+      "type": "Movie",
+      "year": 2014,
+      "rating": 7.7,
+      "rated": "R",
+      "overview": "A programmer is invited to evaluate the human qualities of a breathtaking humanoid robot.",
+      "genres": [
+        "Science Fiction",
+        "Thriller"
+      ],
+      "runtimeMinutes": 108,
+      "badges": [],
+      "trailerKey": null,
+      "tmdbId": 264660,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 1,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f63333",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000019000000000000000000000001",
+      "name": "Poor Things",
+      "type": "Movie",
+      "year": 2023,
+      "rating": 7.8,
+      "rated": "R",
+      "overview": "The incredible tale of Bella Baxter, brought back to life by a brilliant, unorthodox scientist.",
+      "genres": [
+        "Comedy",
+        "Science Fiction"
+      ],
+      "runtimeMinutes": 141,
+      "badges": [
+        "Recently Added"
+      ],
+      "trailerKey": null,
+      "tmdbId": 792307,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f7aaa9",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000004000000000000000000000001",
+      "name": "The Martian",
+      "type": "Movie",
+      "year": 2015,
+      "rating": 8,
+      "rated": "PG-13",
+      "overview": "An astronaut is stranded alone on Mars and must find a way to survive until rescue.",
+      "genres": [
+        "Science Fiction",
+        "Adventure"
+      ],
+      "runtimeMinutes": 144,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "ej3ioOneTy8",
+      "tmdbId": 286217,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f64444",
+      "matchPercent": null,
+      "reason": null,
+      "seriesLabel": null,
+      "minutesLeft": null
+    }
+  ]
+}

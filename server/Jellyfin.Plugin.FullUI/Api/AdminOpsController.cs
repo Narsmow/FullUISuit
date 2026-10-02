@@ -34,7 +34,7 @@ public class AdminOpsController : ControllerBase
 
     [HttpGet("Admin/Health")]
     public IActionResult Health()
-        => SafeApi.Run(_log, "checking FullUI's health", () => SafeApi.Json(_health.Build(DateTime.UtcNow)));
+        => SafeApi.Run(_log, "checking FullUI's health", () => SafeApi.Json(_health.Build(Clock.UtcNow)));
 
     /// <summary>A JSON backup file of ratings, My List, votes, request statuses, notifications, reminders and onboarding choices. <c>user</c> limits it to one user.</summary>
     [HttpGet("Admin/Export")]

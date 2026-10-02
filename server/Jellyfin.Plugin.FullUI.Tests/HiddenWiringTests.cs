@@ -10,7 +10,7 @@ using static Jellyfin.Plugin.FullUI.Tests.Kit;
 
 namespace Jellyfin.Plugin.FullUI.Tests;
 
-/// <summary>"Remove from Continue Watching" must reach the engine, and must only affect that row (Netflix behaviour).</summary>
+/// <summary>"Remove from Continue Watching" must reach the engine, and must only affect that row (streaming-app behaviour).</summary>
 public class HiddenWiringTests
 {
     private sealed class FakeHidden : IHiddenItems

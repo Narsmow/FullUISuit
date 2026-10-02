@@ -1,0 +1,141 @@
+{
+  "overall": "attention",
+  "summary": "Mostly fine, but a few things deserve a look (shown in yellow below).",
+  "pluginVersion": "1.0.0",
+  "supportedJellyfin": "10.11.6 and later",
+  "storeFormat": 2,
+  "injection": {
+    "enabled": true,
+    "status": "Working",
+    "color": "green",
+    "message": "The FullUI home screen is hooked into the Jellyfin web page."
+  },
+  "tmdb": {
+    "enabled": true,
+    "status": "Set up",
+    "color": "green",
+    "message": "A TMDB key is saved. Press Test in the FullUI settings to check it."
+  },
+  "ollama": {
+    "enabled": false,
+    "status": "Off",
+    "color": "grey",
+    "message": "AI search is switched off. Normal keyword search works."
+  },
+  "catalogItems": 34,
+  "tasks": [
+    {
+      "key": "FullUIRebuildRecs",
+      "name": "Rebuild FullUI recommendations",
+      "lastStartUtc": "2026-06-01T02:58:00Z",
+      "lastEndUtc": "2026-06-01T03:00:00Z",
+      "outcome": "Success",
+      "color": "green",
+      "status": "Worked",
+      "message": "Finished normally."
+    },
+    {
+      "key": "FullUIDiscoverUpcoming",
+      "name": "Discover upcoming titles",
+      "lastStartUtc": "2026-06-01T03:00:00Z",
+      "lastEndUtc": "2026-06-01T03:02:00Z",
+      "outcome": "Success",
+      "color": "green",
+      "status": "Worked",
+      "message": "Finished normally."
+    },
+    {
+      "key": "FullUIBuildEmbeddings",
+      "name": "Build AI index",
+      "lastStartUtc": "2026-05-31T12:00:00Z",
+      "lastEndUtc": "2026-05-31T12:04:00Z",
+      "outcome": "Problem",
+      "color": "amber",
+      "status": "Finished, but something went wrong",
+      "message": "3 of 38 titles could not be embedded."
+    },
+    {
+      "key": "FullUISyncRequests",
+      "name": "Sync requested titles",
+      "lastStartUtc": null,
+      "lastEndUtc": null,
+      "outcome": "Never",
+      "color": "grey",
+      "status": "Has not run yet",
+      "message": ""
+    },
+    {
+      "key": "FullUIDaily",
+      "name": "Send reminders and tidy up",
+      "lastStartUtc": "2026-06-01T06:00:00Z",
+      "lastEndUtc": "2026-06-01T06:00:05Z",
+      "outcome": "Success",
+      "color": "green",
+      "status": "Worked",
+      "message": "1 reminder sent."
+    },
+    {
+      "key": "FullUIMaterializePlaylists",
+      "name": "Write recommendation playlists",
+      "lastStartUtc": null,
+      "lastEndUtc": null,
+      "outcome": "Never",
+      "color": "grey",
+      "status": "Has not run yet",
+      "message": ""
+    },
+    {
+      "key": "FullUIPlaybackTracking",
+      "name": "Learn from playback",
+      "lastStartUtc": "2026-05-30T12:00:00Z",
+      "lastEndUtc": "2026-05-30T12:00:00Z",
+      "outcome": "Success",
+      "color": "green",
+      "status": "Worked",
+      "message": "Listening for playback and library changes."
+    },
+    {
+      "key": "FullUIPlaybackBackfill",
+      "name": "Import existing watch history",
+      "lastStartUtc": "2026-06-01T07:00:00Z",
+      "lastEndUtc": "2026-06-01T07:00:12Z",
+      "outcome": "Success",
+      "color": "green",
+      "status": "Worked",
+      "message": "Nothing new to import."
+    }
+  ],
+  "files": [
+    {
+      "name": "store.json",
+      "bytes": 48213,
+      "count": 150
+    },
+    {
+      "name": "embeddings.json",
+      "bytes": 3120,
+      "count": 8
+    },
+    {
+      "name": "events.jsonl",
+      "bytes": 912,
+      "count": 106
+    }
+  ],
+  "counts": {
+    "users": 4,
+    "signals": 139,
+    "ratings": 3,
+    "myList": 3,
+    "votes": 1,
+    "requests": 0,
+    "notifications": 3,
+    "reminders": 1,
+    "hiddenContinue": 0,
+    "onboarding": 0,
+    "embeddings": 8,
+    "events": 106
+  },
+  "recentErrors": [],
+  "generatedAt": "2026-06-01T12:00:00Z"
+}
