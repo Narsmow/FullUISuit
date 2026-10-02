@@ -167,6 +167,9 @@ public sealed class RequestService
             stored.UnionWith(d.ComingSoon.Keys);
             stored.UnionWith(d.Ratings.Keys.Select(UserOfKey).OfType<string>());
             stored.UnionWith(d.MyList.Select(UserOfKey).OfType<string>());
+            stored.UnionWith(d.Reminders.Select(r => r.UserId.ToString("N")));
+            stored.UnionWith(d.Onboarding.Keys);
+            stored.UnionWith(d.HiddenContinue.Select(UserOfKey).OfType<string>());
             var gone = stored.Where(u => !known.Contains(u)).ToHashSet();
             if (gone.Count == 0)
             {
@@ -176,8 +179,11 @@ public sealed class RequestService
             d.Votes.RemoveAll(v => gone.Contains(v.UserId.ToString("N")));
             d.Notifications.RemoveAll(n => gone.Contains(n.UserId.ToString("N")));
             d.Signals.RemoveAll(sig => gone.Contains(sig.UserId.ToString("N")));
+            d.Reminders.RemoveAll(r => gone.Contains(r.UserId.ToString("N")));
+            d.HiddenContinue.RemoveWhere(k => UserOfKey(k) is { } u && gone.Contains(u));
             foreach (var u in gone)
             {
+                d.Onboarding.Remove(u);
                 d.ComingSoon.Remove(u);
                 d.BackfilledUsers.Remove(u);
             }

@@ -164,7 +164,6 @@ public sealed class MetricsService : IRowEngagementProvider
     private static readonly TimeSpan CacheFor = TimeSpan.FromSeconds(60);
     private const int TopSearchCount = 20;
 
-    /// <summary>Row types that count as "recommendation" rows for plays-per-recommendation (everything the engine personalises).</summary>
     private readonly InteractionLog _log;
     private readonly IConfigSource _config;
     private readonly object _lock = new();

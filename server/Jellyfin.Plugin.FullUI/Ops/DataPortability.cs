@@ -439,10 +439,12 @@ public sealed class DataPortability
 
         lock (_lock)
         {
-            if (!_tokens.Remove(token, out var entry) || entry.Target != normalized || entry.Expires < now)
+            if (!_tokens.TryGetValue(token, out var entry) || entry.Target != normalized || entry.Expires < now)
             {
                 return new PurgeOutcome(true, null, 0, "That confirmation has expired or does not match. Ask for a new one.", new Dictionary<string, int>());
             }
+
+            _tokens.Remove(token);
         }
 
         var summary = Summarize(user);

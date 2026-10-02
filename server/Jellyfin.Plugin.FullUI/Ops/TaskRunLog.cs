@@ -156,7 +156,7 @@ public sealed class TaskRunRecorderService : IHostedService
         return Task.CompletedTask;
     }
 
-    private void OnCompleted(object? sender, TaskCompletionEventArgs e)
+    internal void OnCompleted(object? sender, TaskCompletionEventArgs e)
     {
         try
         {

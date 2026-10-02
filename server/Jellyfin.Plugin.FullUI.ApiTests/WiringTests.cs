@@ -139,7 +139,7 @@ public class AuthorizationTests
     public void EveryAction_IsAuthorizedOrExplicitlyAnonymous()
     {
         var actions = Actions().ToList();
-        Assert.True(actions.Count >= 15, "reflection found too few actions; the test is not looking at the controllers");
+        Assert.True(actions.Count >= 28, "reflection found too few actions; the test is not looking at the controllers");
 
         var open = actions
             .Where(a => !HasAuthorize(a.Controller, a.Action) && !a.Action.GetCustomAttributes<AllowAnonymousAttribute>(true).Any())
@@ -165,7 +165,7 @@ public class AuthorizationTests
             => m.GetCustomAttributes<AuthorizeAttribute>(true).Select(a => a.Policy).FirstOrDefault(p => p is not null)
                ?? c.GetCustomAttributes<AuthorizeAttribute>(true).Select(a => a.Policy).FirstOrDefault(p => p is not null);
 
-        var admin = new[] { "Tmdb/Test", "Ollama/Test", "Admin/Requests", "Admin/Requests/Status", "Admin/Requests.csv", "Admin/Rebuild", "Admin/Injection" };
+        var admin = new[] { "Tmdb/Test", "Ollama/Test", "Admin/Requests", "Admin/Requests/Status", "Admin/Requests.csv", "Admin/Rebuild", "Admin/Injection", "Admin/Metrics", "Admin/Health", "Admin/Export", "Admin/Import", "Admin/Purge" };
         foreach (var route in admin)
         {
             var match = Actions().Single(a => a.Action.GetCustomAttributes<HttpMethodAttribute>().Any(h => h.Template == route));
@@ -179,7 +179,7 @@ public class AuthorizationTests
         // The user always comes from the auth token. A parameter or request field named like a user id would let one user act as another.
         var parameters = Actions().SelectMany(a => a.Action.GetParameters()).ToList();
         Assert.DoesNotContain(parameters, p => p.Name!.Contains("userid", StringComparison.OrdinalIgnoreCase));
-        var dtos = new[] { typeof(RateRequest), typeof(MyListRequest), typeof(VoteRequest), typeof(MarkReadRequest) };
+        var dtos = new[] { typeof(RateRequest), typeof(MyListRequest), typeof(VoteRequest), typeof(MarkReadRequest), typeof(RemindRequest), typeof(OnboardingSubmitRequest), typeof(ItemIdRequest), typeof(Metrics.EventsRequest), typeof(Metrics.ClientEvent) };
         Assert.All(dtos, t => Assert.DoesNotContain(t.GetProperties(), p => p.Name.Contains("UserId", StringComparison.OrdinalIgnoreCase)));
     }
 }
