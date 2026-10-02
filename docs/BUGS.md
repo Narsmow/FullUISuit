@@ -2,6 +2,8 @@
 
 Source: four read-only file-by-file reviews (server C#, web bundle, Fire TV app, installer/CI). Duplicates found by several reviewers are merged into one entry. Ordered by importance: fix from the top.
 
+> **Scope decision (user): desktop browser only for now.** Fire TV, TV-remote (webOS/Tizen) and phone-specific items are DEFERRED, not dropped. Deferred IDs: B-03, B-04, B-11, B-12, B-14, B-34, B-35, B-37, B-38, B-39, B-40, B-41, B-42, B-64 to B-74 (Fire TV app), B-61 (legacy TV browsers) and the TV/touch parts of B-29, B-32, B-51, B-54. The Fire TV fix agent was stopped before finishing; its work is not merged. B-13/B-81 still apply (remove the wrong Fire TV job from `release.yml`) because it can break the desktop release.
+
 Severity: **CRITICAL** = feature totally broken / security hole / data loss. **HIGH** = likely to fail or misbehave in real use. **MEDIUM** = edge case or robustness gap. **LOW** = polish.
 Status column: `open` until fixed; "unverified" = reviewer could not confirm without a live Jellyfin / Android device.
 
