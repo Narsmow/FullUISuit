@@ -316,7 +316,7 @@ internal sealed class FixtureWorld
 
     public NewPopularController NewPopularCtl()
         => new NewPopularController(
-            new NewPopularService(_store, Catalog, new SignalTrendingProvider(_store, Catalog, Config, new FakeUsers())),
+            new NewPopularService(_store, Catalog, new EngineTrendingProvider(Home, new SignalTrendingProvider(_store, Catalog, Config, new FakeUsers()), NullLogger<EngineTrendingProvider>.Instance)),
             new ReminderService(_store, Catalog, Config, NullLogger<ReminderService>.Instance),
             Config,
             NullLogger<NewPopularController>.Instance).As(Viewer);
