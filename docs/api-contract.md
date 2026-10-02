@@ -89,7 +89,14 @@ Vote privacy: users only ever see their own votes; only admin endpoints expose t
 }
 ```
 
-Movies have `seasons: []` and no `nextUp`. Season 0 (specials) is returned as `number: 0` last. `similar` holds at most 12 visible, eligible titles from the engine's neighbours (never the title itself, never thumbs-down or finished ones). Images: `/Items/{id}/Images/Primary` for episodes and people. Camel-case JSON via `SafeApi.Json`; ids are `Guid.ToString("N")`.
+Movies have `seasons: []` and `nextUp: null`. Season 0 (specials) is returned as `number: 0`, always last; episodes are in episode order. `progress` is 0..1 only for a partly watched, not finished episode (else `null`); `watchedCount` counts finished episodes. Everything is for the calling user (Jellyfin's own per-user library access and watch state).
+
+- `nextUp` (series only): the episode Jellyfin's Next Up names; else the partly watched episode; else the first unwatched regular episode; `null` when everything is watched. Specials never count.
+- `people`: at most 20, actors first (billing order, at most 14), then directors (3) and writers (3). `id` is the person's Jellyfin id and may be `null`; `hasImage` is only true when `id` is set. Image: `/Items/{id}/Images/Primary`.
+- `trailers`: at most 5 YouTube ids: Jellyfin's own trailer links (with their names), the library snapshot's trailer, then, when a TMDB key is configured, the keys the nightly TMDB task cached (Trailer/Teaser clips only). **No network call is made on the request path.** `name` is "Trailer" when unknown.
+- `similar`: at most 12 cards ("More like this"): the engine's neighbours by content (genre, cast, studio, tags), AI embeddings when present, and the other members of the title's collection (first, `reason` "Also in {collection}"; otherwise `reason` "Similar to {title}"), with `matchPercent`. They pass the same eligibility rule as every row: visible to the user, not thumbed down, not finished, not a dropped show; never the title itself or a duplicate edition of it. If this part fails the rest of the page still opens with `similar: []`.
+- Errors: **404** when the title does not exist or the user may not see it (a title the user removed from Continue Watching still opens); **401** without a user; **500** as an RFC 7807 problem body when Jellyfin cannot be read (no exception text).
+- Images: `/Items/{id}/Images/Primary` for episodes and people. Camel-case JSON via `SafeApi.Json`; ids are `Guid.ToString("N")`. Nothing user-specific is cached beyond the existing 30 s home cache the card is read from.
 
 ## Contract fixtures
 

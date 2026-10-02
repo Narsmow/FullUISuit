@@ -378,56 +378,60 @@ internal sealed class FixtureWorld
         return new AdminOpsController(health, null!, NullLogger<AdminOpsController>.Instance).As(Viewer);
     }
 
-    // ------------------------------------------------------------------ title details (hand-built until the real endpoint exists)
+    // ------------------------------------------------------------------ title details
 
-    private ItemCard CardOf(int n, double? progress = null, int? match = null, string? reason = null)
-        => _store.Read(d => CardMapper.ToCard(Items.First(i => i.Id == Id(n)), RecEngine.Badges(Items.First(i => i.Id == Id(n)), Now), null, progress,
-            d.Ratings.GetValueOrDefault(StoreData.UserItemKey(Viewer, Id(n))), d.MyList.Contains(StoreData.UserItemKey(Viewer, Id(n))), d, match, reason));
+    public ItemDetailsController DetailsCtl()
+        => new ItemDetailsController(
+            new ItemDetailsService(Home, new FixtureTitleSource(), _store, Config, NullLogger<ItemDetailsService>.Instance),
+            NullLogger<ItemDetailsController>.Instance).As(Viewer);
+}
 
-    public ItemDetails DetailsMovie()
-        => new(
-            CardOf(8, 0.42, 94, "Because you watched Arrival"),
-            "Mankind was born on Earth. It was never meant to die here.",
-            Array.Empty<SeasonDto>(),
-            null,
-            new[]
-            {
-                new PersonDto("Matthew McConaughey", "Cooper", "Actor", Id(901).ToString("N"), true),
-                new PersonDto("Anne Hathaway", "Brand", "Actor", Id(902).ToString("N"), true),
-                new PersonDto("Christopher Nolan", null, "Director", Id(903).ToString("N"), true),
-            },
-            new[] { new TrailerDto("zSWdZVtXT7E", "Official Trailer") },
-            new[] { CardOf(1, null, 91, "Because you watched Arrival"), CardOf(2, null, 88, "Because you watched Arrival") });
+/// <summary>What Jellyfin would return for the two titles of the details fixtures (Interstellar, Severance), as the household viewer sees them.</summary>
+internal sealed class FixtureTitleSource : ITitleDetailsSource
+{
+    private static Guid Id(int n) => FixtureWorld.Id(n);
 
-    public ItemDetails DetailsSeries()
-        => new(
-            CardOf(31, null, 96, "Because you watched Dark"),
-            null,
-            new[]
+    public TitleData? Load(Guid userId, Guid itemId)
+    {
+        if (itemId == Id(8))
+        {
+            return new TitleData(
+                "Mankind was born on Earth. It was never meant to die here.",
+                Array.Empty<SeasonData>(),
+                new[]
+                {
+                    new PersonData("Matthew McConaughey", "Cooper", "Actor", Id(901), true),
+                    new PersonData("Anne Hathaway", "Brand", "Actor", Id(902), true),
+                    new PersonData("Jessica Chastain", "Murph", "Actor", Id(903), true),
+                    new PersonData("Christopher Nolan", null, "Director", Id(904), true),
+                    new PersonData("Jonathan Nolan", null, "Writer", Id(905), false),
+                },
+                new[] { new TrailerData("zSWdZVtXT7E", "Official Trailer") });
+        }
+
+        if (itemId == Id(31))
+        {
+            var s1 = new[] { "Good News About Hell", "Half Loop", "In Perpetuity", "The You You Are", "The Grim Barbarity of Optics and Design", "Hide and Seek", "Defiant Jazz", "What's for Dinner?", "The We We Are" };
+            var s2 = new[] { "Hello, Ms. Cobel", "Goodbye, Mrs. Selvig", "Who Is Alive?", "Woes Hollow", "Trojan's Horse", "Attila", "Chikhai Bardo", "Sweet Vitriol", "The After Hours", "Cold Harbor" };
+            var seasons = new List<SeasonData>
             {
-                new SeasonDto(Id(311).ToString("N"), 1, "Season 1", 2, 2, new[]
+                new(Id(311), 1, "Season 1", s1.Select((n, i) => new EpisodeData(Id(3100 + i + 1), 1, i + 1, n, i == 0 ? "Mark S. is promoted after a colleague leaves Lumon." : null, 45 + ((i * 3) % 11), null, true, true, new DateTime(2022, 2, 18).AddDays(i < 3 ? 0 : 7 * (i - 2)))).ToList()),
+                new(Id(312), 2, "Season 2", s2.Select((n, i) => new EpisodeData(Id(3200 + i + 1), 2, i + 1, n, i == 4 ? "Mark confronts what the severance chip took from him." : null, 44 + ((i * 5) % 12), i == 4 ? 0.35 : null, i < 4, i != 9, new DateTime(2025, 1, 17).AddDays(7 * i))).ToList()),
+                new(Id(310), 0, "Specials", new[] { new EpisodeData(Id(3001), 0, 1, "Making of Severance", null, 22, null, false, true, new DateTime(2022, 3, 1)) }),
+            };
+            return new TitleData(
+                null,
+                seasons,
+                new[]
                 {
-                    new EpisodeDto(Id(3111).ToString("N"), 1, "Good News About Hell", "Mark is promoted after a colleague leaves.", 55, null, true, true, "2022-02-18"),
-                    new EpisodeDto(Id(3112).ToString("N"), 2, "Half Loop", null, 48, null, true, true, "2022-02-18"),
-                }),
-                new SeasonDto(Id(312).ToString("N"), 2, "Season 2", 3, 1, new[]
-                {
-                    new EpisodeDto(Id(3121).ToString("N"), 1, "Hello, Ms. Cobel", null, 51, null, true, true, "2025-01-17"),
-                    new EpisodeDto(Id(3122).ToString("N"), 2, "Goodbye, Mrs. Selvig", "Mark searches for answers.", 47, 0.35, false, true, "2025-01-24"),
-                    new EpisodeDto(Id(3123).ToString("N"), 3, "Who Is Alive?", null, 52, null, false, false, "2025-01-31"),
-                }),
-                new SeasonDto(Id(310).ToString("N"), 0, "Specials", 1, 0, new[]
-                {
-                    new EpisodeDto(Id(3101).ToString("N"), 1, "Making of Severance", null, 22, null, false, true, "2022-03-01"),
-                }),
-            },
-            new NextUpDto(Id(3122).ToString("N"), 2, 2, "Goodbye, Mrs. Selvig", 0.35),
-            new[]
-            {
-                new PersonDto("Adam Scott", "Mark Scout", "Actor", Id(904).ToString("N"), true),
-                new PersonDto("Britt Lower", "Helly R.", "Actor", Id(905).ToString("N"), true),
-                new PersonDto("Ben Stiller", null, "Director", Id(906).ToString("N"), false),
-            },
-            new[] { new TrailerDto("xEQP4VVuyrY", "Official Trailer") },
-            new[] { CardOf(32, null, 90, "Because you watched Dark"), CardOf(38, null, 84, "More like this") });
+                    new PersonData("Adam Scott", "Mark Scout", "Actor", Id(906), true),
+                    new PersonData("Britt Lower", "Helly R.", "Actor", Id(907), true),
+                    new PersonData("Patricia Arquette", "Harmony Cobel", "Actor", Id(908), true),
+                    new PersonData("Ben Stiller", null, "Director", Id(909), false),
+                },
+                new[] { new TrailerData("xEQP4VVuyrY", "Official Trailer"), new TrailerData("AAAAAAAAAAA", null) });
+        }
+
+        return null;
+    }
 }

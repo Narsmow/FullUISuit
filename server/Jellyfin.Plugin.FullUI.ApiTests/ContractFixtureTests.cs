@@ -134,8 +134,8 @@ public class ContractFixtureTests : IDisposable
         files["admin-health.json"] = await Body(_w.AdminOpsCtl().Health(), NormalizeHealth);
 
         // ---- Title details (series and movie)
-        files["item-details-series.json"] = Format(_w.DetailsSeries());
-        files["item-details-movie.json"] = Format(_w.DetailsMovie());
+        files["item-details-series.json"] = await Body(_w.DetailsCtl().Details(FixtureWorld.Id(31)));
+        files["item-details-movie.json"] = await Body(_w.DetailsCtl().Details(FixtureWorld.Id(8)));
 
         // ---- Error shapes
         // RFC 7807 problem, 4xx (an out-of-range rating) and 5xx (the library cannot be read).

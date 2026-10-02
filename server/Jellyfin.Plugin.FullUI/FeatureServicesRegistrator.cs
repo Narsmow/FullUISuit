@@ -1,3 +1,5 @@
+using Jellyfin.Plugin.FullUI.Library;
+using Jellyfin.Plugin.FullUI.Services;
 using Jellyfin.Plugin.FullUI.Discovery;
 using Jellyfin.Plugin.FullUI.Metrics;
 using Jellyfin.Plugin.FullUI.Ops;
@@ -25,6 +27,10 @@ public class FeatureServicesRegistrator : IPluginServiceRegistrator
         serviceCollection.TryAddSingleton<IHomeInvalidator, HomeServiceInvalidator>();
         serviceCollection.AddSingleton<ICastIndex, CatalogCastIndex>();
         serviceCollection.AddSingleton<SuggestService>();
+
+        // Title modal
+        serviceCollection.AddSingleton<ITitleDetailsSource, JellyfinTitleDetailsSource>();
+        serviceCollection.AddSingleton<ItemDetailsService>();
 
         // Measurement
         serviceCollection.AddSingleton<InteractionLog>();
