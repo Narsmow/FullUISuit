@@ -14,6 +14,8 @@ export interface ItemCard {
   progress?: number | null;
   hasBackdrop: boolean;
   hasLogo: boolean;
+  /** Optional Primary/Backdrop image tag, when the server provides one (enables long-lived image caching). */
+  imageTag?: string | null;
   myRating: number;
   inMyList: boolean;
   rank?: number | null;
@@ -69,6 +71,8 @@ export interface PluginStatus {
   accentColor: string;
   tmdbConfigured?: boolean;
   ollamaEnabled?: boolean;
+  /** Admin switch (server setting). Missing means enabled. */
+  trailersEnabled?: boolean;
 }
 
 export type RouteKind = 'home' | 'shows' | 'movies' | 'myserver' | 'search' | 'native';

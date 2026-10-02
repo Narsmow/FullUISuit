@@ -1,6 +1,6 @@
 import { serverBase } from './api';
-import { badgeChips, createCard, createComingSoonCard, metaLine, openDetails } from './card';
-import { h, icon, ICONS } from './dom';
+import { badgeChips, createCard, createComingSoonCard, metaLine, openDetails, playItem } from './card';
+import { h, icon, ICONS, setChildren } from './dom';
 import { canonItem } from './store';
 import { isTrailerMuted, playTrailer, reducedMotion, setTrailerMuted, stopTrailer } from './trailer';
 import type { HomeRow, ItemCard } from './types';
@@ -8,7 +8,15 @@ import { imageUrl } from './util';
 
 function strip(children: HTMLElement[], label: string): HTMLElement {
   const scroller = h('div', { class: 'fui-strip', role: 'list', 'aria-label': label }, ...children);
-  for (const c of children) c.setAttribute('role', c.getAttribute('role') || 'listitem');
+  for (const c of children) c.setAttribute('role', 'listitem');
+  // Roving tabindex: one tab stop per row (the focused card's artwork); arrow keys do the rest.
+  const arts = children.map((c) => c.querySelector<HTMLElement>('.fui-art[role="button"]')).filter((a): a is HTMLElement => !!a);
+  arts.forEach((a, i) => a.setAttribute('tabindex', i === 0 ? '0' : '-1'));
+  scroller.addEventListener('focusin', (e) => {
+    const t = e.target as HTMLElement;
+    if (!arts.includes(t)) return;
+    for (const a of arts) a.setAttribute('tabindex', a === t ? '0' : '-1');
+  });
   const scrollBy = (dir: number) =>
     scroller.scrollBy({ left: dir * scroller.clientWidth * 0.85, behavior: reducedMotion() ? 'auto' : 'smooth' });
   const prev = h('button', { type: 'button', class: 'fui-arrow fui-prev', 'aria-label': 'Scroll left', tabindex: -1, text: '‹' });
@@ -50,7 +58,7 @@ export function createHero(raw: ItemCard): HTMLElement {
   const base = serverBase();
   const owner = {};
   const backdrop = card.hasBackdrop
-    ? h('img', { class: 'fui-hero-img', src: imageUrl(base, card.id, 'Backdrop', 1920), alt: '' })
+    ? h('img', { class: 'fui-hero-img', src: imageUrl(base, card.id, 'Backdrop', 1920, card.imageTag), alt: '' })
     : h('div', { class: 'fui-hero-img fui-hero-plain' });
   if (backdrop instanceof HTMLImageElement) backdrop.addEventListener('error', () => backdrop.classList.add('fui-hidden'));
   const trailer = h('div', { class: 'fui-hero-trailer' });
@@ -59,20 +67,20 @@ export function createHero(raw: ItemCard): HTMLElement {
   muteBtn.addEventListener('click', () => {
     const muted = !isTrailerMuted(owner);
     setTrailerMuted(owner, muted);
-    muteBtn.replaceChildren(icon(muted ? ICONS.mute : ICONS.unmute));
+    setChildren(muteBtn, icon(muted ? ICONS.mute : ICONS.unmute));
     const label = muted ? 'Unmute trailer' : 'Mute trailer';
     muteBtn.setAttribute('aria-label', label);
     muteBtn.title = label;
   });
   const title = h('div', { class: 'fui-hero-title' });
   if (card.hasLogo) {
-    const logo = h('img', { class: 'fui-hero-logo', src: imageUrl(base, card.id, 'Logo', 600), alt: card.name });
+    const logo = h('img', { class: 'fui-hero-logo', src: imageUrl(base, card.id, 'Logo', 600, card.imageTag), alt: card.name });
     logo.addEventListener('error', () => logo.replaceWith(h('h1', { text: card.name })));
     title.appendChild(logo);
   } else title.appendChild(h('h1', { text: card.name }));
 
   const play = h('button', { type: 'button', class: 'fui-btn fui-btn-primary fui-hero-play' }, icon(ICONS.play), 'Play');
-  play.addEventListener('click', () => openDetails(card.id));
+  play.addEventListener('click', () => playItem(card.id));
   const more = h('button', { type: 'button', class: 'fui-btn fui-btn-secondary fui-hero-more' }, icon(ICONS.info), 'More Info');
   more.addEventListener('click', () => openDetails(card.id));
 
@@ -102,6 +110,11 @@ export function createHero(raw: ItemCard): HTMLElement {
           muteBtn.classList.remove('fui-hidden');
         },
         onFail: () => {
+          hero.classList.remove('trailer-on');
+          muteBtn.classList.add('fui-hidden');
+        },
+        onStop: () => {
+          // a card trailer took over: drop the hero's "playing" look (it resumes when the card stops)
           hero.classList.remove('trailer-on');
           muteBtn.classList.add('fui-hidden');
         },

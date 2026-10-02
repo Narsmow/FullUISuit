@@ -12,7 +12,6 @@ type Listener = () => void;
 const items = new Map<string, ItemCard[]>();
 const soon = new Map<string, ComingSoonCard[]>();
 const listeners = new Map<string, Set<Listener>>();
-const busy = new Set<string>();
 
 let toastFn: (msg: string) => void = () => {};
 export function setToast(fn: (msg: string) => void): void {
@@ -75,53 +74,93 @@ function notify(key: string): void {
 export const itemKey = (c: ItemCard) => c.id;
 export const soonSubKey = (c: ComingSoonCard) => 'soon:' + soonKey(c);
 
+// Rapid clicks are never dropped: the UI updates optimistically on every click and the latest wanted
+// value is sent once the previous request finishes (so the server always ends up with the last click).
+interface Pending<T> {
+  confirmed: T;
+  want: T;
+  running: boolean;
+}
+const pending = new Map<string, Pending<unknown>>();
+
+let mutated: () => void = () => {};
+/** Called after a successful change (rating / My List / vote) so cached Home data can be dropped. */
+export function setOnMutate(fn: () => void): void {
+  mutated = fn;
+}
+
+async function enqueue<T>(
+  key: string,
+  prev: T,
+  next: T,
+  send: (v: T) => Promise<unknown>,
+  rollback: (v: T) => void,
+  failMsg: string,
+): Promise<void> {
+  let p = pending.get(key) as Pending<T> | undefined;
+  if (p) {
+    p.want = next; // a request is already in flight; it will pick this up when it finishes
+    return;
+  }
+  p = { confirmed: prev, want: next, running: true };
+  pending.set(key, p as Pending<unknown>);
+  try {
+    while (p.want !== p.confirmed) {
+      const v = p.want;
+      try {
+        await send(v);
+        p.confirmed = v;
+        mutated();
+      } catch {
+        p.want = p.confirmed;
+        rollback(p.confirmed);
+        toastFn(failMsg);
+        break;
+      }
+    }
+  } finally {
+    pending.delete(key);
+  }
+}
+
 /** Thumbs: -1 not for me, 1 like, 2 love; clicking the active level clears. */
-export async function setRating(card: ItemCard, clicked: number): Promise<void> {
-  const k = 'rate:' + card.id;
-  if (busy.has(k)) return;
+export function setRating(card: ItemCard, clicked: number): Promise<void> {
   const prev = card.myRating;
   const next = nextRating(prev, clicked);
-  busy.add(k);
   setItem(card, { myRating: next });
-  try {
-    await api.rate(card.id, next);
-  } catch {
-    setItem(card, { myRating: prev });
-    toastFn("Couldn't save your rating. Try again.");
-  } finally {
-    busy.delete(k);
-  }
+  return enqueue(
+    'rate:' + card.id,
+    prev,
+    next as number,
+    (v) => api.rate(card.id, v),
+    (v) => setItem(card, { myRating: v }),
+    "Couldn't save your rating. Try again.",
+  );
 }
 
-export async function toggleMyList(card: ItemCard): Promise<void> {
-  const k = 'list:' + card.id;
-  if (busy.has(k)) return;
+export function toggleMyList(card: ItemCard): Promise<void> {
   const prev = card.inMyList;
-  busy.add(k);
   setItem(card, { inMyList: !prev });
-  try {
-    await api.myList(card.id, !prev);
-  } catch {
-    setItem(card, { inMyList: prev });
-    toastFn("Couldn't update My List. Try again.");
-  } finally {
-    busy.delete(k);
-  }
+  return enqueue(
+    'list:' + card.id,
+    prev,
+    !prev,
+    (v) => api.myList(card.id, v),
+    (v) => setItem(card, { inMyList: v }),
+    "Couldn't update My List. Try again.",
+  );
 }
 
-export async function setVote(card: ComingSoonCard, clicked: number): Promise<void> {
-  const k = 'vote:' + soonKey(card);
-  if (busy.has(k)) return;
+export function setVote(card: ComingSoonCard, clicked: number): Promise<void> {
   const prev = card.myVote;
   const next = nextVote(prev, clicked);
-  busy.add(k);
   setSoon(card, next);
-  try {
-    await api.vote(card, next);
-  } catch {
-    setSoon(card, prev);
-    toastFn("Couldn't save your vote. Try again.");
-  } finally {
-    busy.delete(k);
-  }
+  return enqueue(
+    'vote:' + soonKey(card),
+    prev,
+    next as number,
+    (v) => api.vote(card, v),
+    (v) => setSoon(card, v),
+    "Couldn't save your vote. Try again.",
+  );
 }

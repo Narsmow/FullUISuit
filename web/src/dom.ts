@@ -37,6 +37,21 @@ export function append(el: Element, children: Child[]): void {
   }
 }
 
+/** replaceChildren() is missing on older TV browsers (webOS 4/5, Tizen 5.x): clear + append instead. */
+export function setChildren(el: Element, ...children: Child[]): void {
+  clear(el);
+  append(el, children);
+}
+
+/** True when `el` or a descendant has keyboard-style focus. `:focus-visible` throws in old engines: fall back to `:focus`. */
+export function hasFocusVisible(el: Element): boolean {
+  try {
+    return el.matches(':focus-visible') || !!el.querySelector(':focus-visible');
+  } catch {
+    return el.matches(':focus') || !!el.querySelector(':focus');
+  }
+}
+
 export function clear(el: Element): void {
   while (el.firstChild) el.removeChild(el.firstChild);
 }

@@ -1,6 +1,6 @@
 import { api } from './api';
-import { createCard } from './card';
-import { h, icon, ICONS } from './dom';
+import { createCard, disposeCards } from './card';
+import { clear, h, icon, ICONS } from './dom';
 import { createHero, createRow, stopHero } from './rows';
 import { resetStore } from './store';
 import type { HomeResponse, HomeRow, MyServerResponse, RouteKind } from './types';
@@ -81,12 +81,18 @@ export function myServerPage(serverName: string, data: MyServerResponse): Page {
   return { el: page, dispose: () => {} };
 }
 
-export function searchPage(initialQ: string, onQuery: (q: string) => void): Page {
+export function searchPlaceholder(aiSearch: boolean): string {
+  return aiSearch
+    ? 'Search titles, genres, or describe what you feel like watching'
+    : 'Search by title, actor, or genre';
+}
+
+export function searchPage(initialQ: string, onQuery: (q: string) => void, aiSearch = false): Page {
   resetStore();
   const input = h('input', {
     type: 'search',
     class: 'fui-search-input',
-    placeholder: 'Search titles, genres, or describe what you feel like watching',
+    placeholder: searchPlaceholder(aiSearch),
     'aria-label': 'Search',
     autocomplete: 'off',
     value: initialQ,
@@ -108,7 +114,7 @@ export function searchPage(initialQ: string, onQuery: (q: string) => void): Page
     q = q.trim();
     onQuery(q);
     if (q.length < 2) {
-      results.replaceChildren();
+      clear(results);
       mode.textContent = '';
       status.textContent = q ? 'Keep typing...' : 'Type to search your library.';
       return;
@@ -118,7 +124,8 @@ export function searchPage(initialQ: string, onQuery: (q: string) => void): Page
       const res = await api.search(q);
       if (my !== seq) return;
       resetStore();
-      results.replaceChildren();
+      clear(results);
+      disposeCards(true);
       const items = res.items || [];
       for (const it of items) {
         const c = createCard(it);
@@ -129,7 +136,7 @@ export function searchPage(initialQ: string, onQuery: (q: string) => void): Page
       status.textContent = items.length ? '' : `No results for "${q}".`;
     } catch {
       if (my !== seq) return;
-      results.replaceChildren();
+      clear(results);
       mode.textContent = '';
       status.textContent = "Search isn't working right now. Please try again in a moment.";
       status.appendChild(

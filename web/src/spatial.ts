@@ -1,7 +1,7 @@
 import { collapseExpanded } from './card';
 import { pickNeighbor, type Dir } from './util';
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input, .fui-card[tabindex="0"]';
+const FOCUSABLE = 'a[href], button:not([disabled]), input, .fui-art[role="button"]';
 
 const KEY_DIR: Record<string, Dir> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
 const KEYCODE_DIR: Record<number, Dir> = { 37: 'left', 39: 'right', 38: 'up', 40: 'down' };
@@ -17,7 +17,7 @@ function visible(el: HTMLElement): boolean {
 
 export function focusables(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (el) => el.tabIndex >= 0 && visible(el),
+    (el) => (el.tabIndex >= 0 || el.classList.contains('fui-art')) && visible(el),
   );
 }
 
@@ -26,7 +26,7 @@ export function move(root: HTMLElement, dir: Dir): boolean {
   const list = focusables(root);
   if (!list.length) return false;
   if (!cur || !root.contains(cur) || cur === document.body) {
-    const target = list.find((e) => e.classList.contains('fui-card')) || list[0];
+    const target = list.find((e) => e.classList.contains('fui-art')) || list[0];
     target.focus({ preventScroll: true });
     target.scrollIntoView({ block: 'center', inline: 'nearest' });
     return true;
@@ -71,6 +71,14 @@ export function installSpatial(root: HTMLElement, hooks: SpatialHooks): () => vo
       (e.key === 'Backspace' && !inInput) ||
       BACK_CODES.has(e.keyCode);
     if (isBack) {
+      // Escape inside the search box clears the text first instead of leaving the page.
+      if (inInput && e.key !== 'Backspace' && (t as HTMLInputElement).value) {
+        (t as HTMLInputElement).value = '';
+        t.dispatchEvent(new Event('input', { bubbles: true }));
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (hooks.closeMenus() || collapseExpanded() || hooks.back()) {
         e.preventDefault();
         e.stopPropagation();
