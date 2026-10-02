@@ -25,7 +25,16 @@ public sealed class FakeFactory : IHttpClientFactory
 
     public FakeFactory(HttpMessageHandler h) => _h = h;
 
-    public HttpClient CreateClient(string name) => new(_h, disposeHandler: false);
+    /// <summary>Names requested so far. The plugin configures (log suppression, defaults) only the "FullUI" client, so asking for any other would silently skip that.</summary>
+    public List<string> Names { get; } = new();
+
+    public HttpClient CreateClient(string name)
+    {
+        Names.Add(name);
+        return name == "FullUI"
+            ? new HttpClient(_h, disposeHandler: false)
+            : throw new InvalidOperationException($"Unexpected HttpClient name '{name}'; the plugin's named client is \"FullUI\".");
+    }
 }
 
 public class TmdbTests
