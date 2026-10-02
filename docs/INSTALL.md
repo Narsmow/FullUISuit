@@ -1,9 +1,12 @@
 # Install FullUI (for everyone, no technical knowledge needed)
 
-FullUI gives your Jellyfin a Netflix-style look, with personalised rows and a "Coming Soon" page.
+FullUI gives your Jellyfin a streaming-style look, with personalised rows and a "Coming Soon" list.
 You install it by running **one file**. It talks to your Jellyfin for you, installs everything,
 restarts Jellyfin, and checks that it worked. If something goes wrong it tells you in plain English
 and it is always safe to just run the file again.
+
+After installing, read the [user guide](USER_GUIDE.md) to see what the screens do and the [admin guide](ADMIN_GUIDE.md) to set up TMDB,
+check the Health page and look after the data.
 
 ## Before you start (1 minute)
 
@@ -67,11 +70,12 @@ The window prints numbered steps, **[1/9]** up to **[9/9]**. Green `OK` lines me
 | 9 | `What should your site be called?` | Type a name (for example `MowFlix`) or press Enter to keep `FullUI`. |
 | 9 | Explanation of **TMDB key** | Optional but recommended: it powers "Coming Soon" and trailers. Go to themoviedb.org, make a free account, open Settings > API, copy the "API Key". Paste it (hidden) and press Enter. If it is wrong the installer says so and asks again. Press Enter on an empty line to skip; you can add it later. |
 | 9 | `Install Ollama and the two small AI models now? (y/N)` | Optional smarter search. Press Enter for **No** (you can run the installer again later). **y** downloads a few GB and only works if you run the installer on the Jellyfin computer. |
-| end | Green box `All done! FullUI is installed.` plus your site address, and the Fire TV steps | Open the address. Press **Ctrl + F5** once in your browser to refresh. Log in as usual. |
+| end | Green box `All done! FullUI is installed.` plus your site address, and the Fire TV steps | Open the address. Press **Ctrl + F5** once in your browser to refresh. Log in as usual. Then open **Dashboard > FullUI Health**: it should say "Everything looks fine." |
 
 ## Fire TV / Fire Stick
 
-The Fire TV app is a separate download and does **not** need any computer tools.
+The Fire TV app is a separate download and does **not** need any computer tools. **It is paused and experimental:** the supported way to
+use FullUI is through the Jellyfin web page and the apps that wrap it. Try the Fire TV app only if you are curious.
 
 1. On the Fire TV install the free **Downloader** app from the Amazon Appstore.
 2. Fire TV **Settings > My Fire TV > Developer Options > Install unknown apps** and allow **Downloader**.
@@ -135,8 +139,10 @@ Run the installer with `-Uninstall`:
 
 It asks to confirm, removes FullUI, asks whether to also remove **File Transformation** (say **No** if you use other
 plugins such as Home Screen Sections), and offers to restart Jellyfin. Your FullUI settings, ratings and requests are
-**kept**, so installing again later restores everything. To erase them completely, stop Jellyfin and delete
-`<Jellyfin data folder>/fullui/store.json` and `<Jellyfin config folder>/plugins/configurations/Jellyfin.Plugin.FullUI.xml`
+**kept**, so installing again later restores everything. To erase them completely, either use the delete-all step in the
+[admin guide](ADMIN_GUIDE.md) before uninstalling, or stop Jellyfin and delete the whole folder
+`<Jellyfin data folder>/fullui/` (it holds `store.json`, `embeddings.json` and `events.jsonl`) and
+`<Jellyfin config folder>/plugins/configurations/Jellyfin.Plugin.FullUI.xml`
 (on Windows the data folder is usually `C:\ProgramData\Jellyfin\Server`). Or remove the plugin by hand in
 Dashboard > Plugins > FullUI > Uninstall.
 
