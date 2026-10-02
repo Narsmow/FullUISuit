@@ -1,0 +1,33 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci || npm install
+        working-directory: web
+      - run: npm run typecheck && npm test && npm run build
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        with: { name: web-bundle, path: web/dist }
+
+  plugin:
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 9.0.x }
+      - uses: actions/download-artifact@v4
+        with: { name: web-bundle, path: server/Jellyfin.Plugin.FullUI/Web }
+      - run: dotnet build server/Jellyfin.Plugin.FullUI -c Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-dll
+          path: server/Jellyfin.Plugin.FullUI/bin/Release/net9.0/Jellyfin.Plugin.FullUI.dll

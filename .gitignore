@@ -1,0 +1,10 @@
+bin/
+obj/
+node_modules/
+dist/
+*.user
+.vs/
+.gradle/
+build/
+local.properties
+*.jks

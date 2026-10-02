@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>FullUI</title>
+</head>
+<body>
+<div id="FullUISettingsPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+    <div data-role="content">
+        <div class="content-primary">
+            <form id="FullUISettingsForm">
+                <h2>FullUI settings</h2>
+
+                <fieldset class="verticalSection">
+                    <legend><h3>TMDB (discovery, Coming Soon, trailers)</h3></legend>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="password" id="tmdbApiKey" label="TMDB API key or v4 read token" autocomplete="off" />
+                        <div class="fieldDescription">Free at <a is="emby-linkbutton" class="button-link" href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org/settings/api</a>. Stored on the server only and never sent to clients.</div>
+                    </div>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="tmdbShow" />
+                        <span>Show key</span>
+                    </label>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="tmdbLanguage" label="Language (e.g. en-US)" />
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="tmdbRegion" label="Region (e.g. US)" />
+                    </div>
+                    <button is="emby-button" type="button" id="tmdbTest" class="raised"><span>Test connection</span></button>
+                    <span id="tmdbTestResult" style="margin-left:1em"></span>
+                </fieldset>
+
+                <fieldset class="verticalSection">
+                    <legend><h3>Branding</h3></legend>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="serverName" label="Server name" />
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="accentColor" label="Accent color (hex)" />
+                    </div>
+                </fieldset>
+
+                <fieldset class="verticalSection">
+                    <legend><h3>AI (local Ollama, optional)</h3></legend>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ollamaEnabled" />
+                        <span>Enable AI search and row titles</span>
+                    </label>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="ollamaUrl" label="Ollama URL" />
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="ollamaEmbedModel" label="Embedding model" />
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="ollamaChatModel" label="Chat model" />
+                    </div>
+                </fieldset>
+
+                <div>
+                    <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var pluginId = '7c3f2d9a-5b1e-4a86-9d0c-2f8e6b4a1c57';
+            var page = document.querySelector('#FullUISettingsPage');
+            var $ = function (id) { return page.querySelector('#' + id); };
+
+            page.addEventListener('pageshow', function () {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (c) {
+                    $('tmdbApiKey').value = c.TmdbApiKey || '';
+                    $('tmdbLanguage').value = c.TmdbLanguage || 'en-US';
+                    $('tmdbRegion').value = c.TmdbRegion || 'US';
+                    $('serverName').value = c.ServerName || 'FullUI';
+                    $('accentColor').value = c.AccentColor || '#e50914';
+                    $('ollamaEnabled').checked = !!c.OllamaEnabled;
+                    $('ollamaUrl').value = c.OllamaUrl || 'http://localhost:11434';
+                    $('ollamaEmbedModel').value = c.OllamaEmbedModel || 'nomic-embed-text';
+                    $('ollamaChatModel').value = c.OllamaChatModel || 'llama3.2:3b';
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+
+            $('tmdbShow').addEventListener('change', function () {
+                $('tmdbApiKey').type = this.checked ? 'text' : 'password';
+            });
+
+            $('tmdbTest').addEventListener('click', function () {
+                var out = $('tmdbTestResult');
+                out.textContent = 'Testing...';
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('FullUI/Tmdb/Test'),
+                    data: JSON.stringify({ ApiKey: $('tmdbApiKey').value }),
+                    contentType: 'application/json',
+                    dataType: 'json'
+                }).then(function (r) {
+                    out.textContent = (r.ok ? '✓ ' : '✗ ') + r.message;
+                    out.style.color = r.ok ? '#4caf50' : '#f44336';
+                }, function () {
+                    out.textContent = '✗ Request failed.';
+                    out.style.color = '#f44336';
+                });
+            });
+
+            $('FullUISettingsForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (c) {
+                    c.TmdbApiKey = $('tmdbApiKey').value.trim();
+                    c.TmdbLanguage = $('tmdbLanguage').value.trim();
+                    c.TmdbRegion = $('tmdbRegion').value.trim();
+                    c.ServerName = $('serverName').value.trim();
+                    c.AccentColor = $('accentColor').value.trim();
+                    c.OllamaEnabled = $('ollamaEnabled').checked;
+                    c.OllamaUrl = $('ollamaUrl').value.trim();
+                    c.OllamaEmbedModel = $('ollamaEmbedModel').value.trim();
+                    c.OllamaChatModel = $('ollamaChatModel').value.trim();
+                    ApiClient.updatePluginConfiguration(pluginId, c).then(Dashboard.processPluginConfigurationUpdateResult);
+                });
+                return false;
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>
