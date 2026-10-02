@@ -24,6 +24,9 @@ public sealed class RecInput
     public int TopTenWindowDays { get; init; } = 7;
     public IReadOnlySet<Guid> ExcludedUsers { get; init; } = new HashSet<Guid>();
     public IReadOnlyDictionary<string, string> RowTitles { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>Series with a next episode ready (Jellyfin Next Up), most relevant first. They join Continue Watching.</summary>
+    public IReadOnlyList<Guid> NextUpSeries { get; init; } = Array.Empty<Guid>();
 }
 
 public sealed record RankedItem(CatalogItem Item, string[] Badges, int? Rank, double? Progress);

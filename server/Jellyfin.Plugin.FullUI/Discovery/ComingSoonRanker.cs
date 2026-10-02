@@ -30,6 +30,23 @@ public static class ComingSoonRanker
     public static IReadOnlyList<Seed> SelectSeeds(StoreData data, Guid userId, IEnumerable<CatalogItem> catalog, DateTime now, int max = MaxSeeds)
     {
         var seeds = new List<Seed>();
+
+        // One pass over the signals, not one pass per library title (was O(titles x signals)).
+        var byItem = new Dictionary<Guid, (DateTime Latest, bool Completed, double Best)>();
+        foreach (var s in data.Signals)
+        {
+            if (s.UserId != userId)
+            {
+                continue;
+            }
+
+            byItem.TryGetValue(s.ItemId, out var cur);
+            byItem[s.ItemId] = (
+                cur.Latest == default ? s.At : (s.At > cur.Latest ? s.At : cur.Latest),
+                cur.Completed || s.Completed,
+                Math.Max(cur.Best, s.Completion));
+        }
+
         foreach (var item in catalog)
         {
             if (item.TmdbId is not > 0)
@@ -57,19 +74,11 @@ public static class ComingSoonRanker
             var latest = DateTime.MinValue;
             var completed = false;
             var best = 0.0;
-            foreach (var s in data.Signals)
+            if (byItem.TryGetValue(item.Id, out var sig))
             {
-                if (s.UserId != userId || s.ItemId != item.Id)
-                {
-                    continue;
-                }
-
-                completed |= s.Completed;
-                best = Math.Max(best, s.Completion);
-                if (s.At > latest)
-                {
-                    latest = s.At;
-                }
+                latest = sig.Latest;
+                completed = sig.Completed;
+                best = sig.Best;
             }
 
             if (completed)

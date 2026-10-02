@@ -329,7 +329,7 @@ public sealed class RecEngine
 
         if (topMovies.Count >= MinChartItems)
         {
-            rows.Add(new RecRow("top10-movies", $"Top 10 Movies on {_in.ServerName} This Week", "top10", OrderTop10Movies, Wrap(topMovies, ranked: true)));
+            rows.Add(new RecRow("top10-movies", $"Top 10 Movies on {_in.ServerName} {TopTenPeriod(_in.TopTenWindowDays)}", "top10", OrderTop10Movies, Wrap(topMovies, ranked: true)));
         }
 
         // Because you watched X (x3)
@@ -386,6 +386,7 @@ public sealed class RecEngine
         if (!_cold)
         {
             var genreRows = 0;
+            var usedIds = new HashSet<string>(StringComparer.Ordinal);
             var genres = _profile.Values.Where(kv => kv.Key.StartsWith("g:", StringComparison.Ordinal) && kv.Value > 0)
                 .OrderByDescending(kv => kv.Value).Select(kv => kv.Key[2..]).Take(6);
             foreach (var genre in genres)
@@ -402,7 +403,7 @@ public sealed class RecEngine
                 {
                     used.UnionWith(items.Select(i => i.Id));
                     var title = _in.RowTitles.TryGetValue(genre, out var t) && !string.IsNullOrWhiteSpace(t) ? t : $"{genre} Picks for You";
-                    rows.Add(new RecRow($"genre-{genre.ToLowerInvariant().Replace(' ', '-')}", title, "genre", OrderGenre, Wrap(items)));
+                    rows.Add(new RecRow(UniqueGenreId(genre, usedIds), title, "genre", OrderGenre, Wrap(items)));
                     genreRows++;
                 }
             }
@@ -410,7 +411,7 @@ public sealed class RecEngine
 
         if (topShows.Count >= MinChartItems)
         {
-            rows.Add(new RecRow("top10-shows", $"Top 10 Shows on {_in.ServerName} This Week", "top10", OrderTop10Shows, Wrap(topShows, ranked: true)));
+            rows.Add(new RecRow("top10-shows", $"Top 10 Shows on {_in.ServerName} {TopTenPeriod(_in.TopTenWindowDays)}", "top10", OrderTop10Shows, Wrap(topShows, ranked: true)));
         }
 
         var newSeasons = NewSeasons();
@@ -443,6 +444,35 @@ public sealed class RecEngine
         }
 
         return rows.OrderBy(r => r.Order).ToList();
+    }
+
+    /// <summary>"This Week" for the default 7 days; otherwise the title says what the window really is.</summary>
+    public static string TopTenPeriod(int windowDays) => windowDays switch
+    {
+        <= 1 => "Today",
+        7 => "This Week",
+        _ => $"in the Last {windowDays} Days",
+    };
+
+    /// <summary>
+    /// "genre-{slug}", unique within the response: "Sci-Fi" and "Sci Fi" would otherwise both become "genre-sci-fi"
+    /// (clients key their lists on the row id and crash on duplicates).
+    /// </summary>
+    public static string UniqueGenreId(string genre, ISet<string> used)
+    {
+        var slug = System.Text.RegularExpressions.Regex.Replace(genre.Trim().ToLowerInvariant(), @"[^\p{L}\p{N}]+", "-").Trim('-');
+        if (slug.Length == 0)
+        {
+            slug = "genre";
+        }
+
+        var id = "genre-" + slug;
+        for (var n = 2; !used.Add(id); n++)
+        {
+            id = $"genre-{slug}-{n}";
+        }
+
+        return id;
     }
 
     private List<RankedItem> Wrap(IEnumerable<CatalogItem> items, bool ranked = false)
@@ -489,19 +519,43 @@ public sealed class RecEngine
         return badges.ToArray();
     }
 
+    /// <summary>
+    /// 0..1 when the newest signal for a title is a resumable one (3%-95%, not completed, within 90 days), else null.
+    /// </summary>
+    public static double? ResumeProgress(PlaySignal latest, DateTime now)
+    {
+        if (latest.Completed || latest.Completion < 0.03 || latest.Completion >= 0.95 || (now - latest.At).TotalDays > 90)
+        {
+            return null;
+        }
+
+        return latest.Completion;
+    }
+
     private List<RankedItem> ContinueItems()
     {
         var result = new List<RankedItem>();
+        var seen = new HashSet<Guid>();
         foreach (var grp in _mySignals.GroupBy(s => s.ItemId).Select(g => g.OrderByDescending(s => s.At).First()).OrderByDescending(s => s.At))
         {
-            if (grp.Completed || grp.Completion < 0.03 || grp.Completion >= 0.95 || (_in.Now - grp.At).TotalDays > 90)
+            if (ResumeProgress(grp, _in.Now) is not double progress)
             {
                 continue;
             }
 
-            if (_byId.TryGetValue(grp.ItemId, out var item) && IsVisible(item))
+            if (_byId.TryGetValue(grp.ItemId, out var item) && IsVisible(item) && seen.Add(item.Id))
             {
-                result.Add(new RankedItem(item, BadgesFor(item), null, grp.Completion));
+                result.Add(new RankedItem(item, BadgesFor(item), null, progress));
+            }
+        }
+
+        // A series whose last episode was finished has nothing "in progress" but still has a next episode to play.
+        foreach (var id in _in.NextUpSeries)
+        {
+            if (_byId.TryGetValue(id, out var series) && series.Kind == CatalogKind.Series && IsVisible(series)
+                && MyRating(id) >= 0 && seen.Add(id))
+            {
+                result.Add(new RankedItem(series, BadgesFor(series), null, null));
             }
         }
 

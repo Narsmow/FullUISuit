@@ -142,6 +142,57 @@ public sealed class RequestService
         return changed;
     }
 
+    /// <summary>
+    /// Deletes everything stored for users that no longer exist in Jellyfin (votes, notifications, ratings, My List,
+    /// Coming Soon, play signals). Does nothing if the user list is empty (that means "could not read it", not "everyone left").
+    /// </summary>
+    /// <returns>Number of users purged.</returns>
+    public int PurgeDeletedUsers()
+    {
+        var known = _users.UserIds.Select(u => u.ToString("N")).ToHashSet();
+        if (known.Count == 0)
+        {
+            return 0;
+        }
+
+        var purged = 0;
+        _store.Write(d =>
+        {
+            static string? UserOfKey(string key) => key.Length > 33 && key[32] == '|' ? key[..32] : null;
+
+            var stored = new HashSet<string>();
+            stored.UnionWith(d.Votes.Select(v => v.UserId.ToString("N")));
+            stored.UnionWith(d.Notifications.Select(n => n.UserId.ToString("N")));
+            stored.UnionWith(d.Signals.Select(sig => sig.UserId.ToString("N")));
+            stored.UnionWith(d.ComingSoon.Keys);
+            stored.UnionWith(d.Ratings.Keys.Select(UserOfKey).OfType<string>());
+            stored.UnionWith(d.MyList.Select(UserOfKey).OfType<string>());
+            var gone = stored.Where(u => !known.Contains(u)).ToHashSet();
+            if (gone.Count == 0)
+            {
+                return;
+            }
+
+            d.Votes.RemoveAll(v => gone.Contains(v.UserId.ToString("N")));
+            d.Notifications.RemoveAll(n => gone.Contains(n.UserId.ToString("N")));
+            d.Signals.RemoveAll(sig => gone.Contains(sig.UserId.ToString("N")));
+            foreach (var u in gone)
+            {
+                d.ComingSoon.Remove(u);
+                d.BackfilledUsers.Remove(u);
+            }
+
+            foreach (var k in d.Ratings.Keys.Where(k => UserOfKey(k) is { } u && gone.Contains(u)).ToList())
+            {
+                d.Ratings.Remove(k);
+            }
+
+            d.MyList.RemoveWhere(k => UserOfKey(k) is { } u && gone.Contains(u));
+            purged = gone.Count;
+        });
+        return purged;
+    }
+
     public static string ToCsv(IEnumerable<RequestRow> rows)
     {
         var sb = new StringBuilder();

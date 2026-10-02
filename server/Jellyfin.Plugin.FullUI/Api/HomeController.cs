@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using Jellyfin.Plugin.FullUI.Data;
 using Jellyfin.Plugin.FullUI.Library;
@@ -20,9 +19,6 @@ namespace Jellyfin.Plugin.FullUI.Api;
 [Authorize]
 public class HomeController : ControllerBase
 {
-    // Jellyfin's own formatter is PascalCase; the contract is camelCase, so serialize explicitly.
-    private static readonly JsonSerializerOptions CamelCase = new(JsonSerializerDefaults.Web);
-
     private readonly HomeService _home;
     private readonly PluginStore _store;
     private readonly ICatalog _catalog;
@@ -51,7 +47,7 @@ public class HomeController : ControllerBase
 
     [HttpGet("Home")]
     public IActionResult GetHome() =>
-        Safe("load your home page", () => CurrentUserId() is Guid uid ? Camel(_home.GetHome(uid)) : Unauthorized());
+        Safe("load your home page", () => CurrentUserId() is Guid uid ? Camel(_home.GetHomeStrict(uid)) : Unauthorized());
 
     [HttpPost("Rate")]
     public IActionResult Rate([FromBody] RateRequest request)
@@ -64,7 +60,7 @@ public class HomeController : ControllerBase
 
             if (request.Rating is < -1 or > 2)
             {
-                return BadRequest(new ProblemDetails { Status = 400, Title = "Invalid rating", Detail = "Rating must be -1, 0, 1 or 2." });
+                return SafeApi.Problem(StatusCodes.Status400BadRequest, "Invalid rating", "Rating must be -1, 0, 1 or 2.");
             }
 
             if (!IsVisible(uid, request.ItemId))
@@ -135,7 +131,7 @@ public class HomeController : ControllerBase
                 return Unauthorized();
             }
 
-            var card = _home.GetItem(uid, id);
+            var card = _home.GetItemStrict(uid, id);
             return card is null ? NotFound() : Camel(card);
         });
 
@@ -148,9 +144,10 @@ public class HomeController : ControllerBase
                 return Unauthorized();
             }
 
-            var r = _home.GetMyServer(uid);
+            var r = _home.GetMyServerStrict(uid);
             return Camel(new { continueWatching = r.ContinueWatching, myList = r.MyList, wanted = r.Wanted });
         });
+
     /// <summary>Runs an action, turning any failure into a short plain-English message (details only go to the log).</summary>
     private IActionResult Safe(string what, Func<IActionResult> action)
     {
@@ -161,19 +158,14 @@ public class HomeController : ControllerBase
         catch (Exception ex)
         {
             _log.LogError(ex, "FullUI: could not {Action}", what);
-            return new ObjectResult(new ProblemDetails
-            {
-                Status = StatusCodes.Status500InternalServerError,
-                Title = "Something went wrong",
-                Detail = $"Sorry, we couldn't {what} right now. Please try again in a moment.",
-            })
-            {
-                StatusCode = StatusCodes.Status500InternalServerError,
-            };
+            return SafeApi.Problem(
+                StatusCodes.Status500InternalServerError,
+                "Something went wrong",
+                $"Sorry, we couldn't {what} right now. Please try again in a moment.");
         }
     }
 
-    private IActionResult Camel(object value) => new JsonResult(value, CamelCase);
+    private static IActionResult Camel(object value) => SafeApi.Json(value);
 
     private Guid? CurrentUserId()
     {

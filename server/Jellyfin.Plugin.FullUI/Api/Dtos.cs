@@ -22,7 +22,8 @@ public sealed record ItemCard(
     bool HasLogo,
     int MyRating,                 // -1, 0 (none), 1, 2
     bool InMyList,
-    int? Rank);                   // 1..10 in Top 10 rows
+    int? Rank,                    // 1..10 in Top 10 rows
+    string? ImageTag = null);     // primary image tag: add &tag= to image URLs for long-lived caching
 
 public sealed record ComingSoonCard(
     int TmdbId,

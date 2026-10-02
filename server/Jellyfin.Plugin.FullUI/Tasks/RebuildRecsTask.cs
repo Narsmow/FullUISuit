@@ -40,7 +40,7 @@ public sealed class RebuildRecsTask : IScheduledTask
         List<Guid> users;
         try
         {
-            _catalog.Invalidate();
+            _catalog.InvalidateNow();
             _home.Invalidate();
             _ = _catalog.All;
             users = _users.GetUsersIds().ToList();

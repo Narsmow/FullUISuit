@@ -10,8 +10,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- NOT pinned to 10.11.0: IUserManager.UsersIds/Users (10.11.0) became GetUsersIds()/GetUsers() in later 10.11.x, and this code uses the newer methods. See docs/api-contract.md. -->
     <PackageReference Include="Jellyfin.Controller" Version="10.11.*" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Jellyfin.Plugin.FullUI.Tests" />
+    <InternalsVisibleTo Include="Jellyfin.Plugin.FullUI.DiscoveryTests" />
+    <InternalsVisibleTo Include="Jellyfin.Plugin.FullUI.ApiTests" />
   </ItemGroup>
 
   <ItemGroup>

@@ -12,6 +12,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.FullUI.Discovery;
 
+/// <summary>Result of a trailer lookup. <see cref="Failed"/> separates "TMDB could not be asked" from "TMDB has no trailer".</summary>
+public readonly record struct TrailerLookup(string? Key, bool Failed);
+
 public interface ITmdbClient
 {
     bool Configured { get; }
@@ -23,6 +26,22 @@ public interface ITmdbClient
     Task<IReadOnlyList<TmdbTitle>> UpcomingAsync(string mediaType, CancellationToken ct);
 
     Task<string?> TrailerKeyAsync(string mediaType, int id, CancellationToken ct);
+
+    /// <summary>
+    /// Like <see cref="TrailerKeyAsync"/> but says whether a null key means "no trailer exists" (remember it) or
+    /// "the lookup failed" (do not remember it, try again next run).
+    /// </summary>
+    async Task<TrailerLookup> LookupTrailerAsync(string mediaType, int id, CancellationToken ct)
+    {
+        try
+        {
+            return new TrailerLookup(await TrailerKeyAsync(mediaType, id, ct).ConfigureAwait(false), false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new TrailerLookup(null, true);
+        }
+    }
 
     Task<IReadOnlyList<TmdbGenre>> GenresAsync(string mediaType, CancellationToken ct);
 }
@@ -39,7 +58,15 @@ public sealed class TmdbClient : ITmdbClient
     private readonly IConfigSource _config;
     private readonly ILogger<TmdbClient> _log;
     private readonly SemaphoreSlim _gate = new(2, 2);
-    private readonly ConcurrentDictionary<string, (DateTime at, JsonDocument doc)> _cache = new();
+    private const int MaxCacheEntries = 400;
+    private const int FailureBudget = 5;
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan FailureBackOff = TimeSpan.FromMinutes(2);
+
+    // Raw response text, not JsonDocument: a document must be disposed, and a cached one lives (and is shared) forever.
+    private readonly ConcurrentDictionary<string, (DateTime at, string text)> _cache = new();
+    private int _consecutiveFailures;
+    private long _blockedUntilTicks;
     private readonly TimeSpan _delay;
     private readonly TimeSpan _ttl = TimeSpan.FromHours(12);
     private readonly Func<TimeSpan, CancellationToken, Task> _sleep;
@@ -66,10 +93,16 @@ public sealed class TmdbClient : ITmdbClient
     public static bool IsBearer(string key) => key.StartsWith("eyJ", StringComparison.Ordinal);
 
     public async Task<IReadOnlyList<TmdbTitle>> RecommendationsAsync(string mediaType, int id, CancellationToken ct)
-        => ParseTitles(await GetAsync($"/{Seg(mediaType)}/{id}/recommendations", null, ct).ConfigureAwait(false), mediaType);
+    {
+        using var doc = await GetAsync($"/{Seg(mediaType)}/{id}/recommendations", null, ct).ConfigureAwait(false);
+        return ParseTitles(doc, mediaType);
+    }
 
     public async Task<IReadOnlyList<TmdbTitle>> SimilarAsync(string mediaType, int id, CancellationToken ct)
-        => ParseTitles(await GetAsync($"/{Seg(mediaType)}/{id}/similar", null, ct).ConfigureAwait(false), mediaType);
+    {
+        using var doc = await GetAsync($"/{Seg(mediaType)}/{id}/similar", null, ct).ConfigureAwait(false);
+        return ParseTitles(doc, mediaType);
+    }
 
     public async Task<IReadOnlyList<TmdbTitle>> UpcomingAsync(string mediaType, CancellationToken ct)
     {
@@ -77,7 +110,7 @@ public sealed class TmdbClient : ITmdbClient
         var all = new List<TmdbTitle>();
         for (var page = 1; page <= 2; page++)
         {
-            var doc = await GetAsync(path, "page=" + page, ct).ConfigureAwait(false);
+            using var doc = await GetAsync(path, "page=" + page, ct).ConfigureAwait(false);
             var items = ParseTitles(doc, mediaType);
             all.AddRange(items);
             if (items.Count == 0)
@@ -90,15 +123,21 @@ public sealed class TmdbClient : ITmdbClient
     }
 
     public async Task<string?> TrailerKeyAsync(string mediaType, int id, CancellationToken ct)
+        => (await LookupTrailerAsync(mediaType, id, ct).ConfigureAwait(false)).Key;
+
+    public async Task<TrailerLookup> LookupTrailerAsync(string mediaType, int id, CancellationToken ct)
     {
         var lang = (_config.Current.TmdbLanguage ?? "en-US").Split('-')[0];
-        var doc = await GetAsync($"/{Seg(mediaType)}/{id}/videos", "include_video_language=" + Uri.EscapeDataString(lang + ",en,null"), ct).ConfigureAwait(false);
-        return PickTrailer(ParseVideos(doc), lang);
+        var (doc, failed) = await GetCoreAsync($"/{Seg(mediaType)}/{id}/videos", "include_video_language=" + Uri.EscapeDataString(lang + ",en,null"), ct).ConfigureAwait(false);
+        using (doc)
+        {
+            return new TrailerLookup(PickTrailer(ParseVideos(doc), lang), failed);
+        }
     }
 
     public async Task<IReadOnlyList<TmdbGenre>> GenresAsync(string mediaType, CancellationToken ct)
     {
-        var doc = await GetAsync($"/genre/{Seg(mediaType)}/list", null, ct).ConfigureAwait(false);
+        using var doc = await GetAsync($"/genre/{Seg(mediaType)}/list", null, ct).ConfigureAwait(false);
         var list = new List<TmdbGenre>();
         if (doc is not null && doc.RootElement.TryGetProperty("genres", out var g) && g.ValueKind == JsonValueKind.Array)
         {
@@ -204,12 +243,16 @@ public sealed class TmdbClient : ITmdbClient
     private static string Seg(string mediaType) => mediaType == "tv" ? "tv" : "movie";
 
     private async Task<JsonDocument?> GetAsync(string path, string? extraQuery, CancellationToken ct)
+        => (await GetCoreAsync(path, extraQuery, ct).ConfigureAwait(false)).Doc;
+
+    /// <summary>Doc is null on any failure; Failed is true when TMDB could not be asked (as opposed to "not found"/no key).</summary>
+    private async Task<(JsonDocument? Doc, bool Failed)> GetCoreAsync(string path, string? extraQuery, CancellationToken ct)
     {
         var cfg = _config.Current;
         var key = cfg.TmdbApiKey?.Trim();
         if (string.IsNullOrEmpty(key))
         {
-            return null;
+            return (null, false);
         }
 
         var lang = string.IsNullOrWhiteSpace(cfg.TmdbLanguage) ? "en-US" : cfg.TmdbLanguage;
@@ -221,7 +264,13 @@ public sealed class TmdbClient : ITmdbClient
         var cacheKey = path + "?" + query;
         if (_cache.TryGetValue(cacheKey, out var hit) && DateTime.UtcNow - hit.at < _ttl)
         {
-            return hit.doc;
+            return (JsonDocument.Parse(hit.text), false);
+        }
+
+        // Several failures in a row (TMDB down, no internet): stop asking for a while instead of waiting out every timeout.
+        if (DateTime.UtcNow.Ticks < Interlocked.Read(ref _blockedUntilTicks))
+        {
+            return (null, true);
         }
 
         var bearer = IsBearer(key);
@@ -239,15 +288,17 @@ public sealed class TmdbClient : ITmdbClient
                 }
 
                 HttpResponseMessage resp;
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(RequestTimeout);
                 try
                 {
                     using var client = _http.CreateClient("FullUI");
-                    resp = await client.SendAsync(msg, ct).ConfigureAwait(false);
+                    resp = await client.SendAsync(msg, timeout.Token).ConfigureAwait(false);
                 }
                 catch (Exception ex) when ((ex is HttpRequestException || ex is TaskCanceledException) && !ct.IsCancellationRequested)
                 {
                     _log.LogWarning("FullUI: TMDB request to {Path} failed ({Type})", path, ex.GetType().Name);
-                    return null;
+                    return (null, RecordFailure());
                 }
 
                 using (resp)
@@ -268,35 +319,68 @@ public sealed class TmdbClient : ITmdbClient
                     {
                         KeyRejected = true;
                         _log.LogWarning("FullUI: TMDB rejected the API key (HTTP {Status}). Copy it again from themoviedb.org/settings/api", (int)resp.StatusCode);
-                        return null;
+                        return (null, true);
+                    }
+
+                    if (resp.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        _log.LogDebug("FullUI: TMDB {Path} not found", path);
+                        return (null, false); // the title does not exist on TMDB: a definitive "nothing there", not an outage
                     }
 
                     if (!resp.IsSuccessStatusCode)
                     {
                         _log.LogWarning("FullUI: TMDB {Path} returned HTTP {Status}", path, (int)resp.StatusCode);
-                        return null;
+                        return (null, RecordFailure());
                     }
 
-                    var text = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                    var text = await resp.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
                     var doc = JsonDocument.Parse(text);
                     KeyRejected = false;
-                    _cache[cacheKey] = (DateTime.UtcNow, doc);
+                    Interlocked.Exchange(ref _consecutiveFailures, 0);
+                    Remember(cacheKey, text);
                     await _sleep(_delay, ct).ConfigureAwait(false);
-                    return doc;
+                    return (doc, false);
                 }
             }
 
-            return null;
+            return (null, RecordFailure());
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             // Malformed JSON, dropped connection, anything else: the feature is simply unavailable this time.
             _log.LogWarning("FullUI: TMDB response for {Path} could not be used ({Type})", path, ex.GetType().Name);
-            return null;
+            return (null, RecordFailure());
         }
         finally
         {
             _gate.Release();
+        }
+    }
+
+    private bool RecordFailure()
+    {
+        if (Interlocked.Increment(ref _consecutiveFailures) >= FailureBudget)
+        {
+            Interlocked.Exchange(ref _blockedUntilTicks, (DateTime.UtcNow + FailureBackOff).Ticks);
+            Interlocked.Exchange(ref _consecutiveFailures, 0);
+            _log.LogWarning("FullUI: TMDB is not answering; pausing TMDB requests for {Minutes} minutes", (int)FailureBackOff.TotalMinutes);
+        }
+
+        return true;
+    }
+
+    private void Remember(string cacheKey, string text)
+    {
+        _cache[cacheKey] = (DateTime.UtcNow, text);
+        if (_cache.Count <= MaxCacheEntries)
+        {
+            return;
+        }
+
+        foreach (var k in _cache.OrderBy(kv => kv.Value.at).Take(_cache.Count - (MaxCacheEntries * 3 / 4)).Select(kv => kv.Key).ToList())
+        {
+            _cache.TryRemove(k, out _);
         }
     }
 }
