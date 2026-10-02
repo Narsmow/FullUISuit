@@ -8,7 +8,7 @@ namespace Jellyfin.Plugin.FullUI.Discovery;
 
 /// <summary>
 /// Titles a user removed from Continue Watching. The recommendation engine consults this so a hidden title stays out of
-/// the Continue Watching row only (it can still appear in other rows, like on Netflix). Private per user.
+/// the Continue Watching row only (it can still appear in other rows, like on other streaming apps). Private per user.
 /// </summary>
 public interface IHiddenItems
 {

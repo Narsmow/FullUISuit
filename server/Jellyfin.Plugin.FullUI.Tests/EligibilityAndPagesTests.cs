@@ -75,7 +75,7 @@ public class EligibilityAndPagesTests
     [Fact]
     public void HiddenTitle_LeavesContinueWatchingOnly()
     {
-        // Netflix: "Remove from row" on Continue Watching removes it from that row, not from the user's list or the library.
+        // Streaming-app convention: "Remove from row" on Continue Watching removes it from that row, not from the user's list or the library.
         var (catalog, target, signals) = Setup();
         signals.Add(Play(Viewer, target, 1, 0.4, false));
         var rows = Build(Input(Viewer, catalog, signals, myList: new() { Key(Viewer, target) }, hidden: new[] { target.Id }));

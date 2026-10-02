@@ -10,7 +10,7 @@ public static class Branding
     private static readonly Regex Hex = new("^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", RegexOptions.Compiled);
 
     /// <summary>
-    /// Returns a valid CSS hex color. "e50914" (missing #) is repaired; anything else invalid falls back to the default red.
+    /// Returns a valid CSS hex color. "2a9d8f" (missing #) is repaired; anything else invalid falls back to the default red.
     /// </summary>
     public static string NormalizeAccent(string? value)
     {

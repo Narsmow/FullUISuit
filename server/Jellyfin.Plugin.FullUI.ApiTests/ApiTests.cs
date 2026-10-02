@@ -253,14 +253,14 @@ public class SafeApiTests
     }
 
     [Theory]
-    [InlineData("#e50914", "#e50914")]
+    [InlineData("#2a9d8f", "#2a9d8f")]
     [InlineData("#FFF", "#fff")]
-    [InlineData("e50914", "#e50914")]
+    [InlineData("2a9d8f", "#2a9d8f")]
     [InlineData("#12345678", "#12345678")]
     [InlineData("red", "#e5383b")]
-    [InlineData("#e5091", "#e5383b")]
+    [InlineData("#2a9d8", "#e5383b")]
     [InlineData("javascript:alert(1)", "#e5383b")]
-    [InlineData("#e50914; background:url(x)", "#e5383b")]
+    [InlineData("#2a9d8f; background:url(x)", "#e5383b")]
     [InlineData("", "#e5383b")]
     [InlineData(null, "#e5383b")]
     public void AccentColor_IsValidatedServerSide(string? input, string expected)
