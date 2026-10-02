@@ -59,7 +59,7 @@ plus small hooks in upstream files (listed in `BUILDING.md`, "What changed in up
   current server URL; models mirror `server/Jellyfin.Plugin.FullUI/Api/Dtos.cs`.
 * One-time-per-session feature detection with automatic fallback to the stock Wholphin UI
   (`FeatureDetector`), and a Settings switch (Interface, "FullUI interface") to use the stock UI.
-* Netflix-style top navigation bar (Home, Shows, Movies, My `<Server>`, Search) replacing the drawer,
+* streaming-style top navigation bar (Home, Shows, Movies, My `<Server>`, Search) replacing the drawer,
   hero with muted YouTube trailer (WebView IFrame player, backdrop with slow zoom as fallback),
   focus-expanding cards with badges, Top 10 numbering, three-level thumbs, My List, Coming Soon cards
   with "I want this" / "Not for me", in-UI notifications.

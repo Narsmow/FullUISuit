@@ -1,7 +1,7 @@
 # Building, signing, sideloading and updating FullUI for Fire TV
 
 `firetv/` is a fork of [Wholphin](https://github.com/damontecres/Wholphin) (GPL-2.0, see
-[`FULLUI_NOTICE.md`](FULLUI_NOTICE.md)) that renders the Netflix-style FullUI experience from the
+[`FULLUI_NOTICE.md`](FULLUI_NOTICE.md)) that renders the streaming-style FullUI experience from the
 server plugin's API (`GET /FullUI/Home` etc., see `docs/api-contract.md`). Playback, login, profile
 and settings flows are Wholphin's, unchanged.
 
@@ -127,7 +127,7 @@ Find the right APK: Fire TV Stick (2nd/3rd gen, Lite, 4K) usually `armeabi-v7a`,
    ```
 
 First start: pick/enter your Jellyfin server and sign in as in Wholphin. If the FullUI plugin is on
-the server and reachable, the Netflix-style home appears; otherwise you silently get the stock UI.
+the server and reachable, the streaming-style home appears; otherwise you silently get the stock UI.
 
 ## Updating
 

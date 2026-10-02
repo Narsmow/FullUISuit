@@ -2,8 +2,8 @@
   {
     "guid": "7c3f2d9a-5b1e-4a86-9d0c-2f8e6b4a1c57",
     "name": "FullUI",
-    "description": "Netflix-style UI, personalized rows and suggestions.",
-    "overview": "Netflix-style UI for Jellyfin",
+    "description": "Streaming-style UI with personalized rows and suggestions.",
+    "overview": "Streaming-style UI for Jellyfin",
     "owner": "narsmow",
     "category": "General",
     "versions": []

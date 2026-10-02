@@ -1,4 +1,4 @@
-> **FullUI for Fire TV.** This directory is a GPL-2.0 fork of Wholphin with a Netflix-style home driven by the
+> **FullUI for Fire TV.** This directory is a GPL-2.0 fork of Wholphin with a streaming-style home driven by the
 > FullUI Jellyfin server plugin (it falls back to the stock UI without the plugin). See
 > [FULLUI_NOTICE.md](FULLUI_NOTICE.md) for attribution and changes and [BUILDING.md](BUILDING.md) to build, sign,
 > sideload and update. The text below is the unmodified upstream README.
