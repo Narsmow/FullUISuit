@@ -139,7 +139,8 @@ public sealed class EventTracker : IHostedService
     {
         try
         {
-            if (e.Item is Movie or Series or Episode)
+            // Placeholders for missing episodes are "added" too; they never change what a user can watch.
+            if (e.Item is Movie or Series or Episode && !e.Item.IsVirtualItem)
             {
                 _catalog.Invalidate();
             }

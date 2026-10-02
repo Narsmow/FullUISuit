@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -53,7 +54,11 @@ public sealed class EmbeddingIndexer
         return sb.ToString();
     }
 
-    /// <returns>Number of embeddings newly stored.</returns>
+    /// <summary>Short stable hash of the text a vector was computed from.</summary>
+    public static string HashOf(string text)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..16];
+
+    /// <returns>Number of embeddings newly stored (new titles plus titles re-embedded because the model or their text changed).</returns>
     public async Task<int> RunAsync(IProgress<double>? progress, CancellationToken ct, int maxItems = int.MaxValue)
     {
         if (!_ollama.Enabled)
@@ -62,17 +67,34 @@ public sealed class EmbeddingIndexer
         }
 
         var items = _catalog.All;
+        var model = _ollama.EmbedModel;
         var ids = items.Select(i => i.Id.ToString("N")).ToHashSet();
-        _store.Write(d =>
+        var texts = items.ToDictionary(i => i.Id.ToString("N"), i => TextFor(i));
+        _store.WriteEmbeddings(e =>
         {
-            foreach (var k in d.Embeddings.Keys.Where(k => !ids.Contains(k)).ToList())
+            foreach (var k in e.Keys.Where(k => !ids.Contains(k)).ToList())
             {
-                d.Embeddings.Remove(k);
+                e.Remove(k);
+            }
+
+            // Vectors migrated from an older version carry no model/hash: assume they match the current setup once.
+            foreach (var (k, v) in e.Where(kv => kv.Value.Model.Length == 0 && texts.ContainsKey(kv.Key)).ToList())
+            {
+                e[k] = new EmbeddingEntry { Vector = v.Vector, Model = model, Hash = HashOf(texts[k]) };
             }
         });
 
-        var have = _store.Read(d => d.Embeddings.Keys.ToHashSet());
-        var todo = items.Where(i => !have.Contains(i.Id.ToString("N"))).Take(maxItems).ToList();
+        // Missing, produced by another embedding model, or the title text changed since it was embedded.
+        var current = _store.ReadEmbeddings(e => e.ToDictionary(kv => kv.Key, kv => (kv.Value.Model, kv.Value.Hash)));
+        var todo = items
+            .Where(i =>
+            {
+                var k = i.Id.ToString("N");
+                return !current.TryGetValue(k, out var c)
+                    || !string.Equals(c.Model, model, StringComparison.OrdinalIgnoreCase)
+                    || c.Hash != HashOf(texts[k]);
+            })
+            .Take(maxItems).ToList();
         var done = 0;
         for (var offset = 0; offset < todo.Count; offset += BatchSize)
         {
@@ -84,11 +106,12 @@ public sealed class EmbeddingIndexer
                 break; // Ollama unreachable or model missing: try again next run
             }
 
-            _store.Write(d =>
+            _store.WriteEmbeddings(e =>
             {
                 for (var n = 0; n < batch.Count; n++)
                 {
-                    d.Embeddings[batch[n].Id.ToString("N")] = vecs[n];
+                    var k = batch[n].Id.ToString("N");
+                    e[k] = new EmbeddingEntry { Vector = vecs[n], Model = model, Hash = HashOf(texts[k]) };
                 }
             });
             done += batch.Count;

@@ -11,6 +11,9 @@ public enum VoteResult
 {
     Ok,
     Invalid,
+
+    /// <summary>The user already holds <see cref="VoteService.MaxVotesPerUser"/> votes (clearing a vote is always allowed).</summary>
+    LimitReached,
 }
 
 /// <summary>Vote upsert + per-user views. A user only ever sees their own votes.</summary>
@@ -18,6 +21,10 @@ public sealed class VoteService
 {
     private static readonly Regex PathRx = new(@"^/[A-Za-z0-9_\-\.]{1,120}$", RegexOptions.Compiled);
     private static readonly Regex DateRx = new(@"^\d{4}(-\d{2}(-\d{2})?)?$", RegexOptions.Compiled);
+
+    /// <summary>Upper bound on stored votes per user so one account cannot grow the store without limit.</summary>
+    public const int MaxVotesPerUser = 500;
+
     private readonly PluginStore _store;
 
     public VoteService(PluginStore store)
@@ -29,15 +36,23 @@ public sealed class VoteService
 
     public VoteResult Cast(Guid userId, VoteRequest req, DateTime? now = null)
     {
-        if (userId == Guid.Empty || req.TmdbId <= 0 || req.Vote is < -1 or > 1
+        if (userId == Guid.Empty || req.TmdbId is <= 0 or > 100_000_000 || req.Vote is < -1 or > 1
             || (req.MediaType != "movie" && req.MediaType != "tv"))
         {
             return VoteResult.Invalid;
         }
 
         var at = now ?? DateTime.UtcNow;
+        var result = VoteResult.Ok;
         _store.Write(d =>
         {
+            var replacing = d.Votes.Any(v => v.UserId == userId && v.TmdbId == req.TmdbId && v.MediaType == req.MediaType);
+            if (req.Vote != 0 && !replacing && d.Votes.Count(v => v.UserId == userId) >= MaxVotesPerUser)
+            {
+                result = VoteResult.LimitReached;
+                return;
+            }
+
             d.Votes.RemoveAll(v => v.UserId == userId && v.TmdbId == req.TmdbId && v.MediaType == req.MediaType);
             if (req.Vote == 0)
             {
@@ -70,7 +85,7 @@ public sealed class VoteService
                 }
             }
         });
-        return VoteResult.Ok;
+        return result;
     }
 
     /// <summary>The caller's own vote per "{mediaType}:{tmdbId}".</summary>

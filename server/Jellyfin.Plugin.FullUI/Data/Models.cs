@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace Jellyfin.Plugin.FullUI.Data;
 
@@ -59,6 +61,18 @@ public sealed class ComingSoonEntry
     public double Score { get; set; }
 }
 
+/// <summary>One AI vector plus what it was computed from, so a changed model or edited title text is re-embedded.</summary>
+public sealed class EmbeddingEntry
+{
+    public float[] Vector { get; set; } = System.Array.Empty<float>();
+
+    /// <summary>Embedding model name; empty for vectors migrated from an older version.</summary>
+    public string Model { get; set; } = string.Empty;
+
+    /// <summary>Short hash of the text that was embedded; empty for migrated vectors.</summary>
+    public string Hash { get; set; } = string.Empty;
+}
+
 /// <summary>Everything we persist. JSON file at {DataPath}/fullui/store.json (see PluginStore).</summary>
 public sealed class StoreData
 {
@@ -83,11 +97,34 @@ public sealed class StoreData
     /// <summary>YouTube trailer keys. key: "{mediaType}:{tmdbId}" (tmdb) or "item:{itemId:N}" (library).</summary>
     public Dictionary<string, string> TrailerKeys { get; set; } = new();
 
-    /// <summary>Embeddings for semantic search. key: itemId:N.</summary>
-    public Dictionary<string, float[]> Embeddings { get; set; } = new();
+    /// <summary>
+    /// Read-only migration hook: store.json written by older versions contained "Embeddings". PluginStore moves them to
+    /// embeddings.json on load and nulls this, so it is never written back. Use PluginStore.ReadEmbeddings/WriteEmbeddings.
+    /// </summary>
+    [JsonPropertyName("Embeddings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, float[]>? LegacyEmbeddings { get; set; }
+
+    /// <summary>User ids (N format) whose existing Jellyfin watch history has been imported once (see PlaybackBackfill).</summary>
+    public HashSet<string> BackfilledUsers { get; set; } = new();
 
     /// <summary>LLM-generated row titles. key: genre name.</summary>
     public Dictionary<string, string> RowTitles { get; set; } = new();
+
+    /// <summary>A copy that is safe to serialize while other threads keep mutating the original (collections copied, elements shared).</summary>
+    public StoreData Snapshot() => new()
+    {
+        Signals = Signals.ToList(),
+        Ratings = new Dictionary<string, int>(Ratings),
+        MyList = new HashSet<string>(MyList),
+        Votes = Votes.ToList(),
+        Statuses = new Dictionary<string, RequestStatusEntry>(Statuses),
+        Notifications = Notifications.ToList(),
+        ComingSoon = ComingSoon.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
+        TrailerKeys = new Dictionary<string, string>(TrailerKeys),
+        RowTitles = new Dictionary<string, string>(RowTitles),
+        BackfilledUsers = new HashSet<string>(BackfilledUsers),
+    };
 
     public static string UserItemKey(Guid userId, Guid itemId) => $"{userId:N}|{itemId:N}";
 }

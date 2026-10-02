@@ -35,6 +35,11 @@ public class SyncRequestsTask : IScheduledTask
         try
         {
             _requests.Sync(_catalog.All);
+            var purged = _requests.PurgeDeletedUsers();
+            if (purged > 0)
+            {
+                _log.LogInformation("FullUI: removed the stored data of {Count} deleted user(s)", purged);
+            }
         }
         catch (Exception ex)
         {

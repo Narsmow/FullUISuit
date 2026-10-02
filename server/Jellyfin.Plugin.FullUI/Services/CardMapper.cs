@@ -42,7 +42,8 @@ public static class CardMapper
             item.HasLogo,
             myRating,
             inMyList,
-            rank);
+            rank,
+            item.PrimaryImageTag);
     }
 
     public static ComingSoonCard ToCard(ComingSoonEntry e, int myVote) =>

@@ -108,8 +108,10 @@ public class RecEngineTests
         int Pos(RecRow r, CatalogItem c) => r.Items.ToList().FindIndex(i => i.Item.Id == c.Id);
         Assert.DoesNotContain(down.Items, i => i.Item.Id == x.Id);          // the rated title itself is gone
         Assert.True(Pos(down, z) < Pos(down, y), "comedy should now beat the action sibling");
-        Assert.True(Pos(neutral, y) <= Pos(neutral, z) || Pos(neutral, y) > Pos(down, y), "thumbs-down must push Y down");
-        Assert.True(Pos(down, y) > Pos(neutral, y));
+        // Without the thumbs-down, Y (an Action sibling of the watched title) is not behind Z (a Comedy one)...
+        Assert.True(Pos(neutral, y) < Pos(neutral, z), "precondition: Y should outrank Z before the thumbs-down");
+        // ...with it, the Action title X is gone and the whole Action genre is pushed down, so Z overtakes Y.
+        Assert.True(Pos(down, z) < Pos(down, y), "thumbs-down on an Action title must push the other Action title behind the Comedy one");
     }
 
     [Fact]
@@ -270,7 +272,7 @@ public class RecEngineTests
     {
         var catalog = new List<CatalogItem>();
         catalog.AddRange(Enumerable.Range(1, 120).Select(i => Movie(i, $"Act{i:00}", new[] { "Action", "Thriller" }, rating: i > 100 ? 8.2f : 6.5f, daysOld: i < 8 ? 3 : 300)));
-        catalog.AddRange(Enumerable.Range(100, 30).Select(i => Movie(i, $"Com{i}", new[] { "Comedy" })));
+        catalog.AddRange(Enumerable.Range(300, 30).Select(i => Movie(i, $"Com{i}", new[] { "Comedy" })));
         catalog.AddRange(Enumerable.Range(200, 6).Select(i => Show(i, $"Show{i}", new[] { "Drama" }, daysOld: 120, episodeDaysOld: 3)));
         var signals = new List<PlaySignal>
         {
@@ -280,7 +282,7 @@ public class RecEngineTests
         };
         foreach (var u in new[] { U2, U3 })
         {
-            foreach (var c in catalog.Where(c => c.Id.ToString().StartsWith("000000c") || c.Name.StartsWith("Com")).Take(4))
+            foreach (var c in catalog.Where(c => c.Name.StartsWith("Com")).Take(4))
             {
                 signals.Add(Play(u, c, 1));
             }
@@ -296,20 +298,18 @@ public class RecEngineTests
 
         var types = rows.Select(r => r.Order).ToList();
         Assert.Equal(types.OrderBy(x => x).ToList(), types);
-        Assert.Equal("continue", rows[0].Type);
-        Assert.Equal("toppicks", rows[1].Id);
+
+        // The exact shape docs/api-contract.md promises (hidden gems/Coming Soon are absent for this data; Coming Soon is added by HomeService).
+        Assert.Equal(
+            new[] { "continue", "toppicks", "top10", "because", "because", "because", "trending", "mylist", "genre", "genre", "genre", "top10", "newseasons", "recent", "again" },
+            rows.Select(r => r.Type).ToArray());
         var ids = rows.Select(r => r.Id).ToList();
-        Assert.True(ids.IndexOf("top10-movies") < ids.FindIndex(i => i.StartsWith("because")));
-        Assert.True(ids.IndexOf("trending") < ids.IndexOf("mylist"));
-        Assert.True(ids.FindIndex(i => i.StartsWith("genre")) >= 0);
-        Assert.True(ids.IndexOf("mylist") < ids.FindIndex(i => i.StartsWith("genre")));
-        Assert.True(ids.FindIndex(i => i.StartsWith("genre")) < ids.IndexOf("top10-shows"));
-        Assert.True(ids.IndexOf("top10-shows") < ids.IndexOf("newseasons"));
-        Assert.True(ids.IndexOf("newseasons") < ids.IndexOf("recent"));
-        Assert.True(ids.IndexOf("recent") < ids.IndexOf("hidden") || !ids.Contains("hidden"));
+        Assert.Equal("top10-movies", ids[2]);
+        Assert.Equal("top10-shows", ids[11]);
+        Assert.All(rows.Where(r => r.Type == "because"), r => Assert.StartsWith("because-", r.Id));
+        Assert.All(rows.Where(r => r.Type == "genre"), r => Assert.StartsWith("genre-", r.Id));
         Assert.Equal(ids.Count, ids.Distinct().Count());
-        Assert.InRange(rows.Count(r => r.Type == "because"), 1, 3);
-        Assert.InRange(rows.Count(r => r.Type == "genre"), 1, 3);
+        Assert.Equal(new[] { "genre-action", "genre-comedy", "genre-thriller" }, ids.Where(i => i.StartsWith("genre-", StringComparison.Ordinal)).OrderBy(i => i, StringComparer.Ordinal).ToArray());
     }
 
     [Fact]
@@ -429,13 +429,41 @@ public class RecEngineTests
     }
 
     [Fact]
-    public void UnknownUser_GetsPopularityOnlyAndNothingHidden()
+    public void UserWithNothingVisible_GetsNoRows()
     {
         var catalog = Many(1, 8, "M", "Action");
         var input = Input(Id(5555), catalog, catalog.Select(c => Play(U1, c)));
         input = new RecInput { UserId = input.UserId, Catalog = input.Catalog, Visible = new HashSet<Guid>(), Signals = input.Signals, Now = Now };
 
         Assert.Empty(RecEngine.Build(input));   // nothing visible -> nothing to show
+    }
+
+    [Fact]
+    public void UnknownUser_GetsPopularityOnlyAndNothingHidden()
+    {
+        var catalog = Many(1, 9, "M", "Action");
+        var hidden = catalog[7];                        // exists, but this user may not see it (library access / parental rating)
+        var popular = catalog[2];
+        var signals = new[] { U1, U2, U3 }.Select(u => Play(u, popular, 2))
+            .Concat(new[] { Play(U1, catalog[3], 2), Play(U1, hidden, 2), Play(U2, hidden, 2), Play(U3, hidden, 2) })
+            .ToList();
+        var input = new RecInput
+        {
+            UserId = Id(5555),                           // never played anything
+            Catalog = catalog,
+            Visible = catalog.Where(c => c.Id != hidden.Id).Select(c => c.Id).ToHashSet(),
+            Signals = signals,
+            Now = Now,
+            ServerName = "Srv",
+        };
+
+        var rows = RecEngine.Build(input);
+
+        var picks = Row(rows, "toppicks")!;
+        Assert.Equal("Popular on Srv", picks.Title);                 // cold start = popularity, not personalisation
+        Assert.Equal(popular.Id, picks.Items[0].Item.Id);            // the most-played title leads
+        Assert.DoesNotContain(rows.SelectMany(r => r.Items), i => i.Item.Id == hidden.Id);   // no row leaks an invisible title
+        Assert.DoesNotContain(rows, r => r.Type is "continue" or "because" or "genre" or "mylist" or "again");
     }
 
     [Fact]

@@ -15,8 +15,16 @@ public sealed class ComingSoonService
 {
     private const int MaxLibraryTrailersPerRun = 200;
 
-    // Titles for which TMDB had no trailer; remembered for this process only so they do not hog every run's quota.
+    /// <summary>After this many failed trailer lookups in a row the run stops asking (TMDB is down); it tries again next run.</summary>
+    private const int MaxConsecutiveTrailerFailures = 5;
+
+    /// <summary>How long "TMDB has no trailer for this title" is remembered (this process only). Failures are never remembered.</summary>
+    internal static readonly TimeSpan NoTrailerTtl = TimeSpan.FromDays(7);
+
+    // Titles for which TMDB answered "no trailer"; remembered so they do not hog every run's quota, but they expire.
     private static readonly ConcurrentDictionary<string, DateTime> NoTrailer = new();
+
+    private int _trailerFailures;
 
     private readonly PluginStore _store;
     private readonly ICatalog _catalog;
@@ -43,6 +51,7 @@ public sealed class ComingSoonService
         }
 
         var now = nowOverride ?? DateTime.UtcNow;
+        _trailerFailures = 0;
         var items = _catalog.All;
         var libraryKeys = items.Where(i => i.TmdbId is > 0).Select(i => ComingSoonRanker.Key(ComingSoonRanker.MediaTypeOf(i), i.TmdbId!.Value)).ToHashSet();
 
@@ -111,12 +120,22 @@ public sealed class ComingSoonService
         DateTime now,
         CancellationToken ct)
     {
-        var (seeds, downvoted) = _store.Read(d =>
+        // Copy only this user's rows while holding the store lock; the (heavier) seed scoring runs on the copy, outside it.
+        var (mine, downvoted) = _store.Read(d =>
         {
-            var s = ComingSoonRanker.SelectSeeds(d, userId, items, now);
+            var prefix = userId.ToString("N") + "|";
+            var snap = new StoreData();
+            snap.Signals.AddRange(d.Signals.Where(s => s.UserId == userId));
+            foreach (var kv in d.Ratings.Where(kv => kv.Key.StartsWith(prefix, StringComparison.Ordinal)))
+            {
+                snap.Ratings[kv.Key] = kv.Value;
+            }
+
+            snap.MyList.UnionWith(d.MyList.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)));
             var down = d.Votes.Where(v => v.UserId == userId && v.Vote < 0).Select(v => ComingSoonRanker.Key(v.MediaType, v.TmdbId)).ToHashSet();
-            return (s, down);
+            return (snap, down);
         });
+        var seeds = ComingSoonRanker.SelectSeeds(mine, userId, items, now);
 
         var candidates = new Dictionary<string, ComingSoonRanker.Candidate>();
         foreach (var seed in seeds)
@@ -188,35 +207,54 @@ public sealed class ComingSoonService
                 continue;
             }
 
-            if (NoTrailer.ContainsKey(tk))
+            if (IsKnownNoTrailer(tk) || TrailerLookupsPaused)
             {
                 continue;
             }
 
-            var key = await SafeTrailerAsync(e.MediaType, e.TmdbId, ct).ConfigureAwait(false);
+            var key = await SafeTrailerAsync(e.MediaType, e.TmdbId, tk, ct).ConfigureAwait(false);
             if (!string.IsNullOrEmpty(key))
             {
                 e.TrailerKey = key;
                 known[tk] = key;
                 _store.Write(d => d.TrailerKeys[tk] = key);
             }
-            else
-            {
-                NoTrailer[tk] = DateTime.UtcNow;
-            }
         }
 
         return ranked;
     }
 
-    private async Task<string?> SafeTrailerAsync(string mediaType, int id, CancellationToken ct)
+    private bool TrailerLookupsPaused => _trailerFailures >= MaxConsecutiveTrailerFailures;
+
+    private static bool IsKnownNoTrailer(string key)
+        => NoTrailer.TryGetValue(key, out var at) && DateTime.UtcNow - at < NoTrailerTtl;
+
+    /// <summary>
+    /// Looks a trailer up. A genuine "TMDB has none" is remembered (for a week); a failed lookup is not, and several in a
+    /// row pause trailer lookups for the rest of this run.
+    /// </summary>
+    private async Task<string?> SafeTrailerAsync(string mediaType, int id, string rememberKey, CancellationToken ct)
     {
         try
         {
-            return await _tmdb.TrailerKeyAsync(mediaType, id, ct).ConfigureAwait(false);
+            var r = await _tmdb.LookupTrailerAsync(mediaType, id, ct).ConfigureAwait(false);
+            if (r.Failed)
+            {
+                _trailerFailures++;
+                return null;
+            }
+
+            _trailerFailures = 0;
+            if (string.IsNullOrEmpty(r.Key))
+            {
+                NoTrailer[rememberKey] = DateTime.UtcNow;
+            }
+
+            return r.Key;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _trailerFailures++;
             _log.LogDebug("FullUI: trailer lookup failed ({Type})", ex.GetType().Name);
             return null;
         }
@@ -227,21 +265,23 @@ public sealed class ComingSoonService
     {
         var have = _store.Read(d => d.TrailerKeys.Keys.ToHashSet());
         var todo = items
-            .Where(i => i.TmdbId is > 0 && string.IsNullOrEmpty(i.TrailerKey) && !have.Contains("item:" + i.Id.ToString("N")) && !NoTrailer.ContainsKey("item:" + i.Id.ToString("N")))
+            .Where(i => i.TmdbId is > 0 && string.IsNullOrEmpty(i.TrailerKey) && !have.Contains("item:" + i.Id.ToString("N")) && !IsKnownNoTrailer("item:" + i.Id.ToString("N")))
             .Take(MaxLibraryTrailersPerRun)
             .ToList();
         foreach (var i in todo)
         {
             ct.ThrowIfCancellationRequested();
+            if (TrailerLookupsPaused)
+            {
+                _log.LogWarning("FullUI: TMDB is not answering; the rest of the trailer lookups wait for the next run");
+                break;
+            }
+
             var skey = "item:" + i.Id.ToString("N");
-            var key = await SafeTrailerAsync(ComingSoonRanker.MediaTypeOf(i), i.TmdbId!.Value, ct).ConfigureAwait(false);
+            var key = await SafeTrailerAsync(ComingSoonRanker.MediaTypeOf(i), i.TmdbId!.Value, skey, ct).ConfigureAwait(false);
             if (!string.IsNullOrEmpty(key))
             {
                 _store.Write(d => d.TrailerKeys[skey] = key);
-            }
-            else
-            {
-                NoTrailer[skey] = DateTime.UtcNow;
             }
         }
     }

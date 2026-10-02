@@ -1,5 +1,6 @@
 using System.Net;
 using Jellyfin.Plugin.FullUI.Ai;
+using Jellyfin.Plugin.FullUI.Data;
 using Jellyfin.Plugin.FullUI.Library;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -55,11 +56,11 @@ public class AiTests
         using var ts = new TempStore();
         var cat = new FakeCatalog { Items = Lib.ToList() };
         cat.Visible = new HashSet<Guid> { Lib[0].Id, Lib[1].Id }; // Alien hidden
-        ts.Store.Write(d =>
+        ts.Store.WriteEmbeddings(e =>
         {
-            d.Embeddings[Lib[0].Id.ToString("N")] = new float[] { 1, 0 };
-            d.Embeddings[Lib[1].Id.ToString("N")] = new float[] { 0, 1 };
-            d.Embeddings[Lib[2].Id.ToString("N")] = new float[] { 1, 0 };
+            e[Lib[0].Id.ToString("N")] = new EmbeddingEntry { Vector = new float[] { 1, 0 } };
+            e[Lib[1].Id.ToString("N")] = new EmbeddingEntry { Vector = new float[] { 0, 1 } };
+            e[Lib[2].Id.ToString("N")] = new EmbeddingEntry { Vector = new float[] { 1, 0 } };
         });
         var ollama = new FakeOllama();
         var search = new NlSearch(ts.Store, cat, ollama);
@@ -92,7 +93,7 @@ public class AiTests
     {
         using var ts = new TempStore();
         var cat = new FakeCatalog { Items = Lib.ToList() };
-        ts.Store.Write(d => d.Embeddings[Lib[0].Id.ToString("N")] = new float[] { 9, 9 });
+        ts.Store.WriteEmbeddings(e => e[Lib[0].Id.ToString("N")] = new EmbeddingEntry { Vector = new float[] { 9, 9 } });
         var ollama = new FakeOllama();
         var seen = new List<string>();
         ollama.Embed = t =>
@@ -105,7 +106,7 @@ public class AiTests
         Assert.Equal(2, seen.Count);
         Assert.DoesNotContain(seen, s => s.StartsWith("Blade Runner"));
 
-        ts.Store.Write(d => d.Embeddings.Remove(Lib[1].Id.ToString("N")));
+        ts.Store.WriteEmbeddings(e => e.Remove(Lib[1].Id.ToString("N")));
         ollama.Embed = _ => null;
         Assert.Equal(0, await new EmbeddingIndexer(ts.Store, cat, ollama).RunAsync(null, default));
     }

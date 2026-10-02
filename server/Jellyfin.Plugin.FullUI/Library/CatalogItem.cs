@@ -29,6 +29,9 @@ public sealed class CatalogItem
     public string? TrailerKey { get; init; }         // YouTube id from Jellyfin RemoteTrailers
     public bool HasBackdrop { get; init; }
     public bool HasLogo { get; init; }
+
+    /// <summary>Changes whenever the primary image changes; clients add it as <c>&amp;tag=</c> so images can be cached for a long time. Null when there is no primary image.</summary>
+    public string? PrimaryImageTag { get; init; }
 }
 
 /// <summary>Per-user view of the library. Implemented against ILibraryManager; faked in tests.</summary>
@@ -40,8 +43,14 @@ public interface ICatalog
     /// <summary>Ids this user may see (library access + parental rating applied by Jellyfin).</summary>
     IReadOnlySet<Guid> VisibleTo(Guid userId);
 
-    /// <summary>Mark the snapshot stale (called on item added / library scan).</summary>
+    /// <summary>
+    /// The library changed (item added, scan running). Cheap and safe to call thousands of times: the snapshot is only
+    /// refreshed lazily, at most every ~30 s, and <see cref="Changed"/> is raised once per burst.
+    /// </summary>
     void Invalidate();
+
+    /// <summary>Like <see cref="Invalidate"/> but the next read reloads immediately (manual rebuilds, nightly task).</summary>
+    void InvalidateNow() => Invalidate();
 
     /// <summary>Raised after the library changes (debounce on the consumer side).</summary>
     event EventHandler? Changed;

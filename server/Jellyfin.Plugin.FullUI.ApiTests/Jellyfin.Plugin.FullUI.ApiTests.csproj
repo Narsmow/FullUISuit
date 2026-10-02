@@ -22,4 +22,9 @@
     <ProjectReference Include="..\Jellyfin.Plugin.FullUI\Jellyfin.Plugin.FullUI.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Shared fakes (temp store, fake catalog/config/users); same namespace as the discovery tests. -->
+    <Compile Include="..\Jellyfin.Plugin.FullUI.DiscoveryTests\Fakes.cs" Link="Fakes.cs" />
+  </ItemGroup>
+
 </Project>

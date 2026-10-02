@@ -16,8 +16,17 @@ public interface IOllamaClient
     /// <summary>True when Ollama is enabled in settings (does not imply it is reachable).</summary>
     bool Enabled { get; }
 
+    /// <summary>Name of the embedding model currently configured (stored with each vector).</summary>
+    string EmbedModel => string.Empty;
+
     /// <summary>Embeddings for each text, or null on any failure.</summary>
     Task<IReadOnlyList<float[]>?> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct);
+
+    /// <summary>
+    /// Embedding for one interactive search query: short timeout, and after a failure it answers null immediately for a
+    /// minute so a stopped Ollama does not make every search wait.
+    /// </summary>
+    Task<IReadOnlyList<float[]>?> EmbedQueryAsync(string text, CancellationToken ct) => EmbedAsync(new[] { text }, ct);
 
     /// <summary>One chat completion (non-streaming), or null on any failure.</summary>
     Task<string?> ChatAsync(string system, string user, CancellationToken ct);
@@ -31,10 +40,14 @@ public sealed class OllamaClient : IOllamaClient
     private static readonly TimeSpan EmbedTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan ChatTimeout = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(6);
+    private static readonly TimeSpan BackOff = TimeSpan.FromSeconds(60);
 
     private readonly IHttpClientFactory _http;
     private readonly IConfigSource _config;
     private readonly ILogger<OllamaClient> _log;
+    private long _embedBlockedUntil;
+    private long _chatBlockedUntil;
 
     public OllamaClient(IHttpClientFactory http, IConfigSource config, ILogger<OllamaClient> log)
     {
@@ -42,6 +55,13 @@ public sealed class OllamaClient : IOllamaClient
         _config = config;
         _log = log;
     }
+
+    public string EmbedModel => _config.Current.OllamaEmbedModel ?? string.Empty;
+
+    /// <summary>True while a recent failure has the circuit open (calls that honour the breaker return null at once).</summary>
+    public bool CircuitOpen => DateTime.UtcNow.Ticks < Interlocked.Read(ref _embedBlockedUntil);
+
+    private bool ChatCircuitOpen => DateTime.UtcNow.Ticks < Interlocked.Read(ref _chatBlockedUntil);
 
     public bool Enabled => _config.Current.OllamaEnabled && BaseUri(_config.Current.OllamaUrl) is not null;
 
@@ -66,15 +86,42 @@ public sealed class OllamaClient : IOllamaClient
         return await EmbedCore(cfg.OllamaUrl, cfg.OllamaEmbedModel, texts, EmbedTimeout, ct).ConfigureAwait(false);
     }
 
-    public async Task<string?> ChatAsync(string system, string user, CancellationToken ct)
+    public async Task<IReadOnlyList<float[]>?> EmbedQueryAsync(string text, CancellationToken ct)
     {
         var cfg = _config.Current;
-        if (!Enabled)
+        if (!Enabled || CircuitOpen)
         {
             return null;
         }
 
-        return await ChatCore(cfg.OllamaUrl, cfg.OllamaChatModel, system, user, ChatTimeout, ct).ConfigureAwait(false);
+        var res = await EmbedCore(cfg.OllamaUrl, cfg.OllamaEmbedModel, new[] { text }, QueryTimeout, ct).ConfigureAwait(false);
+        Record(ref _embedBlockedUntil, res is not null);
+        return res;
+    }
+
+    private static void Record(ref long blockedUntil, bool success)
+    {
+        if (success)
+        {
+            Interlocked.Exchange(ref blockedUntil, 0);
+        }
+        else
+        {
+            Interlocked.Exchange(ref blockedUntil, (DateTime.UtcNow + BackOff).Ticks);
+        }
+    }
+
+    public async Task<string?> ChatAsync(string system, string user, CancellationToken ct)
+    {
+        var cfg = _config.Current;
+        if (!Enabled || ChatCircuitOpen)
+        {
+            return null;
+        }
+
+        var res = await ChatCore(cfg.OllamaUrl, cfg.OllamaChatModel, system, user, ChatTimeout, ct).ConfigureAwait(false);
+        Record(ref _chatBlockedUntil, res is not null);
+        return res;
     }
 
     public async Task<(bool ok, string message)> TestAsync(string? url, string? embedModel, string? chatModel, CancellationToken ct)

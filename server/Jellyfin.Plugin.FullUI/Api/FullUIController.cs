@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.FullUI.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -28,15 +29,15 @@ public class FullUIController : ControllerBase
     /// </summary>
     [HttpPost("Tmdb/Test")]
     [Authorize(Policy = "RequiresElevation")]
-    public async Task<ActionResult<TestResult>> TestTmdb([FromBody] TmdbTestRequest request, CancellationToken ct)
+    public async Task<IActionResult> TestTmdb([FromBody] TmdbTestRequest? request, CancellationToken ct)
     {
-        var key = string.IsNullOrWhiteSpace(request.ApiKey)
+        var key = string.IsNullOrWhiteSpace(request?.ApiKey)
             ? Plugin.Instance?.Configuration.TmdbApiKey
-            : request.ApiKey;
+            : request!.ApiKey;
         key = key?.Trim();
         if (string.IsNullOrEmpty(key))
         {
-            return new TestResult(false, "No TMDB API key entered.");
+            return SafeApi.Json(new TestResult(false, "No TMDB API key entered."));
         }
 
         var isBearer = key.StartsWith("eyJ", StringComparison.Ordinal);
@@ -47,38 +48,47 @@ public class FullUIController : ControllerBase
             msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
         }
 
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
         try
         {
             using var client = _http.CreateClient("FullUI");
-            using var resp = await client.SendAsync(msg, ct).ConfigureAwait(false);
-            return resp.IsSuccessStatusCode
+            using var resp = await client.SendAsync(msg, cts.Token).ConfigureAwait(false);
+            return SafeApi.Json(resp.IsSuccessStatusCode
                 ? new TestResult(true, "Connected to TMDB.")
-                : new TestResult(false, $"TMDB rejected the key (HTTP {(int)resp.StatusCode}).");
+                : new TestResult(false, $"TMDB rejected the key (HTTP {(int)resp.StatusCode})."));
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when ((ex is HttpRequestException || ex is OperationCanceledException) && !ct.IsCancellationRequested)
         {
-            return new TestResult(false, "Could not reach TMDB: " + ex.Message);
+            // Never echo the exception text: it can contain the request URL, which carries a v3 key.
+            return SafeApi.Json(new TestResult(false, "Could not reach TMDB. Check the server's internet connection and try again."));
         }
     }
 
-    /// <summary>Lightweight status for the web client; never exposes secrets.</summary>
+    /// <summary>Lightweight status for signed-in clients; never exposes secrets.</summary>
     [HttpGet("Status")]
     [Authorize]
-    public ActionResult<object> Status()
+    public IActionResult Status()
     {
         var cfg = Plugin.Instance?.Configuration;
-        return new
+        return SafeApi.Json(new
         {
-            serverName = cfg?.ServerName ?? "FullUI",
-            accentColor = cfg?.AccentColor ?? "#e50914",
+            serverName = string.IsNullOrWhiteSpace(cfg?.ServerName) ? "FullUI" : cfg!.ServerName,
+            accentColor = Branding.NormalizeAccent(cfg?.AccentColor),
             tmdbConfigured = !string.IsNullOrWhiteSpace(cfg?.TmdbApiKey),
             ollamaEnabled = cfg?.OllamaEnabled ?? false,
-        };
+            trailersEnabled = cfg?.TrailersEnabled ?? true,
+            webInjected = WebInjection.Status.Registered,
+        });
     }
 
+    /// <summary>
+    /// Serves the embedded bundle. It is revalidated on every load (ETag = the build's module id, so an upgraded
+    /// plugin is picked up immediately and an unchanged one answers 304 without re-sending the bundle).
+    /// </summary>
     [HttpGet("web/{file}")]
     [AllowAnonymous]
-    public ActionResult WebAsset(string file)
+    public IActionResult WebAsset(string file)
     {
         var (name, type) = file switch
         {
@@ -91,7 +101,15 @@ public class FullUIController : ControllerBase
             return NotFound();
         }
 
-        var stream = typeof(Plugin).Assembly.GetManifestResourceStream($"{typeof(Plugin).Namespace}.Web.{name}");
-        return stream is null ? NotFound() : File(stream, type);
+        var asm = typeof(Plugin).Assembly;
+        var stream = asm.GetManifestResourceStream($"{typeof(Plugin).Namespace}.Web.{name}");
+        if (stream is null)
+        {
+            return NotFound();
+        }
+
+        Response.Headers[Microsoft.Net.Http.Headers.HeaderNames.CacheControl] = "no-cache";
+        var etag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue("\"" + asm.ManifestModule.ModuleVersionId.ToString("N") + "-" + name + "\"");
+        return File(stream, type, lastModified: null, entityTag: etag);
     }
 }

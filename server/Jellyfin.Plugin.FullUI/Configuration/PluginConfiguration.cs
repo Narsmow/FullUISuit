@@ -29,4 +29,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool MaterializePlaylists { get; set; }
 
     public bool RequestNotifications { get; set; } = true;
+
+    /// <summary>Lets admins switch off trailer autoplay for everyone (clients load the YouTube player only when this is true).</summary>
+    public bool TrailersEnabled { get; set; } = true;
 }

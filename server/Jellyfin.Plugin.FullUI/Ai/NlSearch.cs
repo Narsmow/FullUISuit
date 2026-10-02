@@ -32,14 +32,23 @@ public sealed class NlSearch
         var items = _catalog.All.Where(i => visible.Contains(i.Id)).ToList();
         if (_ollama.Enabled)
         {
-            var q = await _ollama.EmbedAsync(new[] { query }, ct).ConfigureAwait(false);
+            var q = await _ollama.EmbedQueryAsync(query, ct).ConfigureAwait(false);
             if (q is { Count: 1 })
             {
-                var emb = _store.Read(d => d.Embeddings.ToDictionary(kv => kv.Key, kv => kv.Value));
+                var model = _ollama.EmbedModel;
+                // Vectors from a different model have another dimension/meaning: ignore them until they are re-embedded.
+                var emb = _store.ReadEmbeddings(e => e
+                    .Where(kv => kv.Value.Model.Length == 0 || model.Length == 0 || string.Equals(kv.Value.Model, model, StringComparison.OrdinalIgnoreCase))
+                    .ToDictionary(kv => kv.Key, kv => kv.Value.Vector));
                 var hits = Semantic(q[0], emb, items, query, take);
                 if (hits.Count > 0)
                 {
-                    return ("semantic", hits);
+                    // Titles without a usable vector yet (just added, or model changed) must still be findable by words.
+                    var unindexed = items.Where(i => !emb.ContainsKey(i.Id.ToString("N"))).ToList();
+                    var extra = unindexed.Count == 0
+                        ? Array.Empty<SearchHit>()
+                        : Keyword(unindexed, query, take).Where(h => h.Item.Name.Length > 0).ToArray();
+                    return ("semantic", hits.Concat(extra).Take(take).ToList());
                 }
             }
         }

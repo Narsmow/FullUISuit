@@ -7,7 +7,10 @@ using Jellyfin.Plugin.FullUI.Ai;
 using Jellyfin.Plugin.FullUI.Data;
 using Jellyfin.Plugin.FullUI.Discovery;
 using Jellyfin.Plugin.FullUI.Library;
+using Jellyfin.Plugin.FullUI.Recs;
+using Jellyfin.Plugin.FullUI.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -42,10 +45,10 @@ public class DiscoveryController : ControllerBase
     public sealed record NotificationsResponse(IReadOnlyList<NotificationDto> Items);
 
     [HttpGet("ComingSoon")]
-    public ActionResult<ComingSoonResponse> ComingSoon()
-        => SafeApi.Run(this, _log, "loading Coming Soon", ComingSoonCore);
+    public IActionResult ComingSoon()
+        => SafeApi.Run(_log, "loading Coming Soon", ComingSoonCore);
 
-    private ActionResult<ComingSoonResponse> ComingSoonCore()
+    private IActionResult ComingSoonCore()
     {
         if (!TryGetUserId(out var userId))
         {
@@ -54,38 +57,23 @@ public class DiscoveryController : ControllerBase
 
         if (!_tmdb.Configured)
         {
-            return new ComingSoonResponse(Array.Empty<ComingSoonCard>());
+            return SafeApi.Json(new ComingSoonResponse(Array.Empty<ComingSoonCard>()));
         }
 
-        var mine = _votes.MyVotes(userId);
-        var inLibrary = _catalog.All.Where(i => i.TmdbId is > 0)
-            .Select(i => ComingSoonRanker.Key(ComingSoonRanker.MediaTypeOf(i), i.TmdbId!.Value)).ToHashSet();
-        var entries = _store.Read(d => d.ComingSoon.TryGetValue(userId.ToString("N"), out var l) ? l.ToList() : new List<ComingSoonEntry>());
-        var cards = entries
-            .Where(e => !inLibrary.Contains(ComingSoonRanker.Key(e.MediaType, e.TmdbId)))
-            .Select(e => new ComingSoonCard(
-                e.TmdbId,
-                e.MediaType,
-                e.Title,
-                e.Overview,
-                e.PosterPath,
-                e.BackdropPath,
-                e.ReleaseDate,
-                e.TrailerKey,
-                mine.GetValueOrDefault(VoteService.StatusKey(e.MediaType, e.TmdbId))))
-            .ToList();
-        return new ComingSoonResponse(cards);
+        var inLibrary = ComingSoonView.LibraryKeys(_catalog.All);
+        var cards = _store.Read(d => ComingSoonView.Cards(d, userId, inLibrary));
+        return SafeApi.Json(new ComingSoonResponse(cards));
     }
 
     [HttpPost("Vote")]
-    public ActionResult Vote([FromBody] VoteRequest? request)
-        => SafeApi.Run(this, _log, "saving your vote", () => VoteCore(request));
+    public IActionResult Vote([FromBody] VoteRequest? request)
+        => SafeApi.Run(_log, "saving your vote", () => VoteCore(request));
 
-    private ActionResult VoteCore(VoteRequest? request)
+    private IActionResult VoteCore(VoteRequest? request)
     {
         if (request is null)
         {
-            return BadRequest(new ApiError("That vote could not be read."));
+            return SafeApi.Error(StatusCodes.Status400BadRequest, "That vote could not be read.");
         }
 
         if (!TryGetUserId(out var userId))
@@ -93,14 +81,19 @@ public class DiscoveryController : ControllerBase
             return Unauthorized();
         }
 
-        return _votes.Cast(userId, request) == VoteResult.Ok ? NoContent() : BadRequest(new ApiError("That vote was not valid."));
+        return _votes.Cast(userId, request) switch
+        {
+            VoteResult.Ok => NoContent(),
+            VoteResult.LimitReached => SafeApi.Error(StatusCodes.Status400BadRequest, $"You have reached the limit of {VoteService.MaxVotesPerUser} votes. Remove an older vote first."),
+            _ => SafeApi.Error(StatusCodes.Status400BadRequest, "That vote was not valid."),
+        };
     }
 
     [HttpGet("Notifications")]
-    public ActionResult<NotificationsResponse> Notifications()
-        => SafeApi.Run(this, _log, "loading notifications", NotificationsCore);
+    public IActionResult Notifications()
+        => SafeApi.Run(_log, "loading notifications", NotificationsCore);
 
-    private ActionResult<NotificationsResponse> NotificationsCore()
+    private IActionResult NotificationsCore()
     {
         if (!TryGetUserId(out var userId))
         {
@@ -109,14 +102,14 @@ public class DiscoveryController : ControllerBase
 
         var items = _store.Read(d => d.Notifications.Where(n => n.UserId == userId).OrderByDescending(n => n.At).Take(50)
             .Select(n => new NotificationDto(n.Id, n.Text, n.At, n.Read, n.ItemId?.ToString("N"))).ToList());
-        return new NotificationsResponse(items);
+        return SafeApi.Json(new NotificationsResponse(items));
     }
 
     [HttpPost("Notifications/Read")]
-    public ActionResult MarkRead([FromBody] MarkReadRequest? request)
-        => SafeApi.Run(this, _log, "updating notifications", () => MarkReadCore(request));
+    public IActionResult MarkRead([FromBody] MarkReadRequest? request)
+        => SafeApi.Run(_log, "updating notifications", () => MarkReadCore(request));
 
-    private ActionResult MarkReadCore(MarkReadRequest? request)
+    private IActionResult MarkReadCore(MarkReadRequest? request)
     {
         if (!TryGetUserId(out var userId))
         {
@@ -138,10 +131,10 @@ public class DiscoveryController : ControllerBase
     }
 
     [HttpGet("Search")]
-    public Task<ActionResult<SearchResponse>> Search([FromQuery] string? q, CancellationToken ct)
-        => SafeApi.RunAsync(this, _log, "searching", () => SearchCore(q, ct));
+    public Task<IActionResult> Search([FromQuery] string? q, CancellationToken ct)
+        => SafeApi.RunAsync(_log, "searching", () => SearchCore(q, ct));
 
-    private async Task<ActionResult<SearchResponse>> SearchCore(string? q, CancellationToken ct)
+    private async Task<IActionResult> SearchCore(string? q, CancellationToken ct)
     {
         if (!TryGetUserId(out var userId))
         {
@@ -151,7 +144,7 @@ public class DiscoveryController : ControllerBase
         q = q?.Trim();
         if (string.IsNullOrEmpty(q))
         {
-            return new SearchResponse("keyword", Array.Empty<ItemCard>());
+            return SafeApi.Json(new SearchResponse("keyword", Array.Empty<ItemCard>()));
         }
 
         if (q.Length > 200)
@@ -160,35 +153,20 @@ public class DiscoveryController : ControllerBase
         }
 
         var (mode, hits) = await _search.SearchAsync(userId, q, ct).ConfigureAwait(false);
-        var (ratings, list) = _store.Read(d => (
-            d.Ratings.Where(kv => kv.Key.StartsWith(userId.ToString("N") + "|", StringComparison.Ordinal)).ToDictionary(kv => kv.Key, kv => kv.Value),
-            d.MyList.Where(k => k.StartsWith(userId.ToString("N") + "|", StringComparison.Ordinal)).ToHashSet()));
-        var cards = hits.Select(h => ToCard(h.Item, userId, ratings, list)).ToList();
-        return new SearchResponse(mode, cards);
-    }
-
-    private static ItemCard ToCard(CatalogItem i, Guid userId, Dictionary<string, int> ratings, HashSet<string> myList)
-    {
-        var key = StoreData.UserItemKey(userId, i.Id);
-        return new ItemCard(
-            i.Id.ToString("N"),
-            i.Name,
-            i.Kind == CatalogKind.Series ? "Series" : "Movie",
-            i.Year,
-            i.Rating,
-            i.OfficialRating,
-            i.Overview,
-            i.Genres.ToArray(),
-            i.RuntimeMinutes,
-            Array.Empty<string>(),
-            i.TrailerKey,
-            i.TmdbId,
-            null,
-            i.HasBackdrop,
-            i.HasLogo,
-            ratings.GetValueOrDefault(key),
-            myList.Contains(key),
-            null);
+        var now = DateTime.UtcNow;
+        var cards = _store.Read(d => hits.Select(h =>
+        {
+            var key = StoreData.UserItemKey(userId, h.Item.Id);
+            return CardMapper.ToCard(
+                h.Item,
+                RecEngine.Badges(h.Item, now),
+                null,
+                null,
+                d.Ratings.GetValueOrDefault(key),
+                d.MyList.Contains(key),
+                d);
+        }).ToList());
+        return SafeApi.Json(new SearchResponse(mode, cards));
     }
 
     private bool TryGetUserId(out Guid userId)
