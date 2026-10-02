@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.FullUI.Compat;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,7 +44,7 @@ public sealed class RebuildRecsTask : IScheduledTask
             _catalog.InvalidateNow();
             _home.Invalidate();
             _ = _catalog.All;
-            users = _users.GetUsersIds().ToList();
+            users = UserManagerCompat.GetUserIds(_users).ToList();
         }
         catch (Exception ex)
         {

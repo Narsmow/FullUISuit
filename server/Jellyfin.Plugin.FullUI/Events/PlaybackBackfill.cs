@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.FullUI.Compat;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -159,7 +160,7 @@ public sealed class PlaybackBackfillService : IHostedService
     {
         try
         {
-            var pending = _users.GetUsersIds()
+            var pending = UserManagerCompat.GetUserIds(_users)
                 .Where(id => !_store.Read(d => d.BackfilledUsers.Contains(id.ToString("N"))))
                 .ToList();
             foreach (var userId in pending)

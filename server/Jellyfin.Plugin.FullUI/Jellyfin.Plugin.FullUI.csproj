@@ -10,8 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- NOT pinned to 10.11.0: IUserManager.UsersIds/Users (10.11.0) became GetUsersIds()/GetUsers() in later 10.11.x, and this code uses the newer methods. See docs/api-contract.md. -->
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.*" />
+    <!-- Compiled against the OLDEST supported server (10.11.6) so the compiler rejects any API newer than that. Supported: 10.11.6 and later 10.11.x. -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.6" />
   </ItemGroup>
 
   <ItemGroup>

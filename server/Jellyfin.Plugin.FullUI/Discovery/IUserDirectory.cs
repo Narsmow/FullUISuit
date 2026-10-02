@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.FullUI.Compat;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,7 +23,7 @@ public sealed class JellyfinUserDirectory : IUserDirectory
         _users = users;
     }
 
-    public IReadOnlyList<Guid> UserIds => _users.GetUsersIds().ToList();
+    public IReadOnlyList<Guid> UserIds => UserManagerCompat.GetUserIds(_users);
 
     public string? NameOf(Guid userId)
     {
