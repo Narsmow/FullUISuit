@@ -1,0 +1,108 @@
+{
+  "serverName": "NarsFlix",
+  "accentColor": "#e50914",
+  "rows": [
+    {
+      "id": "continue",
+      "title": "Continue Watching",
+      "type": "continue",
+      "items": [
+        {
+          "id": "11111111111111111111111111111111",
+          "name": "Half Watched",
+          "type": "Series",
+          "year": 2019,
+          "rating": 8.1,
+          "rated": "TV-MA",
+          "overview": "A show you are in the middle of.",
+          "genres": ["Drama"],
+          "runtimeMinutes": 52,
+          "badges": [],
+          "trailerKey": null,
+          "tmdbId": 1001,
+          "progress": 0.42,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "toppicks",
+      "title": "Top Picks for You",
+      "type": "toppicks",
+      "items": [
+        {
+          "id": "22222222-2222-2222-2222-222222222222",
+          "name": "Big Buck Bunny",
+          "type": "Movie",
+          "year": 2008,
+          "rating": 7.5,
+          "rated": "G",
+          "overview": "A giant rabbit takes revenge.",
+          "genres": ["Animation", "Comedy"],
+          "runtimeMinutes": 10,
+          "badges": ["Recently Added", "#2 in Movies", "Top Rated"],
+          "trailerKey": "aqz-KE-bpKQ",
+          "tmdbId": 10378,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 2,
+          "inMyList": true,
+          "rank": null,
+          "someFutureField": {"ignored": true}
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "top10-movies",
+      "title": "Top 10 Movies Today",
+      "type": "top10",
+      "items": [
+        {"id": "33333333333333333333333333333333", "name": "Third", "type": "Movie", "year": 2021, "badges": ["#3 in Movies"], "hasBackdrop": false, "hasLogo": false, "myRating": 0, "inMyList": false, "rank": 3, "genres": []},
+        {"id": "44444444444444444444444444444444", "name": "First", "type": "Movie", "year": 2022, "badges": ["#1 in Movies"], "hasBackdrop": true, "hasLogo": false, "myRating": 0, "inMyList": false, "rank": 1, "genres": []}
+      ]
+    },
+    {
+      "id": "empty",
+      "title": "Nothing here",
+      "type": "genre",
+      "items": []
+    },
+    {
+      "id": "comingsoon",
+      "title": "Coming Soon",
+      "type": "comingsoon",
+      "items": [],
+      "comingSoon": [
+        {
+          "tmdbId": 550,
+          "mediaType": "movie",
+          "title": "Fight Club 2",
+          "overview": "Rule one.",
+          "posterPath": "/abc.jpg",
+          "backdropPath": "/def.jpg",
+          "releaseDate": "2026-11-20",
+          "trailerKey": "SUXWAEX2jlg",
+          "myVote": 1
+        },
+        {
+          "tmdbId": 1399,
+          "mediaType": "tv",
+          "title": "A Show",
+          "overview": null,
+          "posterPath": null,
+          "backdropPath": null,
+          "releaseDate": null,
+          "trailerKey": null,
+          "myVote": 0
+        }
+      ]
+    }
+  ]
+}

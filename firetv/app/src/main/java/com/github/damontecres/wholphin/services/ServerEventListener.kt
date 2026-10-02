@@ -1,0 +1,156 @@
+package com.github.damontecres.wholphin.services
+
+import android.content.Context
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import com.github.damontecres.wholphin.data.ServerRepository
+import com.github.damontecres.wholphin.data.model.JellyfinServer
+import com.github.damontecres.wholphin.data.model.JellyfinUser
+import com.github.damontecres.wholphin.ui.collectLatestIn
+import com.github.damontecres.wholphin.ui.launchDefault
+import com.github.damontecres.wholphin.ui.launchIO
+import com.github.damontecres.wholphin.ui.showToast
+import dagger.hilt.android.qualifiers.ActivityContext
+import dagger.hilt.android.scopes.ActivityScoped
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.isActive
+import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.api.client.extensions.sessionApi
+import org.jellyfin.sdk.api.sockets.subscribe
+import org.jellyfin.sdk.model.api.GeneralCommandMessage
+import org.jellyfin.sdk.model.api.GeneralCommandType
+import org.jellyfin.sdk.model.api.MediaType
+import org.jellyfin.sdk.model.api.UserUpdatedMessage
+import timber.log.Timber
+import javax.inject.Inject
+
+/**
+ * Listens for basic messages from the server such as messages
+ */
+@ActivityScoped
+class ServerEventListener
+    @Inject
+    constructor(
+        @param:ActivityContext private val context: Context,
+        private val api: ApiClient,
+        private val serverRepository: ServerRepository,
+    ) : DefaultLifecycleObserver {
+        private val activity = (context as AppCompatActivity)
+
+        private var listenJob: Job? = null
+
+        init {
+            activity.lifecycle.addObserver(this)
+            serverRepository.current.collectLatestIn(activity.lifecycleScope) {
+                Timber.d("New user/server: %s", it)
+                listenJob?.cancel()
+                if (it != null) {
+                    init(it.server, it.user)
+                }
+            }
+        }
+
+        fun init(
+            server: JellyfinServer?,
+            user: JellyfinUser?,
+        ) {
+            if (server != null && user != null && api.baseUrl != null && api.accessToken != null) {
+                (context as AppCompatActivity).lifecycleScope.launchIO {
+                    api.sessionApi.postCapabilities(
+                        playableMediaTypes = listOf(MediaType.VIDEO),
+                        supportedCommands =
+                            listOf(
+                                GeneralCommandType.DISPLAY_MESSAGE,
+                                GeneralCommandType.SEND_STRING,
+                            ),
+                        supportsMediaControl = true,
+                    )
+                    subscribeToWebSocket()
+                }
+            }
+        }
+
+        fun subscribeToWebSocket() {
+            Timber.v("Subscribing to WebSocket")
+            listenJob?.cancel()
+            listenJob =
+                activity.lifecycleScope.launchDefault {
+                    try {
+                        // Launch multiple listeners, but stop all if one fails
+                        coroutineScope {
+                            api.webSocket
+                                .subscribe<GeneralCommandMessage>()
+                                .onEach { message ->
+                                    Timber.v(
+                                        "Got GeneralCommandMessage: %s",
+                                        message.data?.name,
+                                    )
+                                    when (message.data?.name) {
+                                        GeneralCommandType.DISPLAY_MESSAGE,
+                                        GeneralCommandType.SEND_STRING,
+                                        -> {
+                                            val header = message.data?.arguments["Header"]
+                                            val text =
+                                                message.data?.arguments["Text"]
+                                                    ?: message.data?.arguments["String"]
+                                            val toast =
+                                                listOfNotNull(header, text)
+                                                    .joinToString("\n")
+                                            if (toast.isNotBlank()) {
+                                                showToast(context, toast, Toast.LENGTH_LONG)
+                                            }
+                                        }
+
+                                        else -> {
+                                            Timber.v(
+                                                "Ignoring GeneralCommandMessage: %s",
+                                                message.data?.name,
+                                            )
+                                        }
+                                    }
+                                }.catch { ex ->
+                                    Timber.e(ex, "Error in general message websocket subscription")
+                                }.launchIn(this@coroutineScope)
+
+                            api.webSocket
+                                .subscribe<UserUpdatedMessage>()
+                                .catch { ex ->
+                                    Timber.e(ex, "Error in user updated websocket subscription")
+                                }.collectLatestIn(this@coroutineScope) { msg ->
+                                    Timber.v("Got updated user: %s", msg.data?.id)
+                                    msg.data?.let { serverRepository.updateUserDto(it) }
+                                }
+                        }
+                    } catch (ex: CancellationException) {
+                        throw ex
+                    } catch (ex: Exception) {
+                        Timber.e(ex, "Error in websocket connection")
+                        if (activity.lifecycleScope.isActive) {
+                            subscribeToWebSocket()
+                        }
+                    }
+                }
+        }
+
+        override fun onResume(owner: LifecycleOwner) {
+            serverRepository.current.value?.let { init(it.server, it.user) }
+        }
+
+        override fun onPause(owner: LifecycleOwner) {
+            Timber.v("Cancelling WebSocket")
+            listenJob?.cancel()
+        }
+
+        override fun onStop(owner: LifecycleOwner) {
+            Timber.v("Cancelling WebSocket")
+            listenJob?.cancel()
+        }
+    }

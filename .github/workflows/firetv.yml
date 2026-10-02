@@ -1,0 +1,209 @@
+name: firetv
+
+# Builds the FullUI Fire TV app (firetv/, a GPL-2.0 fork of Wholphin).
+#
+#  - jvm-tests : compiles and tests :fullui-core (API client, feature detection, row/badge mapping).
+#                Needs only a JDK. Runs on every change.
+#  - apk       : full Android build (assembleDefaultRelease + Wholphin's unit tests), uploads the APKs.
+#                Signed with the release keystore from repository secrets when present, otherwise
+#                signed with the Android debug key (installable, but cannot update a release-signed
+#                install). Secrets: SIGNING_KEY (base64 keystore), KEY_ALIAS, KEY_PASSWORD,
+#                KEY_STORE_PASSWORD. Optional: EXTENSIONS_USERNAME / EXTENSIONS_PASSWORD (a GitHub
+#                token with read:packages) for Wholphin's prebuilt ffmpeg/AV1/libmpv extensions.
+#  - release   : on a tag `firetv-vX.Y.Z`, publishes the APKs to GitHub Releases (release
+#                `firetv-vX.Y.Z`, plus the rolling `firetv-latest` that the in-app updater reads).
+#
+# See firetv/BUILDING.md.
+
+on:
+  push:
+    branches: [main]
+    tags: ['firetv-v*']
+    paths:
+      - 'firetv/**'
+      - '.github/workflows/firetv.yml'
+  pull_request:
+    paths:
+      - 'firetv/**'
+      - '.github/workflows/firetv.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: firetv-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx6g -XX:MaxMetaspaceSize=1024m'"
+
+jobs:
+  jvm-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firetv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+      - name: Test :fullui-core (JVM only, no Android SDK)
+        run: ./gradlew -p jvm-checks :fullui-core:test --console=plain
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fullui-core-test-reports
+          path: firetv/fullui-core/build/reports/tests/test
+
+  apk:
+    needs: jvm-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      signed: ${{ steps.signing.outputs.signed }}
+      version: ${{ steps.version.outputs.name }}
+    defaults:
+      run:
+        working-directory: firetv
+    env:
+      BUILD_TOOLS_VERSION: '36.0.0'
+      NDK_VERSION: '29.0.14206865'
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+      SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+      EXT_USER: ${{ secrets.EXTENSIONS_USERNAME }}
+      EXT_PASS: ${{ secrets.EXTENSIONS_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools build-tools;${{ env.BUILD_TOOLS_VERSION }} ndk;${{ env.NDK_VERSION }}"
+
+      - name: Work out version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/firetv-v* ]]; then
+            name="${GITHUB_REF#refs/tags/firetv-v}"
+          else
+            name="0.0.${GITHUB_RUN_NUMBER}"
+          fi
+          if [[ ! "$name" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Tag/version '$name' is not X.Y.Z"; exit 1
+          fi
+          code=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+          [[ "$code" -lt 1 ]] && code=1
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "FULLUI_VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "FULLUI_VERSION_CODE=$code" >> "$GITHUB_ENV"
+
+      - name: Signing mode
+        id: signing
+        run: |
+          if [[ -n "$KEY_ALIAS" && -n "$SIGNING_KEY" ]]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Release keystore present: APKs are signed with it."
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No release keystore secrets: APKs are signed with the Android DEBUG key (installable, not updatable from a release-signed install)."
+          fi
+
+      - name: Wholphin unit tests
+        # Upstream's own tests; kept visible but not blocking, FullUI's gate is the jvm-tests job.
+        continue-on-error: true
+        run: ./gradlew :app:testDefaultDebugUnitTest --console=plain
+
+      - name: Build release APKs
+        run: |
+          if [[ -n "$EXT_USER" ]]; then
+            export ORG_GRADLE_PROJECT_WholphinExtensionsUsername="$EXT_USER"
+            export ORG_GRADLE_PROJECT_WholphinExtensionsPassword="$EXT_PASS"
+          fi
+          ./gradlew :app:assembleDefaultRelease --console=plain
+
+      - name: Verify signatures
+        run: |
+          find app/build/outputs/apk -name '*.apk' -print0 | xargs -0 -n1 "${ANDROID_SDK_ROOT}/build-tools/${BUILD_TOOLS_VERSION}/apksigner" verify --verbose --print-certs
+
+      - name: Rename APKs for the in-app updater
+        run: |
+          # FullUI-default-release-0.1.0-100-arm64-v8a.apk -> dist/FullUI-release-arm64-v8a.apk
+          # FullUI-default-release-0.1.0-100.apk           -> dist/FullUI-release.apk (universal)
+          mkdir -p dist
+          while IFS= read -r -d '' f; do
+            base="$(basename "$f")"
+            if [[ "$base" =~ -(arm64-v8a|armeabi-v7a|x86_64|x86)\.apk$ ]]; then
+              cp "$f" "dist/FullUI-release-${BASH_REMATCH[1]}.apk"
+            else
+              cp "$f" "dist/FullUI-release.apk"
+            fi
+          done < <(find app/build/outputs/apk -name '*.apk' -print0)
+          ls -l dist
+          (cd dist && sha256sum *.apk | tee SHA256SUMS.txt)
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: FullUI-apk-${{ steps.signing.outputs.signed == 'true' && 'signed' || 'debugsigned' }}
+          path: |
+            firetv/dist/*.apk
+            firetv/dist/SHA256SUMS.txt
+          compression-level: 0
+
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: FullUI-mapping
+          path: firetv/app/build/outputs/mapping/**/mapping.txt
+          if-no-files-found: ignore
+
+  release:
+    # Only for tags; needs the real keystore so that every release is updatable from the previous one.
+    if: startsWith(github.ref, 'refs/tags/firetv-v')
+    needs: apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.apk.outputs.version }}
+    steps:
+      - name: Refuse to publish debug-signed releases
+        if: needs.apk.outputs.signed != 'true'
+        run: |
+          echo "::error::This tag build was signed with the debug key. Add SIGNING_KEY, KEY_ALIAS, KEY_PASSWORD and KEY_STORE_PASSWORD secrets (see firetv/BUILDING.md) and re-run, otherwise the first real-signed release could not update this one."
+          exit 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: FullUI-apk-signed
+          path: dist
+      - name: Publish release ${{ github.ref_name }}
+        run: |
+          ls -l dist
+          notes="FullUI for Fire TV v${VERSION}. Sideload dist/FullUI-release-armeabi-v7a.apk (Fire TV Stick, most 32-bit sticks) or FullUI-release-arm64-v8a.apk (Fire TV Stick 4K Max, Cube) or the universal FullUI-release.apk. GPL-2.0, derived from Wholphin."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.apk dist/SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" dist/*.apk dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" \
+              --title "v${VERSION}" --notes "$notes" --verify-tag --latest=false
+          fi
+      - name: Update rolling firetv-latest release (read by the in-app updater)
+        run: |
+          # The release *name* must be "vX.Y.Z": the updater parses the version from it.
+          gh release delete firetv-latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          gh release create firetv-latest dist/*.apk dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" \
+            --title "v${VERSION}" --target "$GITHUB_SHA" --latest=false \
+            --notes "Rolling pointer to ${TAG}, used by FullUI's in-app update check. Do not download from here manually; use the ${TAG} release."
