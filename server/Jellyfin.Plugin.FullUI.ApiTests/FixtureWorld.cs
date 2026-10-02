@@ -302,6 +302,8 @@ internal sealed class FixtureWorld
         runs.Record("FullUIDiscoverUpcoming", "Discover upcoming titles", Now.AddHours(-9), Now.AddHours(-8).AddMinutes(-58), TaskOutcome.Success, "Finished normally.");
         runs.Record("FullUIBuildEmbeddings", "Build AI index", Now.AddDays(-1), Now.AddDays(-1).AddMinutes(4), TaskOutcome.Problem, "3 of 38 titles could not be embedded.");
         runs.Record("FullUIDaily", "Send reminders and tidy up", Now.AddHours(-6), Now.AddHours(-6).AddSeconds(5), TaskOutcome.Success, "1 reminder sent.");
+        runs.Record("FullUIPlaybackTracking", "Learn from playback", Now.AddDays(-2), Now.AddDays(-2), TaskOutcome.Success, "Listening for playback and library changes.");
+        runs.Record("FullUIPlaybackBackfill", "Import existing watch history", Now.AddHours(-5), Now.AddHours(-5).AddSeconds(12), TaskOutcome.Success, "Nothing new to import.");
     }
 
     // ------------------------------------------------------------------ controllers

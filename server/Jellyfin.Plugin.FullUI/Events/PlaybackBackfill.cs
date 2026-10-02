@@ -109,7 +109,12 @@ public sealed class PlaybackBackfillService : IHostedService
     private readonly PluginStore _store;
     private readonly HomeService _home;
     private readonly ILogger<PlaybackBackfillService> _log;
+    private readonly Ops.ITaskRunLog? _runs;
     private CancellationTokenSource? _cts;
+
+    /// <summary>Key of this service in the health page's task list.</summary>
+    public const string RunKey = "FullUIPlaybackBackfill";
+    public const string RunName = "Import existing watch history";
 
     public PlaybackBackfillService(
         ILibraryManager library,
@@ -117,7 +122,8 @@ public sealed class PlaybackBackfillService : IHostedService
         IUserDataManager userData,
         PluginStore store,
         HomeService home,
-        ILogger<PlaybackBackfillService> log)
+        ILogger<PlaybackBackfillService> log,
+        Ops.ITaskRunLog? runs = null)
     {
         _library = library;
         _users = users;
@@ -125,6 +131,7 @@ public sealed class PlaybackBackfillService : IHostedService
         _store = store;
         _home = home;
         _log = log;
+        _runs = runs;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -159,22 +166,27 @@ public sealed class PlaybackBackfillService : IHostedService
         return Task.CompletedTask;
     }
 
-    /// <summary>Imports every user that has not been imported yet. Never throws.</summary>
+    /// <summary>Imports every user that has not been imported yet. Never throws. Each run is recorded for the health page.</summary>
     public void RunOnce()
     {
+        var start = DateTime.UtcNow;
         try
         {
             var pending = UserManagerCompat.GetUserIds(_users)
                 .Where(id => !_store.Read(d => d.BackfilledUsers.Contains(id.ToString("N"))))
                 .ToList();
+            var imported = 0;
+            var records = 0;
             foreach (var userId in pending)
             {
                 try
                 {
-                    var records = Collect(userId);
+                    var found = Collect(userId);
                     var added = 0;
-                    _store.Write(d => added = PlaybackBackfill.Apply(d, userId, records, DateTime.UtcNow));
+                    _store.Write(d => added = PlaybackBackfill.Apply(d, userId, found, DateTime.UtcNow));
                     _home.Invalidate(userId);
+                    imported++;
+                    records += added;
                     _log.LogInformation("FullUI: imported {Count} existing watch records for one user", added);
                 }
                 catch (Exception ex)
@@ -182,12 +194,25 @@ public sealed class PlaybackBackfillService : IHostedService
                     _log.LogWarning(ex, "FullUI: could not import existing watch history for one user; will try again later");
                 }
             }
+
+            var failed = pending.Count - imported;
+            if (failed > 0)
+            {
+                Record(start, Ops.TaskOutcome.Problem, $"{failed} of {pending.Count} user(s) could not be imported. It will try again in a few hours.");
+            }
+            else
+            {
+                Record(start, Ops.TaskOutcome.Success, pending.Count == 0 ? "Nothing new to import." : $"Imported {records} watch record(s) for {imported} user(s).");
+            }
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "FullUI: importing existing watch history failed");
+            Record(start, Ops.TaskOutcome.Failed, "Importing existing watch history failed. It will try again in a few hours.");
         }
     }
+
+    private void Record(DateTime start, string outcome, string message) => _runs?.Record(RunKey, RunName, start, DateTime.UtcNow, outcome, message);
 
     private List<WatchRecord> Collect(Guid userId)
     {

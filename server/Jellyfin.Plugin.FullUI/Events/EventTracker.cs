@@ -27,6 +27,11 @@ public sealed class EventTracker : IHostedService
     private readonly ILogger<EventTracker> _log;
     private readonly InteractionLog? _interactions;
     private readonly IConfigSource? _config;
+    private readonly Ops.ITaskRunLog? _runs;
+
+    /// <summary>Key of this service in the health page's task list.</summary>
+    public const string RunKey = "FullUIPlaybackTracking";
+    public const string RunName = "Learn from playback";
 
     public EventTracker(
         ISessionManager sessions,
@@ -36,7 +41,8 @@ public sealed class EventTracker : IHostedService
         HomeService home,
         ILogger<EventTracker> log,
         InteractionLog? interactions = null,
-        IConfigSource? config = null)
+        IConfigSource? config = null,
+        Ops.ITaskRunLog? runs = null)
     {
         _sessions = sessions;
         _library = library;
@@ -46,19 +52,23 @@ public sealed class EventTracker : IHostedService
         _log = log;
         _interactions = interactions;
         _config = config;
+        _runs = runs;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        var start = DateTime.UtcNow;
         try
         {
             _sessions.PlaybackStopped += OnPlaybackStopped;
             _library.ItemAdded += OnItemAdded;
             _sessions.PlaybackStart += OnPlaybackStart;
+            _runs?.Record(RunKey, RunName, start, DateTime.UtcNow, Ops.TaskOutcome.Success, "Listening for playback and library changes.");
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "FullUI: could not subscribe to Jellyfin events; recommendations will not learn from playback");
+            _runs?.Record(RunKey, RunName, start, DateTime.UtcNow, Ops.TaskOutcome.Failed, "FullUI could not listen to Jellyfin playback, so recommendations will not learn from watching. Restart Jellyfin; if it persists, check the server log.");
         }
 
         return Task.CompletedTask;

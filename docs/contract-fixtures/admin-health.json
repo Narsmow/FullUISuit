@@ -83,6 +83,26 @@
       "color": "grey",
       "status": "Has not run yet",
       "message": ""
+    },
+    {
+      "key": "FullUIPlaybackTracking",
+      "name": "Learn from playback",
+      "lastStartUtc": "2026-05-30T12:00:00Z",
+      "lastEndUtc": "2026-05-30T12:00:00Z",
+      "outcome": "Success",
+      "color": "green",
+      "status": "Worked",
+      "message": "Listening for playback and library changes."
+    },
+    {
+      "key": "FullUIPlaybackBackfill",
+      "name": "Import existing watch history",
+      "lastStartUtc": "2026-06-01T07:00:00Z",
+      "lastEndUtc": "2026-06-01T07:00:12Z",
+      "outcome": "Success",
+      "color": "green",
+      "status": "Worked",
+      "message": "Nothing new to import."
     }
   ],
   "files": [
