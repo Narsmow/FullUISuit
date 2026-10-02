@@ -56,6 +56,23 @@
                     <div class="inputContainer">
                         <input is="emby-input" type="text" id="ollamaChatModel" label="Chat model" />
                     </div>
+                    <button is="emby-button" type="button" id="ollamaTest" class="raised"><span>Test connection</span></button>
+                    <span id="ollamaTestResult" style="margin-left:1em"></span>
+                </fieldset>
+
+                <fieldset class="verticalSection">
+                    <legend><h3>Playlists, requests and users</h3></legend>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="materializePlaylists" />
+                        <span>Also write "FullUI:" playlists for clients that cannot show the FullUI home screen</span>
+                    </label>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="requestNotifications" />
+                        <span>Notify users when a title they requested is added</span>
+                    </label>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="excludedUserIds" label="Excluded user ids (comma separated, ignored for Top 10 / Trending and playlists)" />
+                    </div>
                 </fieldset>
 
                 <div>
@@ -83,6 +100,9 @@
                     $('ollamaUrl').value = c.OllamaUrl || 'http://localhost:11434';
                     $('ollamaEmbedModel').value = c.OllamaEmbedModel || 'nomic-embed-text';
                     $('ollamaChatModel').value = c.OllamaChatModel || 'llama3.2:3b';
+                    $('materializePlaylists').checked = !!c.MaterializePlaylists;
+                    $('requestNotifications').checked = c.RequestNotifications !== false;
+                    $('excludedUserIds').value = (c.ExcludedUserIds || []).join(', ');
                     Dashboard.hideLoadingMsg();
                 });
             });
@@ -101,10 +121,37 @@
                     contentType: 'application/json',
                     dataType: 'json'
                 }).then(function (r) {
+                    var msg = r.message;
+                    if (!r.ok && /rejected/i.test(msg || '')) {
+                        msg = 'Your TMDB key was rejected - copy it again from themoviedb.org/settings/api (either the API key or the read access token works).';
+                    }
+                    out.textContent = (r.ok ? '✓ ' : '✗ ') + msg;
+                    out.style.color = r.ok ? '#4caf50' : '#f44336';
+                }, function () {
+                    out.textContent = '✗ Could not run the test. Check that you are signed in as an administrator and try again.';
+                    out.style.color = '#f44336';
+                });
+            });
+
+            $('ollamaTest').addEventListener('click', function () {
+                var out = $('ollamaTestResult');
+                out.textContent = 'Testing...';
+                out.style.color = '';
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('FullUI/Ollama/Test'),
+                    data: JSON.stringify({
+                        Url: $('ollamaUrl').value.trim(),
+                        EmbedModel: $('ollamaEmbedModel').value.trim(),
+                        ChatModel: $('ollamaChatModel').value.trim()
+                    }),
+                    contentType: 'application/json',
+                    dataType: 'json'
+                }).then(function (r) {
                     out.textContent = (r.ok ? '✓ ' : '✗ ') + r.message;
                     out.style.color = r.ok ? '#4caf50' : '#f44336';
                 }, function () {
-                    out.textContent = '✗ Request failed.';
+                    out.textContent = '✗ Could not run the test. Check that you are signed in as an administrator and try again.';
                     out.style.color = '#f44336';
                 });
             });
@@ -122,6 +169,9 @@
                     c.OllamaUrl = $('ollamaUrl').value.trim();
                     c.OllamaEmbedModel = $('ollamaEmbedModel').value.trim();
                     c.OllamaChatModel = $('ollamaChatModel').value.trim();
+                    c.MaterializePlaylists = $('materializePlaylists').checked;
+                    c.RequestNotifications = $('requestNotifications').checked;
+                    c.ExcludedUserIds = $('excludedUserIds').value.split(',').map(function (x) { return x.trim().replace(/-/g, ''); }).filter(function (x) { return x.length > 0; });
                     ApiClient.updatePluginConfiguration(pluginId, c).then(Dashboard.processPluginConfigurationUpdateResult);
                 });
                 return false;

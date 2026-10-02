@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>FullUI Requests</title>
+</head>
+<body>
+<div id="FullUIRequestsPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-select,emby-input">
+    <div data-role="content">
+        <div class="content-primary">
+            <h2>Most Requested</h2>
+            <p class="fieldDescription">Titles your users voted "I want this" on from Coming Soon. Set a status so everyone can see progress; users are notified automatically when a requested title shows up in the library.</p>
+
+            <div style="display:flex;flex-wrap:wrap;gap:.6em;align-items:center;margin:1em 0">
+                <button is="emby-button" type="button" id="sortVotes" class="raised"><span>Most votes</span></button>
+                <button is="emby-button" type="button" id="sortRecent" class="raised"><span>Most recent</span></button>
+                <span style="flex:1"></span>
+                <button is="emby-button" type="button" id="viewGrid" class="raised"><span>Grid</span></button>
+                <button is="emby-button" type="button" id="viewList" class="raised"><span>List</span></button>
+                <button is="emby-button" type="button" id="csvDownload" class="raised"><span>Download CSV</span></button>
+                <button is="emby-button" type="button" id="rebuild" class="raised"><span>Refresh now</span></button>
+            </div>
+
+            <div id="reqMessage" style="margin:.5em 0;min-height:1.4em"></div>
+            <div id="reqContainer"></div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var page = document.querySelector('#FullUIRequestsPage');
+            var $ = function (id) { return page.querySelector('#' + id); };
+            var STATUSES = ['Requested', 'Getting it', 'Added'];
+            var state = { sort: 'votes', view: 'grid' };
+
+            try {
+                state.sort = localStorage.getItem('fullui.req.sort') === 'recent' ? 'recent' : 'votes';
+                state.view = localStorage.getItem('fullui.req.view') === 'list' ? 'list' : 'grid';
+            } catch (e) { /* storage blocked: defaults are fine */ }
+
+            function remember() {
+                try {
+                    localStorage.setItem('fullui.req.sort', state.sort);
+                    localStorage.setItem('fullui.req.view', state.view);
+                } catch (e) { /* ignore */ }
+            }
+
+            function say(text, ok) {
+                var m = $('reqMessage');
+                m.textContent = text || '';
+                m.style.color = ok === false ? '#f44336' : (ok === true ? '#4caf50' : '');
+            }
+
+            function friendly(err) {
+                // Never show raw server or exception text.
+                var status = err && err.status;
+                if (status === 401 || status === 403) { return 'You need to be signed in as an administrator to see requests.'; }
+                if (status === 0 || status === undefined) { return 'Could not reach the server. Check your connection and try again.'; }
+                return 'Something went wrong on the server. Please try again in a moment.';
+            }
+
+            function el(tag, props, children) {
+                var e = document.createElement(tag);
+                if (props) {
+                    Object.keys(props).forEach(function (k) {
+                        if (k === 'text') { e.textContent = props[k]; }
+                        else if (k === 'style') { e.style.cssText = props[k]; }
+                        else { e.setAttribute(k, props[k]); }
+                    });
+                }
+                (children || []).forEach(function (c) { if (c) { e.appendChild(c); } });
+                return e;
+            }
+
+            function safeTmdbUrl(u) {
+                return typeof u === 'string' && u.indexOf('https://www.themoviedb.org/') === 0 ? u : null;
+            }
+
+            function posterUrl(p) {
+                return typeof p === 'string' && /^\/[A-Za-z0-9_.\-]+$/.test(p) ? 'https://image.tmdb.org/t/p/w342' + p : null;
+            }
+
+            function fmtDate(s) {
+                var d = new Date(s);
+                return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+            }
+
+            function statusEditor(r) {
+                var sel = el('select', { style: 'padding:.4em;max-width:100%' });
+                STATUSES.forEach(function (s) {
+                    var o = el('option', { value: s, text: s });
+                    if (s === r.status) { o.selected = true; }
+                    sel.appendChild(o);
+                });
+                var note = el('input', { type: 'text', maxlength: '500', placeholder: 'Note (optional)', style: 'padding:.4em;width:100%;box-sizing:border-box;margin-top:.3em' });
+                note.value = r.note || '';
+                var btn = el('button', { type: 'button', text: 'Save', style: 'margin-top:.3em;padding:.35em .9em;cursor:pointer' });
+                btn.addEventListener('click', function () {
+                    btn.disabled = true;
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('FullUI/Admin/Requests/Status'),
+                        data: JSON.stringify({ TmdbId: r.tmdbId, MediaType: r.mediaType, Status: sel.value, Note: note.value }),
+                        contentType: 'application/json'
+                    }).then(function () {
+                        btn.disabled = false;
+                        say('Saved "' + r.title + '" as ' + sel.value + '.', true);
+                    }, function (err) {
+                        btn.disabled = false;
+                        say('Could not save: ' + friendly(err), false);
+                    });
+                });
+                return el('div', null, [sel, note, btn]);
+            }
+
+            function tmdbLink(r) {
+                var href = safeTmdbUrl(r.tmdbUrl);
+                if (!href) { return null; }
+                return el('a', { href: href, target: '_blank', rel: 'noopener noreferrer', text: 'Open on TMDB' });
+            }
+
+            function votersText(r) {
+                var names = r.voters || [];
+                return r.wantCount + (r.wantCount === 1 ? ' vote' : ' votes') + (names.length ? ': ' + names.join(', ') : '');
+            }
+
+            function renderGridItem(r) {
+                var poster = posterUrl(r.posterPath);
+                var img = poster
+                    ? el('img', { src: poster, alt: '', loading: 'lazy', style: 'width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:6px;background:#333' })
+                    : el('div', { style: 'width:100%;aspect-ratio:2/3;background:#333;border-radius:6px' });
+                return el('div', { style: 'width:190px;flex:0 0 auto' }, [
+                    img,
+                    el('div', { text: r.title, style: 'font-weight:600;margin-top:.4em' }),
+                    el('div', { text: votersText(r), class: 'fieldDescription' }),
+                    tmdbLink(r),
+                    statusEditor(r)
+                ]);
+            }
+
+            function renderListItem(r) {
+                var year = r.releaseDate ? ' (' + String(r.releaseDate).slice(0, 4) + ')' : '';
+                return el('div', { style: 'display:flex;flex-wrap:wrap;gap:1em;align-items:flex-start;padding:.6em 0;border-bottom:1px solid rgba(128,128,128,.3)' }, [
+                    el('div', { style: 'flex:1 1 280px;min-width:0' }, [
+                        el('div', { text: r.title + year + ' - ' + (r.mediaType === 'tv' ? 'Series' : 'Movie'), style: 'font-weight:600' }),
+                        el('div', { text: votersText(r), class: 'fieldDescription' }),
+                        el('div', { text: 'Last vote ' + fmtDate(r.lastVoteAt), class: 'fieldDescription' }),
+                        tmdbLink(r)
+                    ]),
+                    el('div', { style: 'flex:0 1 260px' }, [statusEditor(r)])
+                ]);
+            }
+
+            function render(rows) {
+                var c = $('reqContainer');
+                c.textContent = '';
+                if (!rows.length) {
+                    say('No requests yet. Votes appear here once users tap "I want this" on a Coming Soon title.');
+                    return;
+                }
+                say(rows.length + (rows.length === 1 ? ' requested title' : ' requested titles'));
+                if (state.view === 'grid') {
+                    var wrap = el('div', { style: 'display:flex;flex-wrap:wrap;gap:1.2em' });
+                    rows.forEach(function (r) { wrap.appendChild(renderGridItem(r)); });
+                    c.appendChild(wrap);
+                } else {
+                    rows.forEach(function (r) { c.appendChild(renderListItem(r)); });
+                }
+            }
+
+            function paintToggles() {
+                $('sortVotes').style.opacity = state.sort === 'votes' ? '1' : '.55';
+                $('sortRecent').style.opacity = state.sort === 'recent' ? '1' : '.55';
+                $('viewGrid').style.opacity = state.view === 'grid' ? '1' : '.55';
+                $('viewList').style.opacity = state.view === 'list' ? '1' : '.55';
+            }
+
+            function load() {
+                paintToggles();
+                say('Loading...');
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('FullUI/Admin/Requests', { sort: state.sort }),
+                    dataType: 'json'
+                }).then(function (rows) {
+                    render(Array.isArray(rows) ? rows : []);
+                }, function (err) {
+                    $('reqContainer').textContent = '';
+                    say('Could not load requests. ' + friendly(err), false);
+                });
+            }
+
+            $('sortVotes').addEventListener('click', function () { state.sort = 'votes'; remember(); load(); });
+            $('sortRecent').addEventListener('click', function () { state.sort = 'recent'; remember(); load(); });
+            $('viewGrid').addEventListener('click', function () { state.view = 'grid'; remember(); load(); });
+            $('viewList').addEventListener('click', function () { state.view = 'list'; remember(); load(); });
+
+            $('csvDownload').addEventListener('click', function () {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('FullUI/Admin/Requests.csv', { sort: state.sort }),
+                    dataType: 'text'
+                }).then(function (text) {
+                    var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+                    var a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'fullui-requests.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+                }, function (err) {
+                    say('Could not download the CSV. ' + friendly(err), false);
+                });
+            });
+
+            $('rebuild').addEventListener('click', function () {
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('FullUI/Admin/Rebuild') }).then(function () {
+                    say('Refresh started. Coming Soon lists and AI search data update in the background.', true);
+                    setTimeout(load, 3000);
+                }, function (err) {
+                    say('Could not start the refresh. ' + friendly(err), false);
+                });
+            });
+
+            page.addEventListener('pageshow', load);
+        })();
+    </script>
+</div>
+</body>
+</html>
