@@ -1,0 +1,217 @@
+import type { ComingSoonCard, HomeRow, ItemCard, NotificationDto, Route, RouteKind } from './types';
+
+export type ImageKind = 'Primary' | 'Backdrop' | 'Logo';
+
+/** `base` is the server root (ApiClient.getUrl('') style); may be empty or end with a slash. */
+export function joinUrl(base: string, path: string): string {
+  return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
+}
+
+export function imageUrl(base: string, id: string, kind: ImageKind, maxWidth: number): string {
+  return joinUrl(base, `Items/${encodeURIComponent(id)}/Images/${kind}?maxWidth=${maxWidth}&quality=90`);
+}
+
+export function tmdbImage(path: string | null | undefined, size = 'w342'): string | null {
+  if (!path) return null;
+  return `https://image.tmdb.org/t/p/${size}${path.startsWith('/') ? path : '/' + path}`;
+}
+
+export function detailsHash(id: string): string {
+  return `#/details?id=${encodeURIComponent(id)}`;
+}
+
+export function debounce<A extends unknown[]>(
+  fn: (...a: A) => void,
+  ms: number,
+): ((...a: A) => void) & { cancel(): void } {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const d = (...a: A) => {
+    if (t !== undefined) clearTimeout(t);
+    t = setTimeout(() => {
+      t = undefined;
+      fn(...a);
+    }, ms);
+  };
+  d.cancel = () => {
+    if (t !== undefined) clearTimeout(t);
+    t = undefined;
+  };
+  return d;
+}
+
+// ---- hash routing -------------------------------------------------------------------------
+// Our pages live inside Jellyfin's own home route (`#/home?fui=shows`) so jellyfin-web's router
+// always sees a route it knows.
+
+export function parseRoute(hash: string): Route {
+  const h = hash || '';
+  const qi = h.indexOf('?');
+  const path = (qi >= 0 ? h.slice(0, qi) : h).replace(/^#!?/, '').replace(/\/+$/, '');
+  const params = new URLSearchParams(qi >= 0 ? h.slice(qi + 1) : '');
+  if (!/^\/?(home|home\.html)$/i.test(path)) return { kind: 'native', q: '' };
+  // jellyfin-web's own home route takes ?tab=N for its home tabs; tab > 0 is not ours.
+  const tab = params.get('tab');
+  if (tab && tab !== '0') return { kind: 'native', q: '' };
+  const fui = (params.get('fui') || '').toLowerCase();
+  const kinds: string[] = ['shows', 'movies', 'myserver', 'search'];
+  const kind = (kinds.includes(fui) ? fui : 'home') as RouteKind;
+  return { kind, q: params.get('q') || '' };
+}
+
+export function routeHash(kind: RouteKind, q = ''): string {
+  if (kind === 'home' || kind === 'native') return '#/home';
+  const p = new URLSearchParams({ fui: kind });
+  if (q) p.set('q', q);
+  return `#/home?${p.toString()}`;
+}
+
+// ---- rating / vote state machines ---------------------------------------------------------
+export type Rating = -1 | 0 | 1 | 2;
+
+/** Clicking the active level clears it (0); otherwise sets it. One level active at a time. */
+export function nextRating(current: number, clicked: number): Rating {
+  if (clicked !== -1 && clicked !== 1 && clicked !== 2) return 0;
+  return (current === clicked ? 0 : clicked) as Rating;
+}
+
+export function nextVote(current: number, clicked: number): -1 | 0 | 1 {
+  if (clicked !== -1 && clicked !== 1) return 0;
+  return (current === clicked ? 0 : clicked) as -1 | 0 | 1;
+}
+
+// ---- formatting ---------------------------------------------------------------------------
+export function formatRuntime(min: number | null | undefined): string {
+  if (!min || min <= 0) return '';
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+export function metaParts(c: Pick<ItemCard, 'year' | 'rated' | 'runtimeMinutes'>): string[] {
+  const out: string[] = [];
+  if (c.year) out.push(String(c.year));
+  if (c.rated) out.push(c.rated);
+  const rt = formatRuntime(c.runtimeMinutes);
+  if (rt) out.push(rt);
+  return out;
+}
+
+export function formatRelease(date: string | null | undefined): string {
+  if (!date) return 'Coming soon';
+  const d = new Date(date.length === 10 ? date + 'T00:00:00Z' : date);
+  if (isNaN(d.getTime())) return 'Coming soon';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+export function unreadCount(items: NotificationDto[]): number {
+  return items.filter((n) => !n.read).length;
+}
+
+export function badgeText(n: number): string {
+  return n > 9 ? '9+' : String(n);
+}
+
+export function timeAgo(iso: string, now = Date.now()): string {
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return '';
+  const s = Math.max(0, Math.round((now - t) / 1000));
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+// ---- row helpers --------------------------------------------------------------------------
+/** Filter rows to one item type. Coming Soon rows filter by TMDB media type. */
+export function filterRowsByType(rows: HomeRow[], type: 'Series' | 'Movie'): HomeRow[] {
+  const media = type === 'Series' ? 'tv' : 'movie';
+  const out: HomeRow[] = [];
+  for (const r of rows) {
+    if (r.type === 'comingsoon') {
+      const cs = (r.comingSoon || []).filter((c) => c.mediaType === media);
+      if (cs.length) out.push({ ...r, items: [], comingSoon: cs });
+      continue;
+    }
+    const items = (r.items || []).filter((i) => i.type === type);
+    if (items.length) out.push({ ...r, items });
+  }
+  return out;
+}
+
+const HERO_SKIP = new Set(['continue', 'mylist', 'comingsoon', 'again']);
+
+export function pickHeroItem(rows: HomeRow[]): ItemCard | null {
+  const cands: ItemCard[] = [];
+  for (const r of rows) if (!HERO_SKIP.has(r.type)) cands.push(...(r.items || []));
+  const best = cands.find((i) => i.hasBackdrop && i.trailerKey) || cands.find((i) => i.hasBackdrop);
+  if (best) return best;
+  for (const r of rows) {
+    const f = (r.items || []).find((i) => i.hasBackdrop);
+    if (f) return f;
+  }
+  return null;
+}
+
+export function rowHasContent(r: HomeRow): boolean {
+  return r.type === 'comingsoon' ? !!r.comingSoon && r.comingSoon.length > 0 : !!r.items && r.items.length > 0;
+}
+
+export function voteBody(c: ComingSoonCard, vote: number) {
+  return {
+    tmdbId: c.tmdbId,
+    mediaType: c.mediaType,
+    vote,
+    title: c.title,
+    posterPath: c.posterPath ?? null,
+    backdropPath: c.backdropPath ?? null,
+    releaseDate: c.releaseDate ?? null,
+    overview: c.overview ?? null,
+  };
+}
+
+// ---- spatial navigation (pure geometry) ---------------------------------------------------
+export interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+export type Dir = 'left' | 'right' | 'up' | 'down';
+
+/** Index of the best candidate in direction `dir`, or -1. Prefers aligned, near candidates. */
+export function pickNeighbor(from: Rect, cands: Rect[], dir: Dir): number {
+  const cx = (r: Rect) => (r.left + r.right) / 2;
+  const cy = (r: Rect) => (r.top + r.bottom) / 2;
+  let best = -1;
+  let bestScore = Infinity;
+  cands.forEach((c, i) => {
+    const dx = cx(c) - cx(from);
+    const dy = cy(c) - cy(from);
+    let main: number;
+    let cross: number;
+    if (dir === 'right') {
+      if (dx <= 1) return;
+      main = c.left - from.right;
+      cross = Math.abs(dy);
+    } else if (dir === 'left') {
+      if (dx >= -1) return;
+      main = from.left - c.right;
+      cross = Math.abs(dy);
+    } else if (dir === 'down') {
+      if (dy <= 1) return;
+      main = c.top - from.bottom;
+      cross = Math.abs(dx);
+    } else {
+      if (dy >= -1) return;
+      main = from.top - c.bottom;
+      cross = Math.abs(dx);
+    }
+    const score = Math.max(0, main) + cross * 2.5 + (main < 0 ? 200 : 0);
+    if (score < bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  });
+  return best;
+}
