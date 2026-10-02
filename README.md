@@ -4,18 +4,20 @@ Netflix-style UI plus personalized rows and suggestions for a personal Jellyfin 
 
 - `server/` C# Jellyfin plugin (settings page incl. TMDB API key, REST API, web injection)
 - `web/` TypeScript bundle injected into jellyfin-web (desktop, Android/iOS apps, webOS/Tizen)
-- `firetv/` (planned) Wholphin fork, sideloaded APK for Fire TV
+- `firetv/` Wholphin fork, sideloaded APK for Fire TV (built and published by `.github/workflows/firetv.yml`)
 
 ## Install
 
 **Users (Windows or Linux Jellyfin 10.11.x, no Docker, no coding):** download one file from the
 [latest release](https://github.com/Narsmow/FullUISuit/releases/latest) and run it.
 
-- Windows: `FullUI-Installer.cmd`, double-click it.
+- Windows 10/11: `FullUI-Installer.cmd`, double-click it.
 - Linux/macOS: `FullUI-Installer.sh`, run `bash FullUI-Installer.sh`.
 
 It signs in to your running Jellyfin (admin account), adds the plugin repositories, installs File Transformation and FullUI,
-restarts Jellyfin, checks everything is active, and optionally sets up TMDB and Ollama. Step-by-step guide,
+restarts Jellyfin, checks everything is active, and optionally sets up TMDB and Ollama. File Transformation is a third-party
+plugin (its plugin list is added to Jellyfin), and Ollama, if you choose it, is Ollama's own installer; docs/INSTALL.md says exactly
+what is downloaded. Step-by-step guide,
 troubleshooting, Fire TV sideload, update and uninstall: [docs/INSTALL.md](docs/INSTALL.md).
 Source and tests for the installer: `installer/` (`bash installer/tests/run-tests.sh`).
 

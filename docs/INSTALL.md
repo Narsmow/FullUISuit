@@ -7,6 +7,8 @@ and it is always safe to just run the file again.
 
 ## Before you start (1 minute)
 
+- You use **Windows 10 or 11**, Linux or macOS. (Older Windows needs Windows PowerShell 5.1 and .NET 4.5 installed first; the installer
+  cannot do that for you.)
 - Jellyfin is **running** on your PC or server, and you can open it in your browser.
 - Its version is **10.11.x** (Jellyfin web page, bottom of the menu: Dashboard shows the version).
 - You know the **username and password of a Jellyfin administrator** (the account you use to change settings).
@@ -30,8 +32,24 @@ and it is always safe to just run the file again.
 
 1. Download `FullUI-Installer.sh` from the same Releases page.
 2. Open a terminal in the folder and run: `bash FullUI-Installer.sh`
-   (it uses PowerShell if you have it, otherwise Python 3, which almost every Linux has. It never installs anything by itself.)
+   (it uses PowerShell if you have it, otherwise Python 3, which almost every Linux has. It does not install PowerShell or Python for you.)
 3. Answer the questions, exactly as on Windows.
+
+## What the installer downloads and changes (nothing hidden)
+
+- **FullUI** comes from this project's GitHub (`raw.githubusercontent.com/Narsmow/FullUISuit`, with the release page as a backup).
+- **File Transformation** is a helper plugin by a third party (IAmParadox27). It is not part of FullUI. The installer adds *his*
+  plugin list (`https://www.iamparadox.dev/jellyfin/plugins/manifest.json`) to Jellyfin's plugin repositories **permanently**
+  (you can remove it in Dashboard > Plugins > Repositories). Jellyfin only checks that list's downloads with MD5 checksums.
+  If you already have File Transformation, the installer keeps your copy (it asks before upgrading it).
+- **Ollama** (optional AI search, only if you answer yes or use `-InstallOllama`) is also third-party software. The installer
+  downloads and runs *Ollama's own installer* from ollama.com: on Windows via `winget`, or by downloading `OllamaSetup.exe`
+  (which is only run if it carries a valid digital signature); on Linux it runs Ollama's official `install.sh`.
+  Skip it if you are not comfortable with that; everything else works without it.
+- It signs in with the admin account you type, uses that sign-in only for this run, and signs out again.
+
+**Check your download (optional).** Each release lists `SHA256SUMS`. Linux/macOS: `sha256sum -c SHA256SUMS --ignore-missing`.
+Windows (PowerShell): `Get-FileHash .\FullUI-Installer.cmd -Algorithm SHA256` and compare with the line in `SHA256SUMS`.
 
 ## What you will be asked (screenshots in words)
 
@@ -58,7 +76,8 @@ The Fire TV app is a separate download and does **not** need any computer tools.
 1. On the Fire TV install the free **Downloader** app from the Amazon Appstore.
 2. Fire TV **Settings > My Fire TV > Developer Options > Install unknown apps** and allow **Downloader**.
 3. Open Downloader and type exactly this address, then press Go:
-   `https://github.com/Narsmow/FullUISuit/releases/latest/download/FullUI-FireTV.apk`
+   `https://github.com/Narsmow/FullUISuit/releases/download/firetv-latest/FullUI-release.apk`
+   (that is the universal build; the same page also offers `FullUI-release-armeabi-v7a.apk` and `-arm64-v8a.apk`).
 4. Choose **Install**, then open **FullUI**, type your Jellyfin address, username and password.
 
 If the download says "not found", the Fire TV app has not been published yet - it is still coming.
@@ -86,7 +105,14 @@ Send that file to whoever helps you.
 Other things worth knowing:
 
 - Windows **Smart App Control / SmartScreen / antivirus** may block the file. Choose "Run anyway", or right-click the file, **Properties**, tick **Unblock**.
-- **HTTPS with a self-made certificate** (port 8920): the installer warns and asks before continuing without checking the certificate.
+  If a company policy blocks scripts, the window says "The installer could not start" and changes nothing: use "Install by hand" below.
+- **HTTPS with a self-made certificate** (port 8920): the installer warns and asks before continuing without checking the certificate
+  (for that one server only). In scripts (`-Unattended`) you must say so explicitly with `-Insecure`.
+- **Jellyfin under a base path** (Dashboard > Networking > "Base URL", for example `/jellyfin`): type the address with it
+  (`myserver:8096/jellyfin`). The final self-test fetches the FullUI script through the address written in the page, and warns if the
+  browser would get a 404 there.
+- An address that **redirects** (for example `http://` to `https://`) is followed; the installer then uses the final address.
+- The **Jellyfin server itself is contacted directly**, bypassing any system proxy; other downloads use the system proxy settings.
 - **Ctrl+C** or closing the window at any time is safe. Run the file again to continue.
 - **A company or school proxy** is used automatically through Windows settings.
 
@@ -94,7 +120,8 @@ Other things worth knowing:
 
 Run the same installer file again (download the newest from the Releases page first for new installer fixes).
 It only changes what is out of date, restarts Jellyfin only if something new was installed, and keeps your settings.
-Quiet version: `Install-FullUI.cmd -Update`.
+To only update (it asks for the password as usual and stays quiet when nothing is new): `FullUI-Installer.cmd -Update`.
+For a script without any questions add `-Unattended` and the account (see "For scripts" below).
 
 Jellyfin can also update FullUI by itself: Dashboard > Plugins > Catalog.
 
@@ -103,13 +130,23 @@ Jellyfin can also update FullUI by itself: Dashboard > Plugins > Catalog.
 Run the installer with `-Uninstall`:
 
 - Windows (Command Prompt in the folder with the file): `FullUI-Installer.cmd -Uninstall`
+  (Jellyfin keeps older, superseded versions of a plugin on disk after updates; the uninstall removes every version it finds.)
 - Linux/macOS: `bash FullUI-Installer.sh -Uninstall`
 
 It asks to confirm, removes FullUI, asks whether to also remove **File Transformation** (say **No** if you use other
 plugins such as Home Screen Sections), and offers to restart Jellyfin. Your FullUI settings, ratings and requests are
-**kept**, so installing again later restores everything. To erase them completely, stop Jellyfin and delete the FullUI
-files under its data folder (`plugins/configurations/FullUI*.xml` and `data/plugins/FullUI`). Or remove the plugin by
-hand in Dashboard > Plugins > FullUI > Uninstall.
+**kept**, so installing again later restores everything. To erase them completely, stop Jellyfin and delete
+`<Jellyfin data folder>/fullui/store.json` and `<Jellyfin config folder>/plugins/configurations/Jellyfin.Plugin.FullUI.xml`
+(on Windows the data folder is usually `C:\ProgramData\Jellyfin\Server`). Or remove the plugin by hand in
+Dashboard > Plugins > FullUI > Uninstall.
+
+## Install by hand (if the installer cannot run)
+
+1. Jellyfin Dashboard > Plugins > **Repositories** > **+**: add `https://www.iamparadox.dev/jellyfin/plugins/manifest.json`
+   (File Transformation, third party) and `https://raw.githubusercontent.com/Narsmow/FullUISuit/main/manifest.json` (FullUI).
+2. Dashboard > Plugins > **Catalog**: install **File Transformation**, then **FullUI**.
+3. Restart Jellyfin (Dashboard > Restart), then press **Ctrl + F5** in the browser.
+4. Dashboard > Plugins > FullUI: set the site name and your TMDB key.
 
 ## For scripts and helpers (advanced)
 
@@ -120,15 +157,26 @@ bash FullUI-Installer.sh -Unattended -Server host:8096 -ApiKey "<key from Dashbo
 
 Other switches: `-Update`, `-Uninstall`, `-RemoveFileTransformation`, `-InstallOllama`, `-SkipOllama`, `-AllowOtherVersion`,
 `-Insecure` (skip certificate check), `-FireTvIp 192.168.1.30` (install the APK with `adb` if it is on the PC),
-`-RestartTimeoutSec 300`, `-LogDir <folder>`. Passwords/keys can also come from the environment variables
-`FULLUI_PASSWORD`, `FULLUI_APIKEY`, `FULLUI_TMDB_KEY`. Exit codes: 0 success, 1 failed, 2 stopped/cancelled.
-Without `-Unattended`, extra switches work only if they contain no spaces (use `install.ps1` directly otherwise).
+`-RestartTimeoutSec 300`, `-LogDir <folder>`. **Prefer the environment variables** `FULLUI_PASSWORD`, `FULLUI_APIKEY`,
+`FULLUI_TMDB_KEY` over `-Password` / `-ApiKey` / `-TmdbKey`: command lines show up in shell history and process lists.
+Example (Windows): `set FULLUI_PASSWORD=...` then `FullUI-Installer.cmd -Unattended -Server host:8096 -Username admin`.
+Exit codes: 0 success, 1 failed, 2 stopped/cancelled.
+Extra switches given to the `.cmd` work as long as special characters (`& ^ %`) are quoted; if in doubt use `install.ps1` directly.
 
 ### How the plugin repository works (for maintainers)
 
-Pushing a tag such as `v1.2.3` runs `.github/workflows/release.yml`. It builds the web bundle and the plugin, publishes
-`FullUI_1.2.3.0.zip`, a regenerated `manifest.json`, `FullUI-Installer.cmd`, `FullUI-Installer.sh` (and the Fire TV APK
-as `FullUI-FireTV.apk` when `firetv/` has a Gradle wrapper) to the GitHub Release, and commits the new `manifest.json` to
-`main`. The plugin repository URL that Jellyfin uses is
-`https://raw.githubusercontent.com/Narsmow/FullUISuit/main/manifest.json`; the fallback (used if `main` is protected and the
-commit fails) is `https://github.com/Narsmow/FullUISuit/releases/latest/download/manifest.json`. The installer tries the first, then the second.
+Pushing a tag such as `v1.2.3` runs `.github/workflows/release.yml`. It first runs every test (web, the .NET test projects,
+and the installer tests on Linux and on Windows under Windows PowerShell 5.1 and PowerShell 7); only then does it build the plugin and
+publish `FullUI_1.2.3.0.zip`, a regenerated `manifest.json`, `FullUI-Installer.cmd`, `FullUI-Installer.sh`, the loose
+installer files and `SHA256SUMS` to the GitHub Release, and commit the new `manifest.json` to `main` (rebasing onto the newest
+`main` and retrying; if it cannot push, the run fails loudly). A prerelease tag such as `v1.2.3-rc1` only makes a GitHub
+prerelease and never touches `main`; its plugin version (`1.2.2.9001`) sorts below the final `1.2.3.0`.
+The **Fire TV app is not built here**: `.github/workflows/firetv.yml` builds, signs and publishes it as
+`releases/download/firetv-latest/FullUI-release.apk`, which is the address the installer and this guide show.
+The plugin repository URL that Jellyfin uses is `https://raw.githubusercontent.com/Narsmow/FullUISuit/main/manifest.json`; the
+fallback (used when that list is unreachable, empty or out of date) is
+`https://github.com/Narsmow/FullUISuit/releases/latest/download/manifest.json`. The installer only accepts a list that really
+offers FullUI with at least one version, and tries the second address otherwise.
+
+The installer talks to the plugin by its GUID and configuration property names; `installer/tests/test_consistency.py` fails the
+build if these drift from `server/Jellyfin.Plugin.FullUI/Plugin.cs` and `Configuration/PluginConfiguration.cs`.
