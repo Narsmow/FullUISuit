@@ -3,6 +3,8 @@ setlocal
 title FullUI Installer
 set "HERE=%~dp0"
 if not exist "%HERE%install.ps1" goto missing
+set "UNATT="
+for %%A in (%*) do if /i "%%~A"=="-Unattended" set "UNATT=1"
 where powershell >nul 2>nul
 if errorlevel 1 goto nops
 powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%install.ps1" -LogDir "%HERE:~0,-1%" %*
@@ -17,12 +19,11 @@ goto finish
 :nops
 echo.
 echo Windows PowerShell was not found on this computer, so the installer cannot run.
-echo It is included with Windows 7 and newer; please ask for help (see docs\INSTALL.md).
+echo It is included with Windows 10 and 11 (older Windows needs PowerShell 5.1 installed); see docs\INSTALL.md.
 set "RC=1"
 :finish
 echo.
-echo %* | findstr /i "unattended" >nul
-if errorlevel 1 (
+if not defined UNATT (
   echo Press any key to close this window...
   pause >nul
 )
