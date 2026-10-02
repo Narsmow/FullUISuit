@@ -21,6 +21,7 @@ public class CoreServicesRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<PluginStore>();
         serviceCollection.AddSingleton<ICatalog, JellyfinCatalog>();
         serviceCollection.AddSingleton<INextUpSource, JellyfinNextUpSource>();
+        serviceCollection.AddSingleton<IWatchStateSource, JellyfinWatchStateSource>();
         serviceCollection.AddSingleton<HomeService>();
         serviceCollection.AddSingleton<IHomeRowsProvider, HomePlaylistRowsProvider>();
         serviceCollection.AddSingleton<EventTracker>();

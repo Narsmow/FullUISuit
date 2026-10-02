@@ -52,7 +52,9 @@ User id inside controllers: `User.FindFirst("Jellyfin-UserId")` (a Guid). Admin 
 
 Images (client side): `/Items/{id}/Images/Primary|Backdrop|Logo?maxWidth=...`; TMDB posters `https://image.tmdb.org/t/p/w342{path}`.
 Trailers: `trailerKey` is a YouTube video id.
-Rows order (server decides): continue, toppicks, top10(movies), because x3, trending, comingsoon, mylist, genre x3, top10(shows), newseasons, recent, hidden, again.
+Rows order (server decides): continue, toppicks, top10(movies), collection x0-2 (`collection-{id}`, "Next in {BoxSet}"), because x3, trending, comingsoon, mylist, genre x3, top10(shows), newseasons, recent, hidden, again.
+
+**Recommendation notes.** Every row passes one eligibility rule: titles the user thumbed down, hid, finished (except in Watch Again), dropped (a show they started and abandoned) or cannot see never appear. A series counts as finished only when the user has watched every episode; one finished episode no longer marks the whole show. `newseasons` ("New Episodes") lists followed shows with a genuinely new season or new episodes since the user last caught up. Recommendation rows (toppicks, because, genre, hidden, collection) never share a title; Trending, charts, Continue, My List, Recently Added and Watch Again are exempt. Minimum row size shrinks from 5 to 3 for small libraries. Duplicate editions (same TMDB id) collapse to one card. Cards carry `matchPercent` (1-99, null on cold start), `reason` (plain English), and for Continue Watching `seriesLabel` ("S2:E5") and `minutesLeft`. Users with a restrictive parental cap (heuristic: they see none of the library's mature-rated titles) are left out of Top 10, Trending and collaborative filtering when `ExcludeKidsFromSharedSignals` is on.
 Vote privacy: users only ever see their own votes; only admin endpoints expose totals/voters.
 
 ## Server notes

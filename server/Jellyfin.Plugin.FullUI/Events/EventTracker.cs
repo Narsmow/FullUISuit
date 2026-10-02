@@ -69,11 +69,16 @@ public sealed class EventTracker : IHostedService
         return Task.CompletedTask;
     }
 
-    /// <summary>Maps a playback stop to the (title id, isEpisode) the engine tracks, or null for other media.</summary>
-    public static PlaySignal? BuildSignal(Guid userId, Guid itemId, Guid? seriesId, bool isEpisode, long? runtimeTicks, long? positionTicks, bool playedToCompletion, DateTime now)
+    /// <summary>
+    /// Maps a playback stop to the (title id, isEpisode) the engine tracks, or null for other media. Episodes of season 0
+    /// (specials: behind-the-scenes, recaps) say nothing about the user's interest in the series and are not recorded.
+    /// <c>Completed</c> means "this playback finished"; whether the SERIES is finished is decided by the engine from the
+    /// season/episode numbers, never from a single signal.
+    /// </summary>
+    public static PlaySignal? BuildSignal(Guid userId, Guid itemId, Guid? seriesId, bool isEpisode, long? runtimeTicks, long? positionTicks, bool playedToCompletion, DateTime now, int? season = null, int? episode = null)
     {
         var id = isEpisode ? seriesId : itemId;
-        if (id is null || id == Guid.Empty)
+        if (id is null || id == Guid.Empty || (isEpisode && season == 0))
         {
             return null;
         }
@@ -89,6 +94,8 @@ public sealed class EventTracker : IHostedService
             At = now,
             Completion = completion,
             Completed = playedToCompletion || completion >= 0.9,
+            Season = isEpisode ? season : null,
+            Episode = isEpisode ? episode : null,
         };
     }
 
@@ -99,10 +106,14 @@ public sealed class EventTracker : IHostedService
             var item = e.Item;
             Guid? seriesId = null;
             var isEpisode = false;
+            int? season = null;
+            int? episode = null;
             if (item is Episode ep)
             {
                 isEpisode = true;
                 seriesId = ep.SeriesId;
+                season = ep.ParentIndexNumber;
+                episode = ep.IndexNumber;
             }
             else if (item is not Movie)
             {
@@ -114,7 +125,7 @@ public sealed class EventTracker : IHostedService
             {
                 try
                 {
-                    var sig = BuildSignal(user.Id, item.Id, seriesId, isEpisode, item.RunTimeTicks, e.PlaybackPositionTicks, e.PlayedToCompletion, now);
+                    var sig = BuildSignal(user.Id, item.Id, seriesId, isEpisode, item.RunTimeTicks, e.PlaybackPositionTicks, e.PlayedToCompletion, now, season, episode);
                     if (sig is null)
                     {
                         continue;

@@ -24,7 +24,9 @@ public sealed record WatchRecord(
     long PositionTicks,
     bool Played,
     bool IsFavorite,
-    DateTime? LastPlayed);
+    DateTime? LastPlayed,
+    int? Season = null,
+    int? Episode = null);
 
 /// <summary>
 /// One-time import of what Jellyfin already knows (played, resume position, favorites) so a fresh install does not
@@ -71,7 +73,9 @@ public static class PlaybackBackfill
                 r.RuntimeTicks,
                 position,
                 r.Played,
-                r.LastPlayed ?? now.AddDays(-30));
+                r.LastPlayed ?? now.AddDays(-30),
+                r.Season,
+                r.Episode);
             if (sig is not null)
             {
                 fresh.Add(sig);
@@ -208,7 +212,9 @@ public sealed class PlaybackBackfillService : IHostedService
                 favoriteOnly ? 0 : data?.PlaybackPositionTicks ?? 0,
                 !favoriteOnly && (data?.Played ?? false),
                 data?.IsFavorite ?? false,
-                data?.LastPlayedDate));
+                data?.LastPlayedDate,
+                ep?.ParentIndexNumber,
+                ep?.IndexNumber));
         }
 
         foreach (var item in _library.GetItemList(new InternalItemsQuery(user) { IncludeItemTypes = Played, Recursive = true, IsPlayed = true, IsVirtualItem = false }))

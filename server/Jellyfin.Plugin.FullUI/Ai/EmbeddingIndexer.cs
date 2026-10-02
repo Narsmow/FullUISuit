@@ -40,6 +40,16 @@ public sealed class EmbeddingIndexer
             sb.Append(" Genres: ").Append(string.Join(", ", i.Genres)).Append('.');
         }
 
+        if (i.Directors.Count > 0)
+        {
+            sb.Append(" Directed by ").Append(string.Join(", ", i.Directors)).Append('.');
+        }
+
+        if (i.Cast.Count > 0)
+        {
+            sb.Append(" Starring ").Append(string.Join(", ", i.Cast.Take(4))).Append('.');
+        }
+
         if (i.Tags.Count > 0)
         {
             sb.Append(" Tags: ").Append(string.Join(", ", i.Tags.Take(15))).Append('.');
@@ -58,6 +68,25 @@ public sealed class EmbeddingIndexer
     public static string HashOf(string text)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..16];
 
+    /// <summary>
+    /// Version of how texts are turned into embedding input. It is part of every stored hash, so bumping it re-embeds everything.
+    /// 2 = nomic-embed-text task prefixes ("search_document: " for titles, "search_query: " for searches).
+    /// </summary>
+    public const int SchemeVersion = 2;
+
+    /// <summary>nomic-embed-text was trained with task prefixes; other models get the plain text.</summary>
+    public static bool UsesTaskPrefixes(string? model) => model?.Contains("nomic", StringComparison.OrdinalIgnoreCase) == true;
+
+    public static string DocumentPrefix(string? model) => UsesTaskPrefixes(model) ? "search_document: " : string.Empty;
+
+    public static string QueryPrefix(string? model) => UsesTaskPrefixes(model) ? "search_query: " : string.Empty;
+
+    /// <summary>The exact text sent to the embedding model for a title.</summary>
+    public static string DocumentText(CatalogItem i, string? model) => DocumentPrefix(model) + TextFor(i);
+
+    /// <summary>The hash a vector must carry to be considered current for this title and model.</summary>
+    public static string ExpectedHash(CatalogItem i, string? model) => HashOf($"v{SchemeVersion}|{DocumentText(i, model)}");
+
     /// <returns>Number of embeddings newly stored (new titles plus titles re-embedded because the model or their text changed).</returns>
     public async Task<int> RunAsync(IProgress<double>? progress, CancellationToken ct, int maxItems = int.MaxValue)
     {
@@ -69,7 +98,7 @@ public sealed class EmbeddingIndexer
         var items = _catalog.All;
         var model = _ollama.EmbedModel;
         var ids = items.Select(i => i.Id.ToString("N")).ToHashSet();
-        var texts = items.ToDictionary(i => i.Id.ToString("N"), i => TextFor(i));
+        var hashes = items.ToDictionary(i => i.Id.ToString("N"), i => ExpectedHash(i, model));
         _store.WriteEmbeddings(e =>
         {
             foreach (var k in e.Keys.Where(k => !ids.Contains(k)).ToList())
@@ -78,9 +107,9 @@ public sealed class EmbeddingIndexer
             }
 
             // Vectors migrated from an older version carry no model/hash: assume they match the current setup once.
-            foreach (var (k, v) in e.Where(kv => kv.Value.Model.Length == 0 && texts.ContainsKey(kv.Key)).ToList())
+            foreach (var (k, v) in e.Where(kv => kv.Value.Model.Length == 0 && hashes.ContainsKey(kv.Key)).ToList())
             {
-                e[k] = new EmbeddingEntry { Vector = v.Vector, Model = model, Hash = HashOf(texts[k]) };
+                e[k] = new EmbeddingEntry { Vector = v.Vector, Model = model, Hash = hashes[k] };
             }
         });
 
@@ -92,7 +121,7 @@ public sealed class EmbeddingIndexer
                 var k = i.Id.ToString("N");
                 return !current.TryGetValue(k, out var c)
                     || !string.Equals(c.Model, model, StringComparison.OrdinalIgnoreCase)
-                    || c.Hash != HashOf(texts[k]);
+                    || c.Hash != hashes[k];
             })
             .Take(maxItems).ToList();
         var done = 0;
@@ -100,7 +129,7 @@ public sealed class EmbeddingIndexer
         {
             ct.ThrowIfCancellationRequested();
             var batch = todo.Skip(offset).Take(BatchSize).ToList();
-            var vecs = await _ollama.EmbedAsync(batch.Select(TextFor).ToList(), ct).ConfigureAwait(false);
+            var vecs = await _ollama.EmbedAsync(batch.Select(i => DocumentText(i, model)).ToList(), ct).ConfigureAwait(false);
             if (vecs is null || vecs.Count != batch.Count)
             {
                 break; // Ollama unreachable or model missing: try again next run
@@ -111,7 +140,7 @@ public sealed class EmbeddingIndexer
                 for (var n = 0; n < batch.Count; n++)
                 {
                     var k = batch[n].Id.ToString("N");
-                    e[k] = new EmbeddingEntry { Vector = vecs[n], Model = model, Hash = HashOf(texts[k]) };
+                    e[k] = new EmbeddingEntry { Vector = vecs[n], Model = model, Hash = hashes[k] };
                 }
             });
             done += batch.Count;

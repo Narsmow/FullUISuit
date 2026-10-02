@@ -43,6 +43,7 @@ public sealed class JellyfinCatalog : ICatalog, IDisposable
     private volatile bool _stale = true;
     private volatile bool _force;
     private volatile bool _everLoaded;
+    private volatile bool _morePending;     // the last load ran out of time for people lookups; continue on the next refresh
     private long _loadedAtTicks;
     private int _generation;
     private int _visibleGeneration;
@@ -97,7 +98,7 @@ public sealed class JellyfinCatalog : ICatalog, IDisposable
                     {
                         _items = Load();
                         _everLoaded = true;
-                        _stale = gen != Volatile.Read(ref _generation);
+                        _stale = gen != Volatile.Read(ref _generation) || _morePending;
                     }
                     catch (Exception ex)
                     {
@@ -248,31 +249,109 @@ public sealed class JellyfinCatalog : ICatalog, IDisposable
         }
     }
 
-    private IReadOnlyList<CatalogItem> Load()
+    /// <summary>One real or special episode as the aggregator needs it.</summary>
+    internal readonly record struct EpisodeRow(Guid SeriesId, int? Season, DateTime Created);
+
+    /// <summary>Per-series result of <see cref="AggregateEpisodes"/>.</summary>
+    internal sealed record SeriesAggregate(IReadOnlyList<SeasonInfo> Seasons, IReadOnlyList<DateTime> Recent, DateTime? Latest);
+
+    /// <summary>
+    /// Folds all episodes into per-series seasons (episode count, first/last add date), the newest add dates and the latest add date.
+    /// Season 0 (specials) is ignored everywhere; episodes without a season number count as season 1.
+    /// </summary>
+    internal static Dictionary<Guid, SeriesAggregate> AggregateEpisodes(IEnumerable<EpisodeRow> episodes)
     {
-        var latest = new Dictionary<Guid, DateTime>();
-        var episodes = _library.GetItemList(new InternalItemsQuery
+        var seasons = new Dictionary<Guid, Dictionary<int, (int Count, DateTime First, DateTime Last)>>();
+        var recent = new Dictionary<Guid, List<DateTime>>();
+        foreach (var e in episodes)
         {
-            IncludeItemTypes = new[] { BaseItemKind.Episode },
-            Recursive = true,
-            IsVirtualItem = false, // "missing episode" placeholders must not count as newly added episodes
-            OrderBy = new[] { (ItemSortBy.DateCreated, Jellyfin.Database.Implementations.Enums.SortOrder.Descending) },
-        });
-        foreach (var ep in episodes.OfType<Episode>())
-        {
-            if (ep.SeriesId != Guid.Empty && !latest.ContainsKey(ep.SeriesId))
+            if (e.SeriesId == Guid.Empty || e.Season == 0)
             {
-                latest[ep.SeriesId] = ep.DateCreated;
+                continue;
+            }
+
+            var n = e.Season is int sn && sn > 0 ? sn : 1;
+            if (!seasons.TryGetValue(e.SeriesId, out var map))
+            {
+                seasons[e.SeriesId] = map = new Dictionary<int, (int, DateTime, DateTime)>();
+            }
+
+            map[n] = map.TryGetValue(n, out var cur)
+                ? (cur.Count + 1, e.Created < cur.First ? e.Created : cur.First, e.Created > cur.Last ? e.Created : cur.Last)
+                : (1, e.Created, e.Created);
+
+            if (!recent.TryGetValue(e.SeriesId, out var list))
+            {
+                recent[e.SeriesId] = list = new List<DateTime>();
+            }
+
+            list.Add(e.Created);
+            if (list.Count > 64)
+            {
+                list.Sort((a, b) => b.CompareTo(a));
+                list.RemoveRange(12, list.Count - 12);
             }
         }
 
+        var result = new Dictionary<Guid, SeriesAggregate>(seasons.Count);
+        foreach (var (id, map) in seasons)
+        {
+            var dates = recent[id];
+            dates.Sort((a, b) => b.CompareTo(a));
+            result[id] = new SeriesAggregate(
+                map.OrderBy(kv => kv.Key).Select(kv => new SeasonInfo(kv.Key, kv.Value.Count, kv.Value.First, kv.Value.Last)).ToList(),
+                dates.Take(12).ToList(),
+                dates.Count > 0 ? dates[0] : null);
+        }
+
+        return result;
+    }
+
+    /// <summary>Do not read more than this many episodes (a safety cap for enormous libraries; counts beyond it are simply unknown).</summary>
+    private const int MaxEpisodes = 400_000;
+
+    /// <summary>How long one library load may spend on per-title people lookups; the rest continues on the next refresh.</summary>
+    private static readonly TimeSpan PeopleBudget = TimeSpan.FromSeconds(4);
+
+    private sealed record People(DateTime Saved, string[] Cast, string[] Directors);
+
+    private readonly ConcurrentDictionary<Guid, People> _people = new();
+
+    private IReadOnlyList<CatalogItem> Load()
+    {
+        // One cheap pass over the episodes (no sorting, minimal fields): season structure and the newest add dates per series.
+        Dictionary<Guid, SeriesAggregate> aggregates;
+        try
+        {
+            var episodes = _library.GetItemList(new InternalItemsQuery
+            {
+                IncludeItemTypes = new[] { BaseItemKind.Episode },
+                Recursive = true,
+                IsVirtualItem = false, // "missing episode" placeholders must not count as newly added episodes
+                Limit = MaxEpisodes,
+                DtoOptions = new MediaBrowser.Controller.Dto.DtoOptions(false),
+            });
+            aggregates = AggregateEpisodes(episodes.OfType<Episode>().Select(ep => new EpisodeRow(ep.SeriesId, ep.ParentIndexNumber, ep.DateCreated)));
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "FullUI: could not read episodes; series progress and new-season detection are limited");
+            aggregates = new Dictionary<Guid, SeriesAggregate>();
+        }
+
+        var collections = LoadCollections();
         var items = _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = Kinds, Recursive = true });
         var result = new List<CatalogItem>(items.Count);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var peopleSkipped = 0;
         foreach (var i in items)
         {
             try
             {
                 var isSeries = i is Series;
+                aggregates.TryGetValue(i.Id, out var agg);
+                var (cast, directors) = ReadPeople(i, clock, ref peopleSkipped);
+                collections.TryGetValue(i.Id, out var col);
                 result.Add(new CatalogItem
                 {
                     Id = i.Id,
@@ -287,12 +366,18 @@ public sealed class JellyfinCatalog : ICatalog, IDisposable
                     Studios = i.Studios ?? Array.Empty<string>(),
                     Tags = i.Tags ?? Array.Empty<string>(),
                     DateAdded = i.DateCreated,
-                    LatestEpisodeAdded = isSeries && latest.TryGetValue(i.Id, out var l) ? l : null,
+                    LatestEpisodeAdded = isSeries ? agg?.Latest : null,
                     TmdbId = i.ProviderIds.TryGetValue("Tmdb", out var tmdb) && int.TryParse(tmdb, out var tid) ? tid : null,
                     TrailerKey = i.RemoteTrailers?.Select(r => ParseYouTubeKey(r.Url)).FirstOrDefault(k => k is not null),
                     HasBackdrop = i.HasImage(ImageType.Backdrop),
                     HasLogo = i.HasImage(ImageType.Logo),
                     PrimaryImageTag = ImageTagOf(i),
+                    Cast = cast,
+                    Directors = directors,
+                    CollectionId = col.Id,
+                    CollectionName = col.Name,
+                    Seasons = isSeries ? agg?.Seasons ?? Array.Empty<SeasonInfo>() : Array.Empty<SeasonInfo>(),
+                    RecentEpisodeDates = isSeries ? agg?.Recent ?? Array.Empty<DateTime>() : Array.Empty<DateTime>(),
                 });
             }
             catch (Exception ex)
@@ -301,7 +386,74 @@ public sealed class JellyfinCatalog : ICatalog, IDisposable
             }
         }
 
+        _morePending = peopleSkipped > 0;
+        if (peopleSkipped > 0)
+        {
+            // Cast/director lookups hit the database once per title; continue with the rest on the next refresh.
+            _log.LogInformation("FullUI: cast data for {Count} titles will be read on the next refresh", peopleSkipped);
+        }
+
         _log.LogInformation("FullUI: catalog loaded with {Count} titles", result.Count);
         return result;
+    }
+
+    /// <summary>Movie/series id to its BoxSet (collection). Never throws: collections are a bonus.</summary>
+    private Dictionary<Guid, (Guid? Id, string? Name)> LoadCollections()
+    {
+        var map = new Dictionary<Guid, (Guid? Id, string? Name)>();
+        try
+        {
+            foreach (var box in _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.BoxSet }, Recursive = true }))
+            {
+                try
+                {
+                    foreach (var child in (box as Folder)?.GetLinkedChildren() ?? Enumerable.Empty<BaseItem>())
+                    {
+                        map.TryAdd(child.Id, (box.Id, box.Name));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.LogDebug(ex, "FullUI: could not read collection {Collection}", box.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "FullUI: could not read collections");
+        }
+
+        return map;
+    }
+
+    /// <summary>Top-billed cast (6) and directors (2) from Jellyfin's people data; cached per item version, time-budgeted, never throws.</summary>
+    private (string[] Cast, string[] Directors) ReadPeople(BaseItem item, System.Diagnostics.Stopwatch clock, ref int skipped)
+    {
+        if (_people.TryGetValue(item.Id, out var hit) && hit.Saved == item.DateLastSaved)
+        {
+            return (hit.Cast, hit.Directors);
+        }
+
+        if (clock.Elapsed > PeopleBudget)
+        {
+            skipped++;
+            return hit is null ? (Array.Empty<string>(), Array.Empty<string>()) : (hit.Cast, hit.Directors);
+        }
+
+        try
+        {
+            var people = _library.GetPeople(item);
+            var cast = people.Where(p => p.Type == PersonKind.Actor && !string.IsNullOrWhiteSpace(p.Name))
+                .Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase).Take(6).ToArray();
+            var directors = people.Where(p => p.Type == PersonKind.Director && !string.IsNullOrWhiteSpace(p.Name))
+                .Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase).Take(2).ToArray();
+            _people[item.Id] = new People(item.DateLastSaved, cast, directors);
+            return (cast, directors);
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "FullUI: could not read people for {Item}", item.Id);
+            return (Array.Empty<string>(), Array.Empty<string>());
+        }
     }
 }
