@@ -2,13 +2,26 @@ import type { ComingSoonCard, HomeRow, ItemCard, NotificationDto, Route, RouteKi
 
 export type ImageKind = 'Primary' | 'Backdrop' | 'Logo';
 
-/** `base` is the server root (ApiClient.getUrl('') style); may be empty or end with a slash. */
+/** `base` is the server root (ApiClient.serverAddress() style); may be empty or end with a slash. */
 export function joinUrl(base: string, path: string): string {
   return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
 }
 
-export function imageUrl(base: string, id: string, kind: ImageKind, maxWidth: number): string {
-  return joinUrl(base, `Items/${encodeURIComponent(id)}/Images/${kind}?maxWidth=${maxWidth}&quality=90`);
+/** `tag` (the item's image tag, when the API provides one) lets the browser cache the image for a long time. */
+export function imageUrl(base: string, id: string, kind: ImageKind, maxWidth: number, tag?: string | null): string {
+  const t = tag ? `&tag=${encodeURIComponent(tag)}` : '';
+  return joinUrl(base, `Items/${encodeURIComponent(id)}/Images/${kind}?maxWidth=${maxWidth}&quality=90${t}`);
+}
+
+export const DEFAULT_ACCENT = '#e50914';
+/** Accept only #rgb / #rgba / #rrggbb / #rrggbbaa style colours; anything else (a typo like "e50914") falls back. */
+export function safeAccent(v: string | null | undefined): string {
+  return v && /^#[0-9a-f]{3,8}$/i.test(v.trim()) && [4, 5, 7, 9].includes(v.trim().length) ? v.trim() : DEFAULT_ACCENT;
+}
+
+/** Stable key for "who is signed in": cached data is only valid for the same user AND token. */
+export function sessionKeyOf(userId: string | null | undefined, token: string | null | undefined): string {
+  return token ? `${userId || ''}|${token}` : '';
 }
 
 export function tmdbImage(path: string | null | undefined, size = 'w342'): string | null {

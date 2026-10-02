@@ -1,25 +1,40 @@
 import './style.css';
-import { ApiError, api, hasSession } from './api';
-import { collapseExpanded } from './card';
-import { h } from './dom';
+import { ApiError, api, client, hasSession, sessionKey } from './api';
+import { collapseExpanded, disposeCards } from './card';
+import { h, setChildren } from './dom';
 import { createNav } from './nav';
 import { errorState, homePage, myServerPage, searchPage, skeleton, type Page } from './pages';
 import { installSpatial } from './spatial';
-import { setToast } from './store';
-import { stopTrailer } from './trailer';
-import type { HomeResponse, Route } from './types';
-import { parseRoute, routeHash } from './util';
+import { resetStore, setOnMutate, setToast } from './store';
+import { setTrailersEnabled, stopTrailer } from './trailer';
+import type { HomeResponse, PluginStatus, Route, RouteKind } from './types';
+import { parseRoute, routeHash, rowHasContent } from './util';
 
 const OWN_CLASS = 'fui-owns';
 const HOME_TTL_MS = 60000;
 const FAIL_BACKOFF_MS = 60000;
+/** After a hash change to a native page, keep our overlay until that page's `viewshow` (or this long). */
+const RELEASE_GRACE_MS = 800;
+const STATUS_WAIT_MS = 1500;
+const BOOT_POLL_MS = 300;
+const BOOT_POLL_MAX_MS = 120000;
+
+declare global {
+  interface Window {
+    __fullui?: boolean;
+  }
+}
 
 let started = false;
 
 function start(): void {
   if (started) return;
   started = true;
-  const nav = createNav({ onClassic: () => setClassic(true) });
+  const nav = createNav({
+    onClassic: () => setClassic(true),
+    onSignOut: () => signOut(),
+    onGo: (kind) => go(kind),
+  });
   const main = h('main', { class: 'fui-main', id: 'fullui-main' });
   const toast = h('div', { class: 'fui-toast fui-hidden', role: 'status', 'aria-live': 'polite' });
   const root = h('div', { id: 'fullui-root', class: 'fui-root fui-hidden' }, nav.el, main, toast);
@@ -30,9 +45,14 @@ function start(): void {
   let token = 0;
   let owning = false;
   let current: Route = { kind: 'native', q: '' };
-  let home: { data: HomeResponse; at: number } | null = null;
+  let home: { data: HomeResponse; at: number; session: string } | null = null;
   let homeFailedAt = 0;
   let serverName = '';
+  let status: PluginStatus | null = null;
+  let statusP: Promise<void> = Promise.resolve();
+  let lastSession = '';
+  let signingOut = false;
+  let releaseT: ReturnType<typeof setTimeout> | undefined;
   const scrollMemo = new Map<string, number>();
   let classic = readClassic();
   const banner = h('div', { id: 'fullui-banner', class: 'fui-banner fui-hidden', role: 'status' });
@@ -46,6 +66,10 @@ function start(): void {
     toastT = setTimeout(() => toast.classList.add('fui-hidden'), 4000);
   };
   setToast(showToast);
+  // Ratings / My List / votes change what Home should show: drop the cached payload.
+  setOnMutate(() => {
+    home = null;
+  });
 
   root.addEventListener('scroll', () => root.classList.toggle('scrolled', root.scrollTop > 8), { passive: true });
 
@@ -56,6 +80,7 @@ function start(): void {
 
   function disposePage(): void {
     stopTrailer();
+    disposeCards();
     if (page) {
       try {
         page.dispose();
@@ -64,6 +89,82 @@ function start(): void {
       }
     }
     page = null;
+  }
+
+  // ---- identity: everything cached belongs to one user + token --------------------------------
+  function loadStatus(): void {
+    const key = sessionKey();
+    if (!key) return;
+    statusP = api.status().then(
+      (s) => {
+        if (!s || key !== sessionKey()) return;
+        status = s;
+        brand(s.serverName, s.accentColor);
+        setTrailersEnabled(s.trailersEnabled !== false);
+      },
+      () => {},
+    );
+  }
+
+  function resetSession(key: string): void {
+    home = null;
+    homeFailedAt = 0;
+    status = null;
+    scrollMemo.clear();
+    setTrailersEnabled(true);
+    nav.reset();
+    resetStore();
+    if (owning || renderedKey) {
+      disposePage();
+      setChildren(main);
+      renderedKey = null;
+      token++;
+    }
+    statusP = Promise.resolve();
+    if (key) loadStatus(); // Status needs a session: never called on the login page
+  }
+
+  function checkSession(): void {
+    const k = sessionKey();
+    if (k === lastSession) return;
+    lastSession = k;
+    resetSession(k);
+  }
+
+  // ---- navigation helpers ----------------------------------------------------------------------
+  /** Switch FullUI pages without a hash change (a hash change makes jellyfin-web reload its hidden home). */
+  function go(kind: RouteKind, q = ''): void {
+    const target = routeHash(kind, q);
+    if (location.hash !== target) history.replaceState(history.state, '', target);
+    sync();
+  }
+
+  function signOut(): void {
+    signingOut = true;
+    setTimeout(() => (signingOut = false), 8000);
+    nav.stop();
+    release();
+    const fallback = () => {
+      location.hash = '#/login';
+    };
+    try {
+      const D = window.Dashboard;
+      if (D && typeof D.logout === 'function') {
+        const r = D.logout() as { then?: (a: () => void, b: () => void) => void } | undefined;
+        if (r && typeof r.then === 'function') r.then(() => {}, fallback);
+        return;
+      }
+    } catch {
+      /* fall through to the plain client */
+    }
+    try {
+      const c = client();
+      const r = c && c.logout ? c.logout() : undefined;
+      if (r && typeof (r as Promise<unknown>).then === 'function') (r as Promise<unknown>).then(fallback, fallback);
+      else fallback();
+    } catch {
+      fallback();
+    }
   }
 
   function setClassic(on: boolean): void {
@@ -79,7 +180,8 @@ function start(): void {
       !owning && hasSession() && current.kind !== 'native' && (classic || Date.now() - homeFailedAt < FAIL_BACKOFF_MS);
     banner.classList.toggle('fui-hidden', !showing);
     if (!showing) return;
-    banner.replaceChildren(
+    setChildren(
+      banner,
       h('span', {
         text: classic
           ? "You're using the classic view."
@@ -95,24 +197,33 @@ function start(): void {
   }
 
   function release(): void {
-    if (!owning && !renderedKey) return updateBanner();
+    clearTimeout(releaseT);
+    releaseT = undefined;
+    if (!owning && !renderedKey) {
+      nav.stop();
+      return updateBanner();
+    }
     if (renderedKey) scrollMemo.set(renderedKey, root.scrollTop);
+    // coming back from a native page (e.g. after playback) should show fresh progress / My List
+    if (owning && home) home = null;
     owning = false;
     document.documentElement.classList.remove(OWN_CLASS);
     root.classList.add('fui-hidden');
     nav.stop();
     disposePage();
-    main.replaceChildren();
+    setChildren(main);
     renderedKey = null;
     token++;
     updateBanner();
   }
 
   async function getHome(force = false): Promise<HomeResponse> {
-    if (!force && home && Date.now() - home.at < HOME_TTL_MS) return home.data;
+    const sk = sessionKey();
+    if (!force && home && home.session === sk && Date.now() - home.at < HOME_TTL_MS) return home.data;
     const data = await api.home();
     if (!data || !Array.isArray(data.rows)) throw new ApiError(0, 'bad home payload');
-    home = { data, at: Date.now() };
+    if (sk !== sessionKey()) throw new ApiError(401, 'session changed'); // never cache/show another user's rows
+    home = { data, at: Date.now(), session: sk };
     brand(data.serverName, data.accentColor);
     return data;
   }
@@ -120,26 +231,36 @@ function start(): void {
   function mount(p: Page, key: string): void {
     disposePage();
     page = p;
-    main.replaceChildren(p.el);
+    setChildren(main, p.el);
     const y = scrollMemo.get(key);
     root.scrollTop = y || 0;
     p.focusFirst?.();
   }
 
+  function settleStatus(): Promise<void> {
+    return Promise.race([statusP, new Promise<void>((r) => setTimeout(r, STATUS_WAIT_MS))]);
+  }
+
   async function render(route: Route, key: string, force = false): Promise<void> {
     const my = ++token;
     disposePage();
-    main.replaceChildren(skeleton());
+    setChildren(main, skeleton());
     root.scrollTop = 0;
     const stale = () => my !== token;
     try {
+      await settleStatus(); // so the trailer switch / branding are known before anything plays
+      if (stale()) return;
       if (route.kind === 'search') {
         mount(
-          searchPage(route.q, (q) => {
-            // keep the URL shareable without triggering a re-render
-            const target = routeHash('search', q);
-            if (location.hash !== target) history.replaceState(null, '', target);
-          }),
+          searchPage(
+            route.q,
+            (q) => {
+              // keep the URL shareable without triggering a re-render or touching React Router's state
+              const target = routeHash('search', q);
+              if (location.hash !== target) history.replaceState(history.state, '', target);
+            },
+            !!(status && status.ollamaEnabled),
+          ),
           key,
         );
         return;
@@ -152,20 +273,26 @@ function start(): void {
       }
       const data = await getHome(force);
       if (stale()) return;
+      if (route.kind === 'home' && !data.rows.some(rowHasContent)) {
+        // An empty home is indistinguishable from a failed build: use the classic home instead of a blank page.
+        home = null;
+        throw new ApiError(0, 'empty home');
+      }
       mount(homePage(data, route.kind), key);
     } catch (e) {
       if (stale()) return;
-      const status = e instanceof ApiError ? e.status : 0;
-      if (route.kind === 'home' || status === 401) {
+      const code = e instanceof ApiError ? e.status : 0;
+      if (route.kind === 'home' || code === 401) {
         // Never leave a blank screen: hand control back to the native home.
-        if (status !== 401) homeFailedAt = Date.now();
+        if (code !== 401) homeFailedAt = Date.now();
         release();
-        if (status !== 401) console.warn('[FullUI] Home failed; showing the native home.', e);
+        if (code !== 401) console.warn('[FullUI] Home failed; showing the native home.', e);
         return;
       }
       renderedKey = null;
       disposePage();
-      main.replaceChildren(
+      setChildren(
+        main,
         errorState("We couldn't load this page. This is usually temporary, so please try again.", () => setClassic(true), () => {
           renderedKey = null;
           sync(true);
@@ -174,11 +301,26 @@ function start(): void {
     }
   }
 
-  function sync(force = false): void {
+  function sync(force = false, viaViewshow = false): void {
     try {
+      checkSession();
       const route = parseRoute(location.hash);
       current = route;
-      if (!hasSession() || route.kind === 'native' || classic) return release();
+      if (signingOut) {
+        if (!hasSession()) signingOut = false;
+        return release();
+      }
+      if (!hasSession() || classic) return release();
+      if (route.kind === 'native') {
+        // Keep the overlay up until the native page has actually appeared (no flash of the classic home).
+        if (owning && !viaViewshow) {
+          if (releaseT === undefined) releaseT = setTimeout(release, RELEASE_GRACE_MS);
+          return;
+        }
+        return release();
+      }
+      clearTimeout(releaseT);
+      releaseT = undefined;
       if (route.kind === 'home' && Date.now() - homeFailedAt < FAIL_BACKOFF_MS) return release();
       const key = route.kind;
       owning = true;
@@ -197,18 +339,12 @@ function start(): void {
     }
   }
 
-  // Branding as early as possible (the Home response refreshes it).
-  api.status().then(
-    (s) => s && brand(s.serverName, s.accentColor),
-    () => {},
-  );
-
   installSpatial(root, {
     isActive: () => owning && !root.classList.contains('fui-hidden'),
     closeMenus: () => nav.closeMenus(),
     back: () => {
       if (current.kind !== 'home' && owning) {
-        history.back();
+        go('home'); // stays inside FullUI; never leaves the app
         return true;
       }
       return collapseExpanded();
@@ -218,7 +354,7 @@ function start(): void {
   window.addEventListener('hashchange', () => sync());
   window.addEventListener('popstate', () => sync());
   // jellyfin-web fires viewshow on every page swap.
-  document.addEventListener('viewshow', () => sync(), true);
+  document.addEventListener('viewshow', () => sync(false, true), true);
   sync();
 }
 
@@ -239,6 +375,9 @@ function writeClassic(on: boolean): void {
 }
 
 function boot(): void {
+  // The bundle can be injected twice (cached + fresh index.html, or two plugins): mount only once.
+  if (window.__fullui || document.getElementById('fullui-root')) return;
+  window.__fullui = true;
   const tryStart = () => {
     if (window.ApiClient && document.body) {
       try {
@@ -251,9 +390,21 @@ function boot(): void {
     return false;
   };
   if (tryStart()) return;
-  const timer = window.setInterval(() => {
-    if (tryStart()) window.clearInterval(timer);
-  }, 300);
+  const t0 = Date.now();
+  let timer = 0;
+  const done = () => {
+    window.clearInterval(timer);
+    window.removeEventListener('apiclientcreated', onCreated);
+    document.removeEventListener('apiclientcreated', onCreated);
+  };
+  const onCreated = () => {
+    if (tryStart()) done();
+  };
+  window.addEventListener('apiclientcreated', onCreated);
+  document.addEventListener('apiclientcreated', onCreated);
+  timer = window.setInterval(() => {
+    if (tryStart() || Date.now() - t0 > BOOT_POLL_MAX_MS) done(); // give up quietly: jellyfin-web works as usual
+  }, BOOT_POLL_MS);
 }
 
 boot();

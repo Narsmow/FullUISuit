@@ -6,11 +6,13 @@ import type {
   PluginStatus,
   SearchResponse,
 } from './types';
-import { joinUrl, voteBody } from './util';
+import { joinUrl, sessionKeyOf, voteBody } from './util';
 import type { ComingSoonCard } from './types';
 
 export interface JellyfinApiClient {
+  /** Real jellyfin-apiclient 1.11 throws "Url name cannot be empty" for an empty name. */
   getUrl(path: string): string;
+  serverAddress?(): string;
   accessToken(): string;
   getCurrentUserId?(): string;
   getCurrentUser?(): Promise<{ Name?: string; Policy?: { IsAdministrator?: boolean } }>;
@@ -20,6 +22,7 @@ export interface JellyfinApiClient {
 declare global {
   interface Window {
     ApiClient?: JellyfinApiClient;
+    Dashboard?: { logout?: () => unknown };
   }
 }
 
@@ -37,15 +40,48 @@ export function client(): JellyfinApiClient | undefined {
 
 /** Server root as seen by the browser (works with a base path such as /jellyfin). */
 export function serverBase(c = client()): string {
-  return c ? c.getUrl('').replace(/\/+$/, '') : '';
+  if (!c) return '';
+  let base = '';
+  try {
+    base = (c.serverAddress ? c.serverAddress() : '') || '';
+  } catch {
+    base = '';
+  }
+  if (!base) {
+    try {
+      // never getUrl(''): the real client throws for an empty name
+      base = c.getUrl('/');
+    } catch {
+      base = '';
+    }
+  }
+  return base.replace(/\/+$/, '');
 }
 
 export function hasSession(c = client()): boolean {
-  return !!c && !!c.accessToken();
+  try {
+    return !!c && !!c.accessToken();
+  } catch {
+    return false;
+  }
+}
+
+/** Identity of the current session (user id + token); '' when signed out. Caches are keyed on this. */
+export function sessionKey(c = client()): string {
+  if (!c || !hasSession(c)) return '';
+  let uid = '';
+  try {
+    uid = c.getCurrentUserId ? c.getCurrentUserId() || '' : '';
+  } catch {
+    uid = '';
+  }
+  return sessionKeyOf(uid, c.accessToken());
 }
 
 export async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, c = client()): Promise<T> {
   if (!c) throw new ApiError(0, 'no ApiClient');
+  // No session (login page, signed out): do not send a doomed request with Token="null".
+  if (!hasSession(c)) throw new ApiError(401, 'no session');
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
   try {

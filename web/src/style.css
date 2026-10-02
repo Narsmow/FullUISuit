@@ -8,40 +8,18 @@
   --fui-muted: #b3b3b3;
 }
 
-/* ---- native pages: dark + accent restyle (detail, player, settings, dashboard stay usable) ---- */
-body,
-.skinBody,
-.backgroundContainer,
-.libraryPage {
-  background-color: var(--fui-bg);
-}
-.skinHeader,
-.mainDrawer {
-  background-color: var(--fui-bg);
-}
-.raised.button-submit,
-.button-submit,
-.emby-button.button-accent {
-  background: var(--fullui-accent) !important;
-  color: #fff !important;
-}
-.itemProgressBarForeground,
-.mdl-slider-background-lower {
-  background-color: var(--fullui-accent) !important;
-}
-.emby-input:focus,
-.emby-textarea:focus,
-.emby-select:focus {
-  border-color: var(--fullui-accent) !important;
-}
-a.button-link,
-.listItemBodyText a {
-  color: var(--fullui-accent);
+/* ---- native pages ----
+   FullUI deliberately does NOT restyle jellyfin-web's own pages (login, details, dashboard, light themes):
+   everything below is scoped to our overlay (.fui-root) or to html.fui-owns. */
+.itemProgressBarForeground {
+  background-color: var(--fullui-accent);
 }
 
 /* ---- hide the native chrome ONLY while FullUI owns the route ---- */
 html.fui-owns .skinHeader,
 html.fui-owns .mainDrawer,
+html.fui-owns .MuiAppBar-root,
+html.fui-owns .MuiDrawer-root,
 html.fui-owns .mainAnimatedPages,
 html.fui-owns .backgroundContainer {
   display: none !important;
@@ -61,7 +39,10 @@ html.fui-owns body {
   --card-w-open: 22em;
   --info-h: 12.5em;
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 1000;
   overflow-y: auto;
   overflow-x: hidden;
@@ -71,6 +52,9 @@ html.fui-owns body {
   -webkit-font-smoothing: antialiased;
   scrollbar-width: thin;
   scrollbar-color: #444 transparent;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .fui-root *,
 .fui-root *::before,
@@ -92,10 +76,10 @@ html.fui-owns body {
   outline: 3px solid #fff;
   outline-offset: 2px;
 }
-.fui-root .fui-card:focus-visible {
+.fui-root .fui-art:focus {
   outline: none;
 }
-.fui-root .fui-card:focus-visible .fui-art {
+.fui-root .fui-art:focus-visible {
   outline: 3px solid #fff;
   outline-offset: 2px;
 }
@@ -111,6 +95,7 @@ html.fui-owns body {
   height: 4.25em;
   margin-bottom: -4.25em;
   padding: 0 var(--gutter);
+  padding-top: env(safe-area-inset-top, 0px);
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0));
   transition: background-color 0.25s;
 }
@@ -217,7 +202,10 @@ html.fui-owns body {
 }
 .fui-avatar img {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -273,7 +261,8 @@ html.fui-owns body {
   cursor: pointer;
 }
 .fui-note:hover,
-.fui-menu-item:hover {
+.fui-menu-item:hover,
+.fui-libs-item:hover {
   background: #2a2a2a;
 }
 .fui-note.unread .fui-note-text {
@@ -294,7 +283,8 @@ html.fui-owns body {
   font-size: 0.8em;
   color: var(--fui-muted);
 }
-.fui-menu-item {
+.fui-menu-item,
+.fui-libs-item {
   display: block;
   width: 100%;
   padding: 0.8em 1em;
@@ -317,7 +307,10 @@ html.fui-owns body {
 .fui-hero-media,
 .fui-hero-trailer {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
 }
 .fui-hero-img {
   width: 100%;
@@ -348,7 +341,10 @@ html.fui-owns body {
 }
 .fui-hero-shade {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: linear-gradient(to right, rgba(20, 20, 20, 0.85) 0%, rgba(20, 20, 20, 0) 60%),
     linear-gradient(to top, var(--fui-bg) 0%, rgba(20, 20, 20, 0) 35%);
 }
@@ -542,7 +538,10 @@ html.fui-owns body {
 }
 .fui-stage {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.4s;
@@ -1024,5 +1023,45 @@ html.fui-owns body {
     transition: none !important;
     animation: none !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Libraries menu (links to the native library pages) ---- */
+.fui-libs-btn {
+  background: none;
+  border: 0;
+  padding: 0.3em 0;
+  font-size: 0.95em;
+  color: #e5e5e5;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fui-libs-btn:hover {
+  color: #b3b3b3;
+}
+@media (min-width: 700px) {
+  .fui-libs-menu {
+    left: 0;
+    right: auto;
+    width: 14em;
+  }
+}
+
+/* ---- older TV browsers (webOS 4/5, Tizen 5.x): no aspect-ratio property ---- */
+@supports not (aspect-ratio: 1 / 1) {
+  .fui-art::before {
+    content: '';
+    display: block;
+    padding-top: 56.25%;
+  }
+  .fui-art > img,
+  .fui-art > .fui-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  .fui-card.top10 .fui-art::before,
+  .fui-soon .fui-art::before {
+    padding-top: 150%;
   }
 }

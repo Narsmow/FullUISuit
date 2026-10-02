@@ -14,6 +14,8 @@ import {
   pickHeroItem,
   pickNeighbor,
   routeHash,
+  safeAccent,
+  sessionKeyOf,
   timeAgo,
   tmdbImage,
   unreadCount,
@@ -202,5 +204,28 @@ describe('spatial geometry', () => {
     expect(pickNeighbor(from, cands, 'left')).toBe(-1);
     expect(pickNeighbor(from, cands, 'up')).toBe(-1);
     expect(pickNeighbor(r(110, 100), cands, 'up')).toBe(0);
+  });
+});
+
+describe('accent colour (B-55)', () => {
+  it('accepts hex colours and falls back otherwise', () => {
+    expect(safeAccent('#e50914')).toBe('#e50914');
+    expect(safeAccent('#FFF')).toBe('#FFF');
+    expect(safeAccent('#e5091480')).toBe('#e5091480');
+    for (const bad of ['e50914', '#12', '#12345', 'red', 'url(x)', '#e50914;}', '', null, undefined]) {
+      expect(safeAccent(bad as string)).toBe('#e50914');
+    }
+  });
+});
+
+describe('image tag + session key', () => {
+  it('adds a tag param only when the server provides one', () => {
+    expect(imageUrl('http://x', 'a', 'Logo', 300, 'abc 1')).toBe('http://x/Items/a/Images/Logo?maxWidth=300&quality=90&tag=abc%201');
+    expect(imageUrl('http://x', 'a', 'Logo', 300)).not.toContain('tag=');
+  });
+  it('keys identity by user and token', () => {
+    expect(sessionKeyOf('u', 't')).not.toBe(sessionKeyOf('u2', 't'));
+    expect(sessionKeyOf('u', 't')).not.toBe(sessionKeyOf('u', 't2'));
+    expect(sessionKeyOf('u', null)).toBe('');
   });
 });

@@ -1,5 +1,5 @@
 import { serverBase } from './api';
-import { h, icon, ICONS } from './dom';
+import { h, hasFocusVisible, icon, ICONS, setChildren } from './dom';
 import { canonItem, canonSoon, itemKey, setRating, setVote, soonSubKey, subscribe, toggleMyList } from './store';
 import { playTrailer, reducedMotion, stopTrailer } from './trailer';
 import type { ComingSoonCard, ItemCard } from './types';
@@ -15,14 +15,28 @@ const HEART =
   'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z';
 
 let quiet = false;
+// Cards that may still have timers pending; page teardown disposes them (B-63).
+const live = new Map<HTMLElement, () => void>();
+
+/** Cancel hover/trailer timers of every card (call when a page is torn down). */
+export function disposeCards(onlyDetached = false): void {
+  live.forEach((dispose, el) => {
+    if (!onlyDetached || !el.isConnected) dispose();
+  });
+  if (!onlyDetached) {
+    live.clear();
+    expanded = null;
+  } else if (expanded && !expanded.el.isConnected) expanded = null;
+}
 let expanded: { el: HTMLElement; collapse: () => void } | null = null;
 
 export function collapseExpanded(): boolean {
   if (!expanded) return false;
   const el = expanded.el;
-  if (el.contains(document.activeElement) && document.activeElement !== el) {
+  const art = el.querySelector<HTMLElement>('.fui-art') || el;
+  if (el.contains(document.activeElement) && document.activeElement !== art) {
     quiet = true;
-    el.focus({ preventScroll: true });
+    art.focus({ preventScroll: true });
     quiet = false;
   }
   expanded.collapse();
@@ -31,6 +45,41 @@ export function collapseExpanded(): boolean {
 
 export function openDetails(id: string): void {
   location.hash = detailsHash(id);
+}
+
+// ---- Play -----------------------------------------------------------------------------------
+// jellyfin-web has no "autoplay" URL parameter, and its playback manager is not reachable from a
+// plugin. So Play opens the native details page and then presses that page's own Play/Resume button
+// as soon as it appears. If it never appears (older/newer jellyfin-web), the user simply lands on the
+// details page, which has the real Play button.
+let playTimer: ReturnType<typeof setInterval> | undefined;
+const PLAY_WAIT_MS = 6000;
+
+function visibleBtn(sel: string): HTMLElement | null {
+  const list = document.querySelectorAll<HTMLElement>(sel);
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+    if (b.offsetParent !== null && !b.classList.contains('hide') && !b.hasAttribute('disabled')) return b;
+  }
+  return null;
+}
+
+export function playItem(id: string): void {
+  clearInterval(playTimer);
+  openDetails(id);
+  const want = detailsHash(id);
+  const t0 = Date.now();
+  playTimer = setInterval(() => {
+    if (location.hash !== want || Date.now() - t0 > PLAY_WAIT_MS) {
+      clearInterval(playTimer);
+      return;
+    }
+    const b = visibleBtn('.btnResume') || visibleBtn('.btnPlay');
+    if (b) {
+      clearInterval(playTimer);
+      b.click();
+    }
+  }, 150);
 }
 
 function artFallback(art: HTMLElement, text: string): void {
@@ -65,7 +114,7 @@ export function buildActions(card: ItemCard, opts: { withInfo?: boolean } = {}):
   play.appendChild(icon(ICONS.play));
   play.addEventListener('click', (e) => {
     e.stopPropagation();
-    openDetails(card.id);
+    playItem(card.id);
   });
   const list = iconBtn('Add to My List', ICONS.plus, 'fui-list', () => void toggleMyList(card), card.inMyList);
   const down = iconBtn('Not for me', ICONS.down, 'fui-rate fui-rate-down', () => void setRating(card, -1), false);
@@ -82,7 +131,7 @@ export function buildActions(card: ItemCard, opts: { withInfo?: boolean } = {}):
     list.setAttribute('aria-pressed', String(card.inMyList));
     list.setAttribute('aria-label', card.inMyList ? 'Remove from My List' : 'Add to My List');
     list.title = list.getAttribute('aria-label')!;
-    list.replaceChildren(icon(card.inMyList ? ICONS.check : ICONS.plus));
+    setChildren(list, icon(card.inMyList ? ICONS.check : ICONS.plus));
     down.setAttribute('aria-pressed', String(card.myRating === -1));
     up.setAttribute('aria-pressed', String(card.myRating === 1));
     love.setAttribute('aria-pressed', String(card.myRating === 2));
@@ -107,7 +156,7 @@ function buildInfo(card: ItemCard): HTMLElement {
   const base = serverBase();
   const title = h('div', { class: 'fui-ititle' });
   if (card.hasLogo) {
-    const img = h('img', { class: 'fui-logo', src: imageUrl(base, card.id, 'Logo', 300), alt: card.name, loading: 'lazy' });
+    const img = h('img', { class: 'fui-logo', src: imageUrl(base, card.id, 'Logo', 300, card.imageTag), alt: card.name, loading: 'lazy' });
     img.addEventListener('error', () => img.replaceWith(h('strong', { text: card.name })));
     title.appendChild(img);
   } else title.appendChild(h('strong', { text: card.name }));
@@ -127,17 +176,13 @@ export function createCard(raw: ItemCard, variant: 'landscape' | 'top10' = 'land
   const card = canonItem(raw);
   const base = serverBase();
   const top10 = variant === 'top10';
-  const root = h('div', {
-    class: 'fui-card' + (top10 ? ' top10' : ''),
-    tabindex: 0,
-    role: 'button',
-    'aria-label': card.name,
-    data: { id: card.id },
-  });
-  const art = h('div', { class: 'fui-art' });
+  // The card container has no role; the artwork is the single focusable button (roving tabindex is
+  // managed per row in rows.ts). The expanded info panel's buttons are separate controls.
+  const root = h('div', { class: 'fui-card' + (top10 ? ' top10' : ''), data: { id: card.id } });
+  const art = h('div', { class: 'fui-art', tabindex: 0, role: 'button', 'aria-label': card.name, data: { id: card.id } });
   const stage = h('div', { class: 'fui-stage' });
   const src =
-    top10 || !card.hasBackdrop ? imageUrl(base, card.id, 'Primary', top10 ? 300 : 480) : imageUrl(base, card.id, 'Backdrop', 480);
+    top10 || !card.hasBackdrop ? imageUrl(base, card.id, 'Primary', top10 ? 300 : 480, card.imageTag) : imageUrl(base, card.id, 'Backdrop', 480, card.imageTag);
   art.append(artImage(src, card.name, art), stage);
   if (card.badges.length) art.appendChild(h('span', { class: 'fui-ribbon', text: card.badges[0] }));
   if (card.progress && card.progress > 0) {
@@ -158,6 +203,7 @@ export function createCard(raw: ItemCard, variant: 'landscape' | 'top10' = 'land
 
   const collapse = () => {
     clearTimeout(hoverT);
+    clearTimeout(collapseT);
     clearTimeout(trailerT);
     root.classList.remove('expanded');
     root.parentElement?.closest('.fui-row')?.classList.remove('has-expanded');
@@ -165,6 +211,16 @@ export function createCard(raw: ItemCard, variant: 'landscape' | 'top10' = 'land
     stopTrailer(root);
     if (expanded && expanded.el === root) expanded = null;
   };
+  const disposeCard = () => {
+    clearTimeout(hoverT);
+    clearTimeout(collapseT);
+    clearTimeout(trailerT);
+    clearTimeout(longPressT);
+    stopTrailer(root);
+    if (expanded && expanded.el === root) expanded = null;
+    live.delete(root);
+  };
+  live.set(root, disposeCard);
   const expand = () => {
     clearTimeout(collapseT);
     if (root.classList.contains('expanded')) return;
@@ -207,13 +263,13 @@ export function createCard(raw: ItemCard, variant: 'landscape' | 'top10' = 'land
   root.addEventListener('mouseleave', () => {
     clearTimeout(hoverT);
     collapseT = setTimeout(() => {
-      if (!root.querySelector(':focus-visible') && !root.matches(':focus-visible')) collapse();
+      if (!hasFocusVisible(root)) collapse();
     }, COLLAPSE_DELAY);
   });
   root.addEventListener('focusin', () => {
     clearTimeout(collapseT);
     if (quiet) return;
-    if (root.matches(':focus-visible') || root.querySelector(':focus-visible')) {
+    if (hasFocusVisible(root)) {
       clearTimeout(hoverT);
       hoverT = setTimeout(expand, FOCUS_DELAY);
     }
@@ -237,8 +293,8 @@ export function createCard(raw: ItemCard, variant: 'landscape' | 'top10' = 'land
     }
     openDetails(card.id);
   });
-  root.addEventListener('keydown', (e) => {
-    if (e.target !== root) return;
+  art.addEventListener('keydown', (e) => {
+    if (e.target !== art) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       openDetails(card.id);
@@ -250,7 +306,7 @@ export function createCard(raw: ItemCard, variant: 'landscape' | 'top10' = 'land
 // ---- Coming Soon poster card -------------------------------------------------------------
 export function createComingSoonCard(raw: ComingSoonCard): HTMLElement {
   const card = canonSoon(raw);
-  const root = h('div', { class: 'fui-card fui-soon', role: 'group', 'aria-label': card.title });
+  const root = h('div', { class: 'fui-card fui-soon', 'aria-label': card.title });
   const art = h('div', { class: 'fui-art' });
   const poster = tmdbImage(card.posterPath, 'w342');
   if (poster) art.appendChild(artImage(poster, card.title, art));
