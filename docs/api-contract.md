@@ -66,3 +66,31 @@ Vote privacy: users only ever see their own votes; only admin endpoints expose t
 - **Scheduled tasks and history.** Besides the earlier tasks there is "FullUI: Send reminders and tidy up" (`FullUIDaily`, 06:00). `TaskRunRecorderService` listens to Jellyfin's task manager and keeps the last 20 runs per FullUI task in the store (`TaskRuns`) for the health page; any component (including the engine) can also call `ITaskRunLog.Record/Note`. The last 50 friendly problem messages are kept in memory (`Ops/ErrorLog`, scrubbed of keys, URLs and paths).
 - **Extension points for the recommendation engine** (registered in `FeatureServicesRegistrator` / `DiscoveryServicesRegistrator`): `IHiddenItems` (exclude hidden titles from Continue Watching), `IRowEngagementProvider.GetEngagement(userId)` (row type -> 0..1 smoothed take rate, to order rows per user), `ITrendingProvider` (replace the fallback trending / top-10 source), `ICastIndex` (people per title for suggestions and search), `IHomeInvalidator`. The ones the engine may replace use `TryAdd`.
 - **Parental filtering of titles that are not in the library** (Coming Soon): a user with a Jellyfin parental cap only sees TMDB titles whose certification (movie `release_dates` / tv `content_ratings`, configured region first, then US) is recognised by Jellyfin and not above the cap; no or unknown certification means hidden. Users without a cap are not checked. TMDB is always called with `include_adult=false`, and "upcoming" comes from `/discover` with a date floor of today (never `/tv/on_the_air`).
+
+## Title details (wave 2)
+
+`GET /FullUI/Item/{id}/Details` (user from token; 404 when the title is not visible to the user; 5xx problem body on failure) returns:
+
+```json
+{
+  "item": { "...ItemCard..." },
+  "tagline": "optional string",
+  "seasons": [
+    { "id": "guid-N", "number": 1, "name": "Season 1", "episodeCount": 10, "watchedCount": 4,
+      "episodes": [
+        { "id": "guid-N", "number": 1, "name": "Pilot", "overview": "optional", "runtimeMinutes": 47,
+          "progress": 0.42, "played": false, "hasImage": true, "airDate": "2024-01-31" }
+      ] }
+  ],
+  "nextUp": { "episodeId": "guid-N", "seasonNumber": 1, "number": 5, "name": "Title", "progress": 0.0 },
+  "people": [ { "name": "Jane Doe", "role": "Dr. Smith", "type": "Actor", "id": "guid-N", "hasImage": true } ],
+  "trailers": [ { "key": "YouTubeVideoId", "name": "Official Trailer" } ],
+  "similar": [ { "...ItemCard..." } ]
+}
+```
+
+Movies have `seasons: []` and no `nextUp`. Season 0 (specials) is returned as `number: 0` last. `similar` holds at most 12 visible, eligible titles from the engine's neighbours (never the title itself, never thumbs-down or finished ones). Images: `/Items/{id}/Images/Primary` for episodes and people. Camel-case JSON via `SafeApi.Json`; ids are `Guid.ToString("N")`.
+
+## Contract fixtures
+
+`docs/contract-fixtures/*.json` are real serialized responses produced by the server code (a test regenerates them and fails when the committed copies differ). The web mocks and TypeScript types must be built from these files, never hand-written.
