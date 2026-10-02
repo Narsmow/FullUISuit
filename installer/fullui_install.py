@@ -6,6 +6,7 @@ messages, same flags (PowerShell style: -Server, -Username, ... or --server ...)
 Drives your RUNNING Jellyfin through its web API; safe to run again.
 """
 import getpass
+import io
 import json
 import os
 import re
@@ -21,8 +22,9 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 FULLUI_GUID = "7c3f2d9a-5b1e-4a86-9d0c-2f8e6b4a1c57"
+FT_GUID = "5e87cc92-571a-4d8d-8d98-d2d4147f9f90"
 
 # name -> (kind, default)
 OPTS = {
@@ -37,7 +39,7 @@ OPTS = {
     "fulluirepourl": ("str", "https://raw.githubusercontent.com/Narsmow/FullUISuit/main/manifest.json"),
     "fulluirepofallbackurl": ("str", "https://github.com/Narsmow/FullUISuit/releases/latest/download/manifest.json"),
     "tmdbbaseurl": ("str", "https://api.themoviedb.org/3"),
-    "apkurl": ("str", "https://github.com/Narsmow/FullUISuit/releases/latest/download/FullUI-FireTV.apk"),
+    "apkurl": ("str", "https://github.com/Narsmow/FullUISuit/releases/download/firetv-latest/FullUI-release.apk"),
 }
 
 
@@ -73,7 +75,7 @@ O = {}
 SECRETS = []
 LOGFILE = None
 STATE = {"token": None, "base": None, "version": None, "total": 9, "used_pw": False, "insecure": False,
-         "done": False, "reported": False}
+         "insecure_host": None, "done": False, "reported": False}
 
 
 class Fail(Exception):
@@ -216,16 +218,35 @@ def net_kind(msg):
 
 class Resp(object):
     def __init__(self):
-        self.status, self.body, self.json, self.error, self.kind = 0, "", None, "", ""
+        self.status, self.body, self.json, self.error, self.kind, self.url = 0, "", None, "", "", ""
 
 
-def ssl_ctx():
-    if STATE["insecure"]:
+def host_of(url):
+    try:
+        return (urllib.parse.urlparse(url).hostname or "").lower()
+    except Exception:
+        return ""
+
+
+def ssl_ctx(url=""):
+    """Certificate checking is switched off ONLY for the Jellyfin host the user agreed to (never TMDB, GitHub, ...)."""
+    if STATE["insecure"] and STATE["insecure_host"] and host_of(url) == STATE["insecure_host"]:
         c = ssl.create_default_context()
         c.check_hostname = False
         c.verify_mode = ssl.CERT_NONE
         return c
     return None
+
+
+def opener_for(url):
+    """Normal proxy settings, except that the Jellyfin server itself (usually on the LAN) is contacted directly."""
+    h = host_of(url)
+    direct = h in ("localhost", "127.0.0.1", "::1") or (STATE["base"] and h == host_of(STATE["base"]))
+    handlers = [urllib.request.ProxyHandler({})] if direct else []
+    ctx = ssl_ctx(url)
+    if ctx is not None:
+        handlers.append(urllib.request.HTTPSHandler(context=ctx))
+    return urllib.request.build_opener(*handlers)
 
 
 def api(method, url, body=None, token="__default__", timeout=30, retries=2, headers=None, auth=True):
@@ -251,11 +272,13 @@ def api(method, url, body=None, token="__default__", timeout=30, retries=2, head
                 h["Content-Type"] = "application/json"
             req = urllib.request.Request(url, data=data, headers=h, method=method)
             try:
-                resp = urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx())
+                resp = opener_for(url).open(req, timeout=timeout)
                 r.status = resp.getcode()
+                r.url = resp.geturl()
                 raw = resp.read()
             except urllib.error.HTTPError as e:
                 r.status = e.code
+                r.url = e.geturl() or url
                 raw = e.read()
             r.body = raw.decode("utf-8", "replace")
             s = r.body.lstrip()
@@ -300,10 +323,12 @@ def A(path):
 
 
 def nv(v):
-    p = [x for x in re.sub(r"[^0-9.].*$", "", str(v)).split(".") if x != ""]
-    while len(p) < 4:
-        p.append("0")
-    return tuple(int(x) for x in p[:4])
+    """'10.11.4-rc1' -> (10, 11, 4, 0). Never raises, never loops: junk parts count as 0 (B-85)."""
+    parts = [x for x in re.sub(r"[^0-9.].*$", "", str(v)).split(".") if re.match(r"^[0-9]+$", x)]
+    nums = [min(int(x), 2147483647) if len(x) < 10 else 0 for x in parts[:4]]
+    while len(nums) < 4:
+        nums.append(0)
+    return tuple(nums)
 
 
 def prop(o, name):
@@ -345,8 +370,21 @@ def candidates(s):
     return ["http://%s:8096" % t, "http://" + t, "https://" + t, "https://%s:8920" % t]
 
 
+SUFFIX = "/System/Info/Public"
+
+
+def final_base(candidate, r):
+    """If the probe was redirected (http -> https, host change), talk to where it ended up: a POST does not survive a 301."""
+    u = (r.url or "").split("?")[0]
+    if u.endswith(SUFFIX) and u != candidate + SUFFIX:
+        return u[:-len(SUFFIX)]
+    return candidate
+
+
 def test_jellyfin(base):
-    r = api("GET", base + "/System/Info/Public", timeout=8, retries=0, auth=False)
+    if O.get("insecure"):
+        STATE["insecure"], STATE["insecure_host"] = True, host_of(base)
+    r = api("GET", base + SUFFIX, timeout=8, retries=0, auth=False)
     good = r.status == 200 and isinstance(r.json, dict) and prop(r.json, "Version")
     return bool(good), r
 
@@ -360,11 +398,17 @@ def find_jellyfin():
             good, r = test_jellyfin(c)
             if not good and r.kind == "tls" and not STATE["insecure"]:
                 warn("%s uses a security certificate this computer does not trust (normal for home servers with a self-made certificate)." % c)
-                if O["unattended"] or ask_yn("Continue anyway? The password will still be encrypted in transit, but the server identity is not checked.", True):
-                    STATE["insecure"] = True
+                if O["unattended"]:
+                    raise Fail("The security certificate of %s is not trusted by this computer." % c,
+                               "If this is your own server and you trust it, run this again with -Insecure (the certificate is then not checked for that server only).")
+                if ask_yn("Continue anyway? The password will still be encrypted in transit, but the server identity is not checked.", True):
+                    STATE["insecure"], STATE["insecure_host"] = True, host_of(c)
                     good, r = test_jellyfin(c)
             if good:
-                STATE["base"] = c
+                STATE["base"] = final_base(c, r)
+                STATE["insecure_host"] = host_of(STATE["base"]) if STATE["insecure"] else None
+                if STATE["base"] != c:
+                    info("%s forwards to %s - using that address." % (c, STATE["base"]))
                 return r.json
         tries += 1
         if O["unattended"] or tries >= 3:
@@ -403,7 +447,7 @@ def sign_in():
         if not pw:
             pw = ask_secret("Password (typing is hidden)")
         add_secret(pw)
-        r = api("POST", A("/Users/AuthenticateByName"), {"Username": user, "Pw": pw}, retries=1, auth=False)
+        r = api("POST", A("/Users/AuthenticateByName"), {"Username": user, "Pw": pw}, retries=1)  # needs the MediaBrowser Client/Device/DeviceId/Version header, or Jellyfin answers 500
         if r.status == 200 and isinstance(r.json, dict) and prop(r.json, "AccessToken"):
             tok = prop(r.json, "AccessToken")
             add_secret(tok)
@@ -427,23 +471,47 @@ def sign_in():
         raise Fail(explain(r, "Signing in"), "Check that Jellyfin is running and reachable, then run this file again.", r.error)
 
 
-def ensure_repo(name, urls):
+def usable_manifest(js, guid, plugin_name):
+    """A repository list is only usable if it really lists this plugin with at least one version (B-78)."""
+    if not isinstance(js, list):
+        return False
+    for e in js:
+        g = str(prop(e, "guid") or "").replace("-", "").lower()
+        n = str(prop(e, "name") or "").lower()
+        if (g == guid.replace("-", "").lower() or n == plugin_name.lower()) and isinstance(prop(e, "versions"), list) and len(prop(e, "versions")) > 0:
+            return True
+    return False
+
+
+def ensure_repo(name, urls, guid):
     chosen = None
     for u in urls:
         r = api("GET", u, timeout=30, retries=2, auth=False)
-        if r.status == 200 and r.json is not None:
+        if r.status == 200 and usable_manifest(r.json, guid, name):
             chosen = u
             break
-        warn(explain(r, "Reaching the %s list at %s" % (name, u)) + " Trying the next address if there is one.")
+        if r.status == 200:
+            warn("The %s list at %s answered, but it does not offer %s (empty or out of date). Trying the next address if there is one." % (name, u, name))
+        else:
+            warn(explain(r, "Reaching the %s list at %s" % (name, u)) + " Trying the next address if there is one.")
     if not chosen:
         raise Fail("This computer cannot download the %s plugin list." % name,
                    "Check your internet connection (and any proxy or firewall), or try again later - the site may be temporarily down.", ", ".join(urls))
-    c = api("GET", A("/System/Configuration"), retries=2)
-    if c.status != 200 or not isinstance(c.json, dict):
-        raise Fail(explain(c, "Reading the Jellyfin settings"), "Make sure you signed in with an administrator account, then run this file again.", c.error)
-    cfg = c.json
-    repos = list(prop(cfg, "PluginRepositories") or [])
     norm = lambda x: str(x or "").strip().rstrip("/").lower()
+    # Preferred: Jellyfin's own repositories API (touches nothing else). Old servers without it: the settings file.
+    rr = api("GET", A("/Repositories"), retries=2)
+    use_api = rr.status == 200 and isinstance(rr.json, list)
+    syscfg = None
+    if use_api:
+        repos = list(rr.json)
+    elif rr.status in (404, 405):
+        c = api("GET", A("/System/Configuration"), retries=2)
+        if c.status != 200 or not isinstance(c.json, dict):
+            raise Fail(explain(c, "Reading the Jellyfin settings"), "Make sure you signed in with an administrator account, then run this file again.", c.error)
+        syscfg = c.json
+        repos = list(prop(syscfg, "PluginRepositories") or [])
+    else:
+        raise Fail(explain(rr, "Reading the plugin repositories"), "Make sure you signed in with an administrator account, then run this file again.", rr.error)
     found = None
     for rp in repos:
         if norm(prop(rp, "Url")) == norm(chosen):
@@ -457,8 +525,11 @@ def ensure_repo(name, urls):
     else:
         repos.append({"Name": name, "Url": chosen, "Enabled": True})
         info("Adding the %s repository." % name)
-    setprop(cfg, "PluginRepositories", repos)
-    w = api("POST", A("/System/Configuration"), cfg, retries=1)
+    if use_api:
+        w = api("POST", A("/Repositories"), repos, retries=1)
+    else:
+        setprop(syscfg, "PluginRepositories", repos)
+        w = api("POST", A("/System/Configuration"), syscfg, retries=1)
     if w.status not in (200, 204):
         raise Fail(explain(w, "Saving the %s repository in Jellyfin" % name),
                    "You need an administrator account. If this keeps happening, add it by hand: Dashboard > Plugins > Repositories > +.", w.error)
@@ -471,11 +542,21 @@ def installed_plugins():
     return r.json if r.status == 200 and isinstance(r.json, list) else None
 
 
+def find_all_installed(plugins, name, guid):
+    """Jellyfin keeps superseded old versions in /Plugins, so one plugin can appear several times."""
+    return [p for p in plugins or []
+            if str(prop(p, "Name")).lower() == name.lower() or (guid and str(prop(p, "Id")).replace("-", "").lower() == guid.replace("-", "").lower())]
+
+
 def find_installed(plugins, name, guid):
-    for p in plugins or []:
-        if str(prop(p, "Name")).lower() == name.lower() or (guid and str(prop(p, "Id")).replace("-", "").lower() == guid.replace("-", "").lower()):
-            return p
-    return None
+    """The entry that counts: highest version; for equal versions prefer Active, then Restart (B-76)."""
+    rank = {"Active": 3, "Restart": 2}
+    best = None
+    for p in find_all_installed(plugins, name, guid):
+        k = (nv(prop(p, "Version")), rank.get(str(prop(p, "Status")), 0))
+        if best is None or k > best[0]:
+            best = (k, p)
+    return best[1] if best else None
 
 
 def select_version(pkg, srv):
@@ -496,7 +577,7 @@ def select_version(pkg, srv):
     return None, False
 
 
-def install_one(display, guid):
+def install_one(display, guid, shared=False):
     r = api("GET", A("/Packages"), timeout=120, retries=2)
     if r.status != 200:
         raise Fail(explain(r, "Asking Jellyfin for the list of plugins"),
@@ -519,18 +600,27 @@ def install_one(display, guid):
     inst = find_installed(installed_plugins(), display, guid)
     if inst:
         st = str(prop(inst, "Status"))
-        if nv(prop(inst, "Version")) >= nv(ver) and st not in ("NotSupported", "Malfunctioned"):
+        broken = st in ("NotSupported", "Malfunctioned")
+        if nv(prop(inst, "Version")) >= nv(ver) and not broken:
             ok("%s %s is already installed and up to date." % (display, prop(inst, "Version")))
             return "uptodate"
+        if shared and not broken and not O["update"]:
+            # somebody else's plugin may depend on the copy they have: never swap it silently (B-86)
+            info("A newer %s exists (%s); you have %s." % (display, ver, prop(inst, "Version")))
+            if O["unattended"] or not ask_yn("Upgrade it? Other plugins may use it; upgrading restarts Jellyfin.", False):
+                ok("%s %s is already installed (kept as it is; run with -Update to upgrade it)." % (display, prop(inst, "Version")))
+                info("Keeping your %s." % display)
+                return "uptodate"
         info("Updating %s from %s to %s." % (display, prop(inst, "Version"), ver))
     else:
         info("Installing %s %s (Jellyfin downloads it itself; this can take a minute)." % (display, ver))
     q = "assemblyGuid=%s&version=%s" % (urllib.parse.quote(str(prop(pkg, "guid")), safe=""), urllib.parse.quote(str(ver), safe=""))
     if prop(v, "repositoryUrl"):
         q += "&repositoryUrl=" + urllib.parse.quote(str(prop(v, "repositoryUrl")), safe="")
-    res = api("POST", A("/Packages/Installed/%s?%s" % (urllib.parse.quote(display, safe=""), q)), timeout=O["installtimeoutsec"], retries=1)
+    # No automatic retry of this POST: a repeat after a timeout could start a second install; we poll /Plugins instead (B-100).
+    res = api("POST", A("/Packages/Installed/%s?%s" % (urllib.parse.quote(display, safe=""), q)), timeout=O["installtimeoutsec"], retries=0)
     if res.status not in (200, 204):
-        if res.status == 0 and res.kind == "timeout":
+        if res.status == 0:
             warn("Jellyfin is taking a long time to answer; checking whether the install went through anyway.")
         else:
             hint = "Make sure the server computer has internet access and enough free disk space, then run this again."
@@ -548,6 +638,12 @@ def install_one(display, guid):
                "Look at Dashboard > Logs in Jellyfin for download errors, then run this again - it will continue where it stopped.")
 
 
+def restart_pending():
+    """True while any plugin still waits for a restart (or removal) - proof that Jellyfin has not restarted yet."""
+    pl = installed_plugins()
+    return any(str(prop(p, "Status")) in ("Restart", "Deleted") for p in (pl or []))
+
+
 def restart_and_wait():
     info("Restarting Jellyfin now. The website will be offline for a short moment.")
     r = api("POST", A("/System/Restart"), retries=0)
@@ -563,19 +659,23 @@ def restart_and_wait():
         if not good:
             saw_down = True
         elif saw_down or el >= 20:
-            if api("GET", A("/Plugins"), retries=0).status == 200:
+            # "still answering" only counts as restarted if it went offline once, or no plugin is waiting for a restart any more
+            if api("GET", A("/Plugins"), retries=0).status == 200 and (saw_down or not restart_pending()):
                 ok("Jellyfin is back after about %d seconds." % el)
                 return
         if time.time() - last_dot >= 10:
             info("...still waiting (%d s)" % el)
             last_dot = time.time()
+    if not saw_down:
+        raise Fail("Jellyfin never went offline after the restart request, so it does not look like it restarted.",
+                   "Restart Jellyfin by hand (Dashboard > Restart, or restart the Jellyfin service / tray app), then run this file again - nothing is lost.")
     raise Fail("Jellyfin did not come back within %d seconds." % O["restarttimeoutsec"],
                "Start Jellyfin by hand (Windows: open the Jellyfin tray app or the 'Jellyfin Server' service; Linux: 'sudo systemctl restart jellyfin'). Once it is running, run this file again - nothing is lost.")
 
 
 def verify_active():
     deadline = time.time() + 90
-    want = [("File Transformation", None), ("FullUI", FULLUI_GUID)]
+    want = [("File Transformation", FT_GUID), ("FullUI", FULLUI_GUID)]
     last = ""
     while True:
         plugins = installed_plugins()
@@ -673,6 +773,8 @@ def setup_ollama(cfg):
         ok("Ollama is already installed.")
     else:
         info("Installing Ollama (this can take a few minutes)...")
+        info("NOTE: this downloads and runs Ollama's own official install script (https://ollama.com/install.sh) on this computer.")
+        info("It is software from a third party, not from FullUI, and it may ask for sudo. Press Ctrl+C now to cancel.")
         if sys.platform.startswith("linux"):
             rc = subprocess.call("curl -fsSL https://ollama.com/install.sh | sh", shell=True)
             if rc != 0:
@@ -762,6 +864,14 @@ def configure_plugin():
         info("No settings needed changing.")
 
 
+def script_url_from_page(html, page_url):
+    """The URL a browser would request for the FullUI script tag found in index.html (None if there is no tag)."""
+    m = re.search(r'<script[^>]*\ssrc=["\']([^"\']*FullUI/web/fullui\.js[^"\']*)["\']', html, re.I)
+    if not m:
+        return None
+    return urllib.parse.urljoin(page_url, m.group(1))
+
+
 def self_test():
     good = True
     s = api("GET", A("/FullUI/Status"), retries=3)
@@ -777,8 +887,18 @@ def self_test():
         good = False
         warn("The FullUI web bundle was not served (the plugin build may be missing its web files).")
     ix = api("GET", A("/web/index.html"), retries=1, auth=False)
-    if ix.status == 200 and "/FullUI/web/fullui.js" in ix.body:
+    tag = script_url_from_page(ix.body, ix.url or A("/web/index.html")) if ix.status == 200 else None
+    if tag:
         ok("Jellyfin web pages are loading the FullUI bundle (File Transformation is working).")
+        # fetch the script exactly as the browser would, from the address written in the page (base path included)
+        fetched = api("GET", tag, retries=1, auth=False)
+        if fetched.status == 200:
+            ok("The script tag points to a file that is served (%s)." % tag)
+        else:
+            good = False
+            warn("The page asks the browser for %s, but the server answers HTTP %s there, so the browser will not load FullUI." % (tag, fetched.status))
+            info("This usually means Jellyfin runs under a base path (a 'Base URL' setting) and the plugin ignores it. See docs/INSTALL.md.")
+            info("The page does not load the FullUI script correctly yet.")
     else:
         good = False
         warn("The Jellyfin web page does NOT load FullUI yet.")
@@ -787,13 +907,18 @@ def self_test():
     return good
 
 
+def valid_ipv4(ip):
+    m = re.match(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$", ip.strip())
+    return bool(m) and all(int(g) <= 255 for g in m.groups())
+
+
 def show_firetv():
     say()
     say("Fire TV / Fire Stick app")
     h = api("HEAD", O["apkurl"], timeout=15, retries=1, auth=False)
     if h.status == 404:
         info("The Fire TV app has not been published yet. It is coming; run this installer with -Update later")
-        info('or check https://github.com/Narsmow/FullUISuit/releases for "FullUI-FireTV.apk".')
+        info('or check https://github.com/Narsmow/FullUISuit/releases/tag/firetv-latest for "FullUI-release.apk".')
         return
     info('1. On the Fire TV, install the free "Downloader" app from the Amazon Appstore.')
     info("2. Settings > My Fire TV > Developer Options > Install unknown apps > allow Downloader.")
@@ -805,9 +930,14 @@ def show_firetv():
     adb = shutil.which("adb")
     if adb and (not O["unattended"] or O["firetvip"]):
         ip = O["firetvip"] or ask("adb found. To install on the Fire TV right now, type its IP address (Fire TV: Settings > My Fire TV > About > Network). Enter to skip", "")
+        if ip and not valid_ipv4(ip):
+            warn("'%s' does not look like an IPv4 address (like 192.168.1.30), so I skipped the adb install." % ip)
+            ip = ""
         if ip:
+            tmp = None
             try:
-                tmp = os.path.join(tempfile.gettempdir(), "FullUI-FireTV.apk")
+                fd, tmp = tempfile.mkstemp(prefix="FullUI-FireTV-", suffix=".apk")
+                os.close(fd)
                 urllib.request.urlretrieve(O["apkurl"], tmp)
                 subprocess.call([adb, "connect", ip + ":5555"])
                 if subprocess.call([adb, "-s", ip + ":5555", "install", "-r", tmp]) == 0:
@@ -817,6 +947,12 @@ def show_firetv():
             except Exception as e:
                 warn("Could not install over adb. Use the Downloader steps above.")
                 log("adb: %s" % e)
+            finally:
+                if tmp and os.path.exists(tmp):
+                    try:
+                        os.remove(tmp)
+                    except OSError:
+                        pass
 
 
 def summary(good):
@@ -861,14 +997,17 @@ def run_install():
     sign_in()
 
     step(4, "Adding the plugin download sources (repositories)...")
-    ensure_repo("File Transformation", [O["filetransformationrepourl"]])
+    info("NOTE: File Transformation is made by a third party (IAmParadox27) and published at www.iamparadox.dev;")
+    info("its download list is added to Jellyfin permanently (Dashboard > Plugins > Repositories shows it; you can remove it there).")
+    info("Jellyfin checks its downloads with MD5 checksums only. FullUI itself comes from this project's GitHub.")
+    ensure_repo("File Transformation", [O["filetransformationrepourl"]], FT_GUID)
     urls = [O["fulluirepourl"]]
     if O["fulluirepofallbackurl"] and O["fulluirepofallbackurl"] != O["fulluirepourl"]:
         urls.append(O["fulluirepofallbackurl"])
-    ensure_repo("FullUI", urls)
+    ensure_repo("FullUI", urls, FULLUI_GUID)
 
     step(5, "Installing File Transformation (lets plugins change the web page)...")
-    a = install_one("File Transformation", None)
+    a = install_one("File Transformation", FT_GUID, shared=True)
     step(6, "Installing FullUI...")
     b = install_one("FullUI", FULLUI_GUID)
     if O["update"] and a == "uptodate" and b == "uptodate":
@@ -879,7 +1018,7 @@ def run_install():
 
     step(7, "Restarting Jellyfin so the plugins load...")
     plugins = installed_plugins()
-    pending = any((p and str(prop(p, "Status")) == "Restart") for p in [find_installed(plugins, "File Transformation", None), find_installed(plugins, "FullUI", FULLUI_GUID)])
+    pending = any((p and str(prop(p, "Status")) == "Restart") for p in [find_installed(plugins, "File Transformation", FT_GUID), find_installed(plugins, "FullUI", FULLUI_GUID)])
     if a == "uptodate" and b == "uptodate" and not pending:
         ok("Nothing new was installed, so no restart is needed.")
     else:
@@ -897,6 +1036,14 @@ def run_install():
     STATE["done"] = True
 
 
+def remove_all(entries, label, fix):
+    """Delete every installed version of a plugin (Jellyfin keeps superseded ones); an entry that is already gone is fine."""
+    for e in entries:
+        r = api("DELETE", A("/Plugins/%s/%s" % (prop(e, "Id"), prop(e, "Version"))), retries=1)
+        if r.status not in (200, 204, 404):
+            raise Fail(explain(r, "Removing %s %s" % (label, prop(e, "Version"))), fix, r.body)
+
+
 def run_uninstall():
     STATE["total"] = 6
     step(1, "Looking for your Jellyfin server...")
@@ -909,21 +1056,19 @@ def run_uninstall():
     plugins = installed_plugins()
     if plugins is None:
         raise Fail("I could not read the list of installed plugins.", "Check that you used an administrator account, then run this again.")
-    fu = find_installed(plugins, "FullUI", FULLUI_GUID)
-    ft = find_installed(plugins, "File Transformation", None)
+    fu = find_all_installed(plugins, "FullUI", FULLUI_GUID)
+    ft = find_all_installed(plugins, "File Transformation", FT_GUID)
     if not fu:
         ok("FullUI is not installed. Nothing to remove.")
     else:
-        info("FullUI %s is installed." % prop(fu, "Version"))
+        info("FullUI %s is installed." % ", ".join(str(prop(x, "Version")) for x in fu))
     if not O["unattended"] and fu:
         if not ask_yn("Really remove FullUI? (Your settings and data are kept so a later reinstall picks up where you left off.)", False):
             raise Cancel("Cancelled. Nothing was removed.")
     removed = False
     step(4, "Removing FullUI...")
     if fu:
-        r = api("DELETE", A("/Plugins/%s/%s" % (prop(fu, "Id"), prop(fu, "Version"))), retries=1)
-        if r.status not in (200, 204):
-            raise Fail(explain(r, "Removing FullUI"), "Use an administrator account, or remove it in Dashboard > Plugins > FullUI > Uninstall.", r.body)
+        remove_all(fu, "FullUI", "Use an administrator account, or remove it in Dashboard > Plugins > FullUI > Uninstall.")
         ok("FullUI removed.")
         removed = True
     else:
@@ -933,9 +1078,7 @@ def run_uninstall():
     if ft and not rm and not O["unattended"]:
         rm = ask_yn("Also remove File Transformation? Choose No if you use other plugins like Home Screen Sections.", False)
     if ft and rm:
-        r = api("DELETE", A("/Plugins/%s/%s" % (prop(ft, "Id"), prop(ft, "Version"))), retries=1)
-        if r.status not in (200, 204):
-            raise Fail(explain(r, "Removing File Transformation"), "Remove it in Dashboard > Plugins instead.", r.body)
+        remove_all(ft, "File Transformation", "Remove it in Dashboard > Plugins instead.")
         ok("File Transformation removed.")
         removed = True
     else:
@@ -948,7 +1091,7 @@ def run_uninstall():
             info("Restart Jellyfin yourself later (Dashboard > Restart) to finish.")
     if O["purgedata"]:
         info("Note: Jellyfin cannot delete plugin data through its web API. To erase it, stop Jellyfin and delete the")
-        info("FullUI folders under its data directory: plugins/configurations/ (FullUI*.xml) and data/plugins/FullUI.")
+        info("FullUI files: <data folder>/fullui/store.json and plugins/configurations/Jellyfin.Plugin.FullUI.xml (the plugin's own folder is removed by the uninstall).")
     else:
         info("Your FullUI settings and data were kept.")
     say()
@@ -956,8 +1099,22 @@ def run_uninstall():
     STATE["done"] = True
 
 
+def force_utf8():
+    """A C/POSIX locale on Python 3.6 would crash on a non-ASCII server name; print with replacement instead."""
+    for name in ("stdout", "stderr"):
+        st = getattr(sys, name)
+        try:
+            if hasattr(st, "reconfigure"):
+                st.reconfigure(encoding="utf-8", errors="replace")
+            else:
+                setattr(sys, name, io.TextIOWrapper(st.buffer, encoding="utf-8", errors="replace", line_buffering=True))
+        except Exception:
+            pass
+
+
 def main():
     global O
+    force_utf8()
     O = parse_args(sys.argv[1:])
     init_log()
     say()

@@ -10,9 +10,11 @@
   or run install.sh (Linux/macOS).
 
   Advanced switches:
-    -Unattended  no questions (needs -Username/-Password or -ApiKey)
+    -Unattended  no questions (needs -Username/-Password or -ApiKey; prefer the environment variables
+                 FULLUI_PASSWORD / FULLUI_APIKEY / FULLUI_TMDB_KEY so secrets stay out of the command line)
     -Update      only update FullUI / File Transformation if a newer version exists
     -Uninstall   remove FullUI (and optionally File Transformation)
+    -Insecure    accept the self-signed HTTPS certificate of YOUR Jellyfin server (that host only)
 #>
 [CmdletBinding()]
 param(
@@ -40,12 +42,15 @@ param(
     [string]$FullUIRepoUrl = 'https://raw.githubusercontent.com/Narsmow/FullUISuit/main/manifest.json',
     [string]$FullUIRepoFallbackUrl = 'https://github.com/Narsmow/FullUISuit/releases/latest/download/manifest.json',
     [string]$TmdbBaseUrl = 'https://api.themoviedb.org/3',
-    [string]$ApkUrl = 'https://github.com/Narsmow/FullUISuit/releases/latest/download/FullUI-FireTV.apk'
+    [string]$ApkUrl = 'https://github.com/Narsmow/FullUISuit/releases/download/firetv-latest/FullUI-release.apk'
 )
 
 $ErrorActionPreference = 'Stop'
-$InstallerVersion = '1.0.0'
+# Windows PowerShell 5.1 draws a progress bar for Invoke-WebRequest that makes big downloads (Ollama, ~1 GB) extremely slow.
+$ProgressPreference = 'SilentlyContinue'
+$InstallerVersion = '1.1.0'
 $FullUIGuid = '7c3f2d9a-5b1e-4a86-9d0c-2f8e6b4a1c57'
+$FtGuid = '5e87cc92-571a-4d8d-8d98-d2d4147f9f90'
 $script:Total = 9
 $script:LogFile = $null
 $script:Secrets = New-Object System.Collections.ArrayList
@@ -56,6 +61,7 @@ $script:ServerVersion = $null
 $script:Done = $false
 $script:Reported = $false
 $script:Insecure = [bool]$Insecure
+$script:InsecureHost = $null   # certificate checking is skipped for this one host name only
 
 # ---------------------------------------------------------------- environment
 if (-not $Password -and $env:FULLUI_PASSWORD) { $Password = $env:FULLUI_PASSWORD }
@@ -65,6 +71,8 @@ $IsWin = ($env:OS -eq 'Windows_NT')
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
 try { Add-Type -AssemblyName System.Net.Http } catch { }
 $script:Trust51 = $false
+# The .cmd launcher drops a marker file here so it can tell "the script never started" (policy / antivirus) from "it ran and failed".
+if ($env:FULLUI_MARK) { try { Set-Content -LiteralPath $env:FULLUI_MARK -Value 'started' } catch { } }
 
 # ---------------------------------------------------------------- logging
 function Add-Secret([string]$v) { if ($v -and $v.Length -ge 3 -and -not $script:Secrets.Contains($v)) { [void]$script:Secrets.Add($v) } }
@@ -190,18 +198,24 @@ function Invoke-Api {
     $res = $null
     while ($true) {
         $attempt++
-        $res = [pscustomobject]@{ Status = 0; Body = ''; Json = $null; Error = ''; Kind = ''; Url = $Url }
+        $res = [pscustomobject]@{ Status = 0; Body = ''; Json = $null; Error = ''; Kind = ''; Url = $Url; FinalUrl = $Url }
         $client = $null; $handler = $null; $req = $null; $resp = $null
         try {
             $handler = New-Object System.Net.Http.HttpClientHandler
-            $handler.UseProxy = $true
+            # normal proxy settings, except for the Jellyfin server itself (usually on the LAN): contact it directly
+            $handler.UseProxy = -not (Test-DirectHost $Url)
             try { $handler.DefaultProxyCredentials = [Net.CredentialCache]::DefaultCredentials } catch { }
-            if ($script:Insecure) {
+            if ($script:Insecure -and $script:InsecureHost -and (Get-HostOf $Url) -eq $script:InsecureHost) {
+                # only for the Jellyfin host the user agreed to - never TMDB, GitHub, ...
                 try { $handler.ServerCertificateCustomValidationCallback = [System.Net.Http.HttpClientHandler]::DangerousAcceptAnyServerCertificateValidator } catch { }
-                if ($PSVersionTable.PSVersion.Major -lt 6 -and -not $script:Trust51) {
-                    Add-Type -TypeDefinition 'public static class FullUITrust { public static bool All(object s, System.Security.Cryptography.X509Certificates.X509Certificate c, System.Security.Cryptography.X509Certificates.X509Chain ch, System.Net.Security.SslPolicyErrors e) { return true; } }'
-                    [Net.ServicePointManager]::ServerCertificateValidationCallback = [System.Delegate]::CreateDelegate([Net.Security.RemoteCertificateValidationCallback], [FullUITrust].GetMethod('All'))
-                    $script:Trust51 = $true
+                if ($PSVersionTable.PSVersion.Major -lt 6) {
+                    # Windows PowerShell 5.1: the callback is process-wide, so it checks the host itself and keeps the normal rules for all others
+                    if (-not $script:Trust51) {
+                        Add-Type -TypeDefinition 'public static class FullUITrust { public static string Host = ""; public static bool Check(object s, System.Security.Cryptography.X509Certificates.X509Certificate c, System.Security.Cryptography.X509Certificates.X509Chain ch, System.Net.Security.SslPolicyErrors e) { if (e == System.Net.Security.SslPolicyErrors.None) { return true; } System.Net.HttpWebRequest r = s as System.Net.HttpWebRequest; return r != null && Host.Length > 0 && string.Equals(r.RequestUri.Host, Host, System.StringComparison.OrdinalIgnoreCase); } }'
+                        [Net.ServicePointManager]::ServerCertificateValidationCallback = [System.Delegate]::CreateDelegate([Net.Security.RemoteCertificateValidationCallback], [FullUITrust].GetMethod('Check'))
+                        $script:Trust51 = $true
+                    }
+                    [FullUITrust]::Host = $script:InsecureHost
                 }
             }
             $client = New-Object System.Net.Http.HttpClient($handler)
@@ -223,6 +237,7 @@ function Invoke-Api {
             }
             $resp = $client.SendAsync($req).GetAwaiter().GetResult()
             $res.Status = [int]$resp.StatusCode
+            try { $res.FinalUrl = $resp.RequestMessage.RequestUri.AbsoluteUri } catch { }
             $res.Body = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
             if ($res.Body -and ($res.Body.TrimStart().StartsWith('{') -or $res.Body.TrimStart().StartsWith('['))) {
                 try { $res.Json = $res.Body | ConvertFrom-Json } catch { }
@@ -270,12 +285,37 @@ function Explain-Http($r, [string]$what) {
 }
 
 function Api([string]$path) { return ($script:Base + $path) }
+function Get-HostOf([string]$url) { try { return ([uri]$url).Host.ToLower() } catch { return '' } }
+function Test-DirectHost([string]$url) {
+    $h = Get-HostOf $url
+    if ($h -in @('localhost', '127.0.0.1', '::1', '[::1]')) { return $true }
+    if ($script:Base -and $h -and $h -eq (Get-HostOf $script:Base)) { return $true }
+    return $false
+}
 
 # ---------------------------------------------------------------- helpers
 function Norm-Version([string]$v) {
-    $p = ("$v" -replace '[^0-9.].*$', '').Split('.') | Where-Object { $_ -ne '' }
-    while ($p.Count -lt 4) { $p += '0' }
-    return [version](($p[0..3]) -join '.')
+    # '10.11.4-rc1' -> 10.11.4.0. Never throws, never loops: missing or junk parts count as 0 (B-85).
+    $nums = New-Object System.Collections.ArrayList
+    foreach ($x in ("$v" -replace '[^0-9.].*$', '').Split('.')) {
+        if ($nums.Count -ge 4) { break }
+        if ($x -notmatch '^[0-9]+$') { continue }
+        $n = 0
+        if (-not [int]::TryParse($x, [ref]$n)) { $n = 0 }
+        [void]$nums.Add($n)
+    }
+    while ($nums.Count -lt 4) { [void]$nums.Add(0) }
+    return (New-Object System.Version($nums[0], $nums[1], $nums[2], $nums[3]))
+}
+# Runs a program with Continue: Windows PowerShell 5.1 turns ANY stderr text of a native command into a terminating error
+# under 'Stop' (ollama prints its progress on stderr). Output goes to the log; returns the exit code.
+function Invoke-Native([string]$exe, [string[]]$ArgList) {
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $exe @ArgList 2>&1 | ForEach-Object { Write-Log "$_" }
+        return $LASTEXITCODE
+    } finally { $ErrorActionPreference = $old }
 }
 function Test-LocalAddress([string]$base) {
     try {
@@ -304,9 +344,15 @@ function Get-Candidates([string]$input1) {
     return @("http://${t}:8096", "http://$t", "https://$t", "https://${t}:8920")
 }
 function Test-Jellyfin([string]$base) {
+    if ($Insecure) { $script:Insecure = $true; $script:InsecureHost = Get-HostOf $base }
     $r = Invoke-Api -Url ($base + '/System/Info/Public') -TimeoutSec 8 -Retries 0 -NoAuthHeader
     $ok = ($r.Status -eq 200 -and $r.Json -and (Get-Prop $r.Json 'Version'))
-    return [pscustomobject]@{ Ok = $ok; Resp = $r; Info = $r.Json }
+    # If the probe was redirected (http -> https, other host), use where it ended up: a POST does not survive a 301 (B-79).
+    $final = $base
+    $suffix = '/System/Info/Public'
+    $fu = "$($r.FinalUrl)".Split('?')[0]
+    if ($ok -and $fu.EndsWith($suffix) -and $fu -ne ($base + $suffix)) { $final = $fu.Substring(0, $fu.Length - $suffix.Length) }
+    return [pscustomobject]@{ Ok = $ok; Resp = $r; Info = $r.Json; Base = $final }
 }
 function Find-Jellyfin {
     $tries = 0
@@ -319,12 +365,21 @@ function Find-Jellyfin {
             $t = Test-Jellyfin $c
             if (-not $t.Ok -and $t.Resp.Kind -eq 'tls' -and -not $script:Insecure) {
                 Say-Warn "$c uses a security certificate this computer does not trust (normal for home servers with a self-made certificate)."
-                if ($Unattended -or (Ask-YesNo 'Continue anyway? The password will still be encrypted in transit, but the server identity is not checked.' $true)) {
+                if ($Unattended) {
+                    Fail "The security certificate of $c is not trusted by this computer." "If this is your own server and you trust it, run this again with -Insecure (the certificate is then not checked for that server only)."
+                }
+                if (Ask-YesNo 'Continue anyway? The password will still be encrypted in transit, but the server identity is not checked.' $true) {
                     $script:Insecure = $true
+                    $script:InsecureHost = Get-HostOf $c
                     $t = Test-Jellyfin $c
                 }
             }
-            if ($t.Ok) { $script:Base = $c; return $t.Info }
+            if ($t.Ok) {
+                $script:Base = $t.Base
+                if ($script:Insecure) { $script:InsecureHost = Get-HostOf $script:Base }
+                if ($t.Base -ne $c) { Say-Info "$c forwards to $($t.Base) - using that address." }
+                return $t.Info
+            }
             if ($t.Resp.Status -ne 0 -and $t.Resp.Status -ne 404) { $lastKind = "HTTP $($t.Resp.Status)" } elseif ($t.Resp.Kind) { $lastKind = $t.Resp.Kind }
         }
         $tries++
@@ -368,7 +423,7 @@ function Sign-In {
         if (-not $pw) { $pw = Ask-Secret 'Password (typing is hidden)' }
         Add-Secret $pw
         $body = ConvertTo-Json -InputObject @{ Username = $user; Pw = $pw } -Compress
-        $r = Invoke-Api -Method POST -Url (Api '/Users/AuthenticateByName') -Body $body -Retries 1 -NoAuthHeader
+        $r = Invoke-Api -Method POST -Url (Api '/Users/AuthenticateByName') -Body $body -Retries 1   # must carry the MediaBrowser Client/Device/DeviceId/Version header (no Token), or Jellyfin answers HTTP 500
         $isAdmin = $false
         if ($r.Status -eq 200 -and $r.Json -and (Get-Prop $r.Json 'AccessToken')) {
             $u = Get-Prop $r.Json 'User'
@@ -404,30 +459,57 @@ function Sign-In {
 }
 
 # ---------------------------------------------------------------- step 4: repositories
-function Test-Manifest([string]$url) {
-    $r = Invoke-Api -Url $url -TimeoutSec 30 -Retries 2 -NoAuthHeader
-    if ($r.Status -eq 200 -and $r.Json) { return [pscustomobject]@{ Ok = $true; Resp = $r } }
-    return [pscustomobject]@{ Ok = $false; Resp = $r }
+function Test-ManifestUsable($json, [string]$guid, [string]$pluginName) {
+    # a repository list only counts if it really offers this plugin with at least one version (B-78)
+    foreach ($e in @($json)) {
+        if ($null -eq $e) { continue }
+        $g = "$(Get-Prop $e 'guid')".Replace('-', '').ToLower()
+        $n = "$(Get-Prop $e 'name')".ToLower()
+        if ($g -eq $guid.Replace('-', '').ToLower() -or $n -eq $pluginName.ToLower()) {
+            $vs = @(Get-Prop $e 'versions' | Where-Object { $null -ne $_ })
+            if ($vs.Count -gt 0) { return $true }
+        }
+    }
+    return $false
 }
-function Ensure-Repository([string]$name, [string[]]$urls) {
+function Test-Manifest([string]$url, [string]$guid, [string]$pluginName) {
+    $r = Invoke-Api -Url $url -TimeoutSec 30 -Retries 2 -NoAuthHeader
+    $usable = ($r.Status -eq 200 -and $r.Json -and (Test-ManifestUsable $r.Json $guid $pluginName))
+    return [pscustomobject]@{ Ok = [bool]$usable; Resp = $r }
+}
+function Ensure-Repository([string]$name, [string[]]$urls, [string]$guid) {
     $chosen = $null
     foreach ($u in $urls) {
-        $t = Test-Manifest $u
+        $t = Test-Manifest $u $guid $name
         if ($t.Ok) { $chosen = $u; break }
-        Say-Warn ((Explain-Http $t.Resp "Reaching the $name list at $u") + ' Trying the next address if there is one.')
+        if ($t.Resp.Status -eq 200) {
+            Say-Warn "The $name list at $u answered, but it does not offer $name (empty or out of date). Trying the next address if there is one."
+        } else {
+            Say-Warn ((Explain-Http $t.Resp "Reaching the $name list at $u") + ' Trying the next address if there is one.')
+        }
     }
     if (-not $chosen) {
         Fail "This computer cannot download the $name plugin list." "Check your internet connection (and any proxy or firewall), or try again later - the site may be temporarily down." ($urls -join ', ')
     }
-    $cfgR = Invoke-Api -Url (Api '/System/Configuration') -Retries 2
-    if ($cfgR.Status -ne 200 -or -not $cfgR.Json) {
-        Fail (Explain-Http $cfgR 'Reading the Jellyfin settings') 'Make sure you signed in with an administrator account, then run this file again.' $cfgR.Error
-    }
-    $cfg = $cfgR.Json
-    $repos = @()
-    $existing = Get-Prop $cfg 'PluginRepositories'
-    if ($existing) { $repos = @($existing) }
     $norm = { param($x) ("$x").Trim().TrimEnd('/').ToLower() }
+    # Preferred: Jellyfin's own repositories API (touches nothing else). Servers without it: the settings file.
+    $rr = Invoke-Api -Url (Api '/Repositories') -Retries 2
+    $useApi = ($rr.Status -eq 200 -and "$($rr.Body)".TrimStart().StartsWith('['))
+    $sysCfg = $null
+    $repos = @()
+    if ($useApi) {
+        if ($rr.Json) { $repos = @($rr.Json | Where-Object { $null -ne $_ }) }
+    } elseif ($rr.Status -in @(404, 405)) {
+        $cfgR = Invoke-Api -Url (Api '/System/Configuration') -Retries 2
+        if ($cfgR.Status -ne 200 -or -not $cfgR.Json) {
+            Fail (Explain-Http $cfgR 'Reading the Jellyfin settings') 'Make sure you signed in with an administrator account, then run this file again.' $cfgR.Error
+        }
+        $sysCfg = $cfgR.Json
+        $existing = Get-Prop $sysCfg 'PluginRepositories'
+        if ($existing) { $repos = @($existing) }
+    } else {
+        Fail (Explain-Http $rr 'Reading the plugin repositories') 'Make sure you signed in with an administrator account, then run this file again.' $rr.Error
+    }
     $found = $null
     foreach ($rp in $repos) { if ((& $norm (Get-Prop $rp 'Url')) -eq (& $norm $chosen)) { $found = $rp } }
     if ($found) {
@@ -439,8 +521,12 @@ function Ensure-Repository([string]$name, [string[]]$urls) {
         $repos = @($repos) + @($new)
         Say-Info "Adding the $name repository."
     }
-    Set-Prop $cfg 'PluginRepositories' @($repos)
-    $w = Invoke-Api -Method POST -Url (Api '/System/Configuration') -Body $cfg -Retries 1
+    if ($useApi) {
+        $w = Invoke-Api -Method POST -Url (Api '/Repositories') -Body @($repos) -Retries 1
+    } else {
+        Set-Prop $sysCfg 'PluginRepositories' @($repos)
+        $w = Invoke-Api -Method POST -Url (Api '/System/Configuration') -Body $sysCfg -Retries 1
+    }
     if ($w.Status -notin @(200, 204)) {
         Fail (Explain-Http $w "Saving the $name repository in Jellyfin") 'You need an administrator account. If this keeps happening, add it by hand: Dashboard > Plugins > Repositories > +.' $w.Error
     }
@@ -463,10 +549,25 @@ function Get-InstalledPlugins {
     $list = @(); if ($r.Json) { $list = @($r.Json) }
     return ,$list
 }
-function Find-Installed($plugins, [string]$name, [string]$guid) {
-    foreach ($p in $plugins) {
-        if ((("$(Get-Prop $p 'Name')") -ieq $name) -or ($guid -and ("$(Get-Prop $p 'Id')").Replace('-', '') -ieq $guid.Replace('-', ''))) { return $p }
+function Find-AllInstalled($plugins, [string]$name, [string]$guid) {
+    # Jellyfin keeps superseded old versions in /Plugins, so one plugin can appear several times (B-76)
+    $out = @()
+    foreach ($p in @($plugins)) {
+        if ($null -eq $p) { continue }
+        if ((("$(Get-Prop $p 'Name')") -ieq $name) -or ($guid -and ("$(Get-Prop $p 'Id')").Replace('-', '') -ieq $guid.Replace('-', ''))) { $out += $p }
     }
+    return $out   # callers wrap the result in @() so zero or one entries stay arrays
+}
+function Find-Installed($plugins, [string]$name, [string]$guid) {
+    # the entry that counts: highest version; for equal versions prefer Active, then Restart
+    $best = $null
+    foreach ($p in (Find-AllInstalled $plugins $name $guid)) {
+        $rank = 0
+        switch ("$(Get-Prop $p 'Status')") { 'Active' { $rank = 3 } 'Restart' { $rank = 2 } }
+        $v = Norm-Version "$(Get-Prop $p 'Version')"
+        if ((-not $best) -or ($v -gt $best.V) -or (($v -eq $best.V) -and ($rank -gt $best.R))) { $best = @{ P = $p; V = $v; R = $rank } }
+    }
+    if ($best) { return $best.P }
     return $null
 }
 function Select-PackageVersion($pkg, [version]$srv) {
@@ -484,7 +585,7 @@ function Select-PackageVersion($pkg, [version]$srv) {
     if ($best) { return [pscustomobject]@{ Version = $best.V; Exact = $false } }
     return $null
 }
-function Install-One([string]$display, [string]$guid, [bool]$forceCheck) {
+function Install-One([string]$display, [string]$guid, [bool]$shared) {
     $pkgs = Get-Packages
     $pkg = $null
     foreach ($p in $pkgs) {
@@ -504,9 +605,19 @@ function Install-One([string]$display, [string]$guid, [bool]$forceCheck) {
     if ($inst) {
         $iv = Norm-Version "$(Get-Prop $inst 'Version')"
         $st = "$(Get-Prop $inst 'Status')"
-        if ($iv -ge (Norm-Version $ver) -and $st -notin @('NotSupported', 'Malfunctioned')) {
+        $broken = ($st -in @('NotSupported', 'Malfunctioned'))
+        if ($iv -ge (Norm-Version $ver) -and -not $broken) {
             Say-Ok "$display $(Get-Prop $inst 'Version') is already installed and up to date."
             return 'uptodate'
+        }
+        if ($shared -and -not $broken -and -not $Update) {
+            # somebody else's plugin may depend on the copy they have: never swap it silently (B-86)
+            Say-Info "A newer $display exists ($ver); you have $(Get-Prop $inst 'Version')."
+            if ($Unattended -or -not (Ask-YesNo 'Upgrade it? Other plugins may use it; upgrading restarts Jellyfin.' $false)) {
+                Say-Ok "$display $(Get-Prop $inst 'Version') is already installed (kept as it is; run with -Update to upgrade it)."
+                Say-Info "Keeping your $display."
+                return 'uptodate'
+            }
         }
         Say-Info "Updating $display from $(Get-Prop $inst 'Version') to $ver."
     } else {
@@ -516,9 +627,10 @@ function Install-One([string]$display, [string]$guid, [bool]$forceCheck) {
     $q = 'assemblyGuid=' + [uri]::EscapeDataString("$(Get-Prop $pkg 'guid')") + '&version=' + [uri]::EscapeDataString("$ver")
     if ($repoUrl) { $q += '&repositoryUrl=' + [uri]::EscapeDataString("$repoUrl") }
     $url = Api ('/Packages/Installed/' + [uri]::EscapeDataString($display) + '?' + $q)
-    $r = Invoke-Api -Method POST -Url $url -TimeoutSec $InstallTimeoutSec -Retries 1
+    # No automatic retry of this POST: a repeat after a timeout could start a second install; we poll /Plugins instead (B-100).
+    $r = Invoke-Api -Method POST -Url $url -TimeoutSec $InstallTimeoutSec -Retries 0
     if ($r.Status -notin @(200, 204)) {
-        if ($r.Status -eq 0 -and $r.Kind -eq 'timeout') {
+        if ($r.Status -eq 0) {
             Say-Warn 'Jellyfin is taking a long time to answer; checking whether the install went through anyway.'
         } else {
             $hint = 'Make sure the server computer has internet access and enough free disk space, then run this again.'
@@ -542,6 +654,12 @@ function Install-One([string]$display, [string]$guid, [bool]$forceCheck) {
 }
 
 # ---------------------------------------------------------------- step 7: restart
+function Test-RestartPending {
+    # true while any plugin still waits for a restart (or removal) - proof that Jellyfin has not restarted yet
+    $pl = Get-InstalledPlugins
+    foreach ($p in @($pl)) { if ($p -and ("$(Get-Prop $p 'Status')" -in @('Restart', 'Deleted'))) { return $true } }
+    return $false
+}
 function Restart-AndWait {
     Say-Info 'Restarting Jellyfin now. The website will be offline for a short moment.'
     $r = Invoke-Api -Method POST -Url (Api '/System/Restart') -Retries 0
@@ -558,11 +676,15 @@ function Restart-AndWait {
         $elapsed = [int]((Get-Date) - $start).TotalSeconds
         if (-not $t.Ok) { $sawDown = $true }
         elseif ($sawDown -or $elapsed -ge 20) {
-            # up again; also wait until the authenticated API answers
+            # up again; also wait until the authenticated API answers. "Still answering" only counts as restarted
+            # if the server went offline once, or no plugin is waiting for a restart any more (B-97).
             $p = Invoke-Api -Url (Api '/Plugins') -Retries 0
-            if ($p.Status -eq 200) { Say-Ok "Jellyfin is back after about $elapsed seconds."; return }
+            if ($p.Status -eq 200 -and ($sawDown -or -not (Test-RestartPending))) { Say-Ok "Jellyfin is back after about $elapsed seconds."; return }
         }
         if (((Get-Date) - $lastDot).TotalSeconds -ge 10) { Say-Info "...still waiting ($elapsed s)"; $lastDot = Get-Date }
+    }
+    if (-not $sawDown) {
+        Fail 'Jellyfin never went offline after the restart request, so it does not look like it restarted.' 'Restart Jellyfin by hand (Dashboard > Restart, or restart the Jellyfin service / tray app), then run this file again - nothing is lost.'
     }
     Fail "Jellyfin did not come back within $RestartTimeoutSec seconds." `
          "Start Jellyfin by hand (Windows: open the Jellyfin tray app or the 'Jellyfin Server' service; Linux: 'sudo systemctl restart jellyfin'). Once it is running, run this file again - nothing is lost."
@@ -571,7 +693,7 @@ function Restart-AndWait {
 # ---------------------------------------------------------------- step 8: verify
 function Verify-Active {
     $deadline = (Get-Date).AddSeconds(90)
-    $want = @(@{ N = 'File Transformation'; G = $null }, @{ N = 'FullUI'; G = $FullUIGuid })
+    $want = @(@{ N = 'File Transformation'; G = $FtGuid }, @{ N = 'FullUI'; G = $FullUIGuid })
     $last = ''
     while ($true) {
         $plugins = Get-InstalledPlugins
@@ -673,22 +795,35 @@ function Setup-Ollama($cfg) {
     if ($exe) { Say-Ok 'Ollama is already installed.' }
     else {
         Say-Info 'Installing Ollama (this can take a few minutes)...'
+        Say-Info 'NOTE: Ollama is software from a third party (ollama.com), not from FullUI. This downloads and runs'
+        Say-Info "Ollama's own installer on this computer."
         if ($IsWin) {
             $wg = Get-Command winget -ErrorAction SilentlyContinue
             $done = $false
             if ($wg) {
-                & winget install --id Ollama.Ollama -e --silent --accept-package-agreements --accept-source-agreements 2>&1 | ForEach-Object { Write-Log "$_" }
-                if ($LASTEXITCODE -eq 0) { $done = $true } else { Say-Info 'winget did not finish; trying the direct download.' }
+                $code = Invoke-Native $wg.Source @('install', '--id', 'Ollama.Ollama', '-e', '--silent', '--accept-package-agreements', '--accept-source-agreements')
+                if ($code -eq 0) { $done = $true } else { Say-Info 'winget did not finish; trying the direct download.' }
             }
             if (-not $done) {
-                $tmp = Join-Path ([IO.Path]::GetTempPath()) 'OllamaSetup.exe'
-                try { Invoke-WebRequest -UseBasicParsing -Uri 'https://ollama.com/download/OllamaSetup.exe' -OutFile $tmp -TimeoutSec 600 } catch { Say-Warn 'Could not download the Ollama installer.'; return $false }
-                $p = Start-Process -FilePath $tmp -ArgumentList '/SILENT' -Wait -PassThru
-                if ($p.ExitCode -ne 0) { Say-Warn "The Ollama installer reported code $($p.ExitCode)."; return $false }
+                $tmp = Join-Path ([IO.Path]::GetTempPath()) ('OllamaSetup-' + [guid]::NewGuid().ToString('N') + '.exe')
+                try {
+                    try { Invoke-WebRequest -UseBasicParsing -Uri 'https://ollama.com/download/OllamaSetup.exe' -OutFile $tmp -TimeoutSec 600 } catch { Say-Warn 'Could not download the Ollama installer.'; return $false }
+                    # the file must carry a valid digital signature, otherwise it is not run
+                    $sig = Get-AuthenticodeSignature -LiteralPath $tmp
+                    if ($sig.Status -ne 'Valid') {
+                        Say-Warn "The downloaded Ollama installer does not have a valid digital signature ($($sig.Status)), so I did not run it. Install Ollama yourself from ollama.com."
+                        return $false
+                    }
+                    $who = ''; if ($sig.SignerCertificate) { $who = $sig.SignerCertificate.Subject }
+                    Say-Info "Ollama installer signature is valid. Signed by: $who"
+                    $p = Start-Process -FilePath $tmp -ArgumentList '/SILENT' -Wait -PassThru
+                    if ($p.ExitCode -ne 0) { Say-Warn "The Ollama installer reported code $($p.ExitCode)."; return $false }
+                } finally { if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue } }
             }
         } elseif ($PSVersionTable.Platform -eq 'Unix' -and $IsLinux) {
-            & sh -c 'curl -fsSL https://ollama.com/install.sh | sh' 2>&1 | ForEach-Object { Write-Log "$_" }
-            if ($LASTEXITCODE -ne 0) { Say-Warn 'The Ollama install script failed (it usually needs sudo/root). You can install it yourself from ollama.com.'; return $false }
+            Say-Info "On Linux that is the script https://ollama.com/install.sh (it may need sudo)."
+            $code = Invoke-Native 'sh' @('-c', 'curl -fsSL https://ollama.com/install.sh | sh')
+            if ($code -ne 0) { Say-Warn 'The Ollama install script failed (it usually needs sudo/root). You can install it yourself from ollama.com.'; return $false }
         } else {
             Say-Warn 'Please install Ollama from https://ollama.com/download, then run this installer again.'
             return $false
@@ -710,8 +845,7 @@ function Setup-Ollama($cfg) {
         Say-Info "Downloading AI model $m (a few hundred MB to 2 GB; please wait)..."
         $okm = $false
         for ($a = 1; $a -le 2 -and -not $okm; $a++) {
-            & $exe pull $m 2>&1 | ForEach-Object { Write-Log "$_" }
-            if ($LASTEXITCODE -eq 0) { $okm = $true }
+            if ((Invoke-Native $exe @('pull', $m)) -eq 0) { $okm = $true }
         }
         if (-not $okm) { Say-Warn "Could not download $m. Try 'ollama pull $m' yourself later."; return $false }
         Say-Ok "Model $m ready."
@@ -753,6 +887,12 @@ function Configure-Plugin {
     if ($changed) { Save-PluginConfig $cfg; Say-Ok 'FullUI settings saved.' } else { Say-Info 'No settings needed changing.' }
 }
 
+function Get-ScriptUrlFromPage([string]$html, [string]$pageUrl) {
+    # the URL a browser would request for the FullUI script tag in index.html (base path included); $null if there is no tag
+    $m = [regex]::Match($html, '(?i)<script[^>]*\ssrc=["'']([^"'']*FullUI/web/fullui\.js[^"'']*)["'']')
+    if (-not $m.Success) { return $null }
+    try { return (New-Object System.Uri((New-Object System.Uri($pageUrl)), $m.Groups[1].Value)).AbsoluteUri } catch { return $m.Groups[1].Value }
+}
 function Self-Test {
     $good = $true
     $s = Invoke-Api -Url (Api '/FullUI/Status') -Retries 3
@@ -762,8 +902,20 @@ function Self-Test {
     if ($js.Status -eq 200) { Say-Ok 'The FullUI web bundle is being served.' }
     else { $good = $false; Say-Warn 'The FullUI web bundle was not served (the plugin build may be missing its web files).' }
     $ix = Invoke-Api -Url (Api '/web/index.html') -Retries 1 -NoAuthHeader
-    if ($ix.Status -eq 200 -and $ix.Body -match '/FullUI/web/fullui\.js') { Say-Ok 'Jellyfin web pages are loading the FullUI bundle (File Transformation is working).' }
-    else {
+    $tag = $null
+    if ($ix.Status -eq 200) { $tag = Get-ScriptUrlFromPage $ix.Body $ix.FinalUrl }
+    if ($tag) {
+        Say-Ok 'Jellyfin web pages are loading the FullUI bundle (File Transformation is working).'
+        # fetch the script exactly as the browser would: from the address written in the page (base path included)
+        $fetched = Invoke-Api -Url $tag -Retries 1 -NoAuthHeader
+        if ($fetched.Status -eq 200) { Say-Ok "The script tag points to a file that is served ($tag)." }
+        else {
+            $good = $false
+            Say-Warn "The page asks the browser for $tag, but the server answers HTTP $($fetched.Status) there, so the browser will not load FullUI."
+            Say-Info "This usually means Jellyfin runs under a base path (a 'Base URL' setting) and the plugin ignores it. See docs/INSTALL.md."
+            Say-Info 'The page does not load the FullUI script correctly yet.'
+        }
+    } else {
         $good = $false
         Say-Warn 'The Jellyfin web page does NOT load FullUI yet.'
         Say-Info 'Most likely File Transformation has not applied. Restart Jellyfin once more, wait a minute,'
@@ -772,6 +924,11 @@ function Self-Test {
     return $good
 }
 
+function Test-Ipv4([string]$ip) {
+    if ($ip.Trim() -notmatch '^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$') { return $false }
+    foreach ($i in 1..4) { if ([int]$Matches[$i] -gt 255) { return $false } }
+    return $true
+}
 function Show-FireTv {
     Say ''
     Say 'Fire TV / Fire Stick app'
@@ -779,7 +936,7 @@ function Show-FireTv {
     $have = $h.Status -eq 200
     if ($h.Status -eq 404) {
         Say-Info 'The Fire TV app has not been published yet. It is coming; run this installer with -Update later'
-        Say-Info 'or check https://github.com/Narsmow/FullUISuit/releases for "FullUI-FireTV.apk".'
+        Say-Info 'or check https://github.com/Narsmow/FullUISuit/releases/tag/firetv-latest for "FullUI-release.apk".'
         return
     }
     Say-Info '1. On the Fire TV, install the free "Downloader" app from the Amazon Appstore.'
@@ -792,14 +949,19 @@ function Show-FireTv {
     if ($adb -and -not $Unattended -or ($adb -and $FireTvIp)) {
         $ip = $FireTvIp
         if (-not $ip) { $ip = Ask 'adb found. To install on the Fire TV right now, type its IP address (Fire TV: Settings > My Fire TV > About > Network). Enter to skip' '' }
+        if ($ip -and -not (Test-Ipv4 $ip)) {
+            Say-Warn "'$ip' does not look like an IPv4 address (like 192.168.1.30), so I skipped the adb install."
+            $ip = ''
+        }
         if ($ip) {
+            $tmp = Join-Path ([IO.Path]::GetTempPath()) ('FullUI-FireTV-' + [guid]::NewGuid().ToString('N') + '.apk')
             try {
-                $tmp = Join-Path ([IO.Path]::GetTempPath()) 'FullUI-FireTV.apk'
                 Invoke-WebRequest -UseBasicParsing -Uri $ApkUrl -OutFile $tmp -TimeoutSec 600
-                & $adb.Source connect "${ip}:5555" 2>&1 | ForEach-Object { Write-Log "$_" }
-                & $adb.Source -s "${ip}:5555" install -r $tmp 2>&1 | ForEach-Object { Write-Log "$_" }
-                if ($LASTEXITCODE -eq 0) { Say-Ok 'Installed on the Fire TV.' } else { Say-Warn 'adb could not install it (is ADB debugging on? Allow the connection on the TV screen). Use the Downloader steps above.' }
+                [void](Invoke-Native $adb.Source @('connect', "${ip}:5555"))
+                $code = Invoke-Native $adb.Source @('-s', "${ip}:5555", 'install', '-r', $tmp)
+                if ($code -eq 0) { Say-Ok 'Installed on the Fire TV.' } else { Say-Warn 'adb could not install it (is ADB debugging on? Allow the connection on the TV screen). Use the Downloader steps above.' }
             } catch { Say-Warn 'Could not install over adb. Use the Downloader steps above.'; Write-Log "adb: $($_.Exception.Message)" }
+            finally { if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue } }
         }
     }
 }
@@ -842,16 +1004,19 @@ function Run-Install {
     Sign-In
 
     Say-Step 4 'Adding the plugin download sources (repositories)...'
-    [void](Ensure-Repository 'File Transformation' @($FileTransformationRepoUrl))
+    Say-Info 'NOTE: File Transformation is made by a third party (IAmParadox27) and published at www.iamparadox.dev;'
+    Say-Info "its download list is added to Jellyfin permanently (Dashboard > Plugins > Repositories shows it; you can remove it there)."
+    Say-Info "Jellyfin checks its downloads with MD5 checksums only. FullUI itself comes from this project's GitHub."
+    [void](Ensure-Repository 'File Transformation' @($FileTransformationRepoUrl) $FtGuid)
     $fullUrls = @($FullUIRepoUrl)
     if ($FullUIRepoFallbackUrl -and $FullUIRepoFallbackUrl -ne $FullUIRepoUrl) { $fullUrls += $FullUIRepoFallbackUrl }
-    [void](Ensure-Repository 'FullUI' $fullUrls)
+    [void](Ensure-Repository 'FullUI' $fullUrls $FullUIGuid)
 
     Say-Step 5 'Installing File Transformation (lets plugins change the web page)...'
-    $a = Install-One 'File Transformation' $null $true
+    $a = Install-One 'File Transformation' $FtGuid $true
 
     Say-Step 6 'Installing FullUI...'
-    $b = Install-One 'FullUI' $FullUIGuid $true
+    $b = Install-One 'FullUI' $FullUIGuid $false
     if ($Update -and $a -eq 'uptodate' -and $b -eq 'uptodate') {
         Say ''
         Say-Ok 'Everything is already on the newest version. Nothing to update.'
@@ -862,7 +1027,7 @@ function Run-Install {
     Say-Step 7 'Restarting Jellyfin so the plugins load...'
     $plugins = Get-InstalledPlugins
     $pending = $false
-    foreach ($w in @(@('File Transformation', $null), @('FullUI', $FullUIGuid))) {
+    foreach ($w in @(@('File Transformation', $FtGuid), @('FullUI', $FullUIGuid))) {
         $p = $null; if ($plugins) { $p = Find-Installed $plugins $w[0] $w[1] }
         if ($p -and "$(Get-Prop $p 'Status')" -eq 'Restart') { $pending = $true }
     }
@@ -885,6 +1050,13 @@ function Run-Install {
     $script:Done = $true
 }
 
+function Remove-AllVersions($entries, [string]$label, [string]$fix) {
+    # delete every installed version of a plugin (Jellyfin keeps superseded ones); an entry that is already gone is fine
+    foreach ($e in @($entries)) {
+        $r = Invoke-Api -Method DELETE -Url (Api "/Plugins/$(Get-Prop $e 'Id')/$(Get-Prop $e 'Version')") -Retries 1
+        if ($r.Status -notin @(200, 204, 404)) { Fail (Explain-Http $r "Removing $label $(Get-Prop $e 'Version')") $fix $r.Body }
+    }
+}
 function Run-Uninstall {
     $script:Total = 6
     Say-Step 1 'Looking for your Jellyfin server...'
@@ -896,26 +1068,24 @@ function Run-Uninstall {
     Say-Step 3 'Looking at installed plugins...'
     $plugins = Get-InstalledPlugins
     if ($null -eq $plugins) { Fail 'I could not read the list of installed plugins.' 'Check that you used an administrator account, then run this again.' }
-    $fu = Find-Installed $plugins 'FullUI' $FullUIGuid
-    $ft = Find-Installed $plugins 'File Transformation' $null
-    if (-not $fu) { Say-Ok 'FullUI is not installed. Nothing to remove.' } else { Say-Info "FullUI $(Get-Prop $fu 'Version') is installed." }
-    if (-not $Unattended -and $fu) {
+    $fu = @(Find-AllInstalled $plugins 'FullUI' $FullUIGuid)
+    $ft = @(Find-AllInstalled $plugins 'File Transformation' $FtGuid)
+    if ($fu.Count -eq 0) { Say-Ok 'FullUI is not installed. Nothing to remove.' } else { Say-Info ("FullUI " + ((@($fu | ForEach-Object { Get-Prop $_ 'Version' })) -join ', ') + " is installed.") }
+    if (-not $Unattended -and $fu.Count -gt 0) {
         if (-not (Ask-YesNo 'Really remove FullUI? (Your settings and data are kept so a later reinstall picks up where you left off.)' $false)) { Cancel-Run 'Cancelled. Nothing was removed.' }
     }
     $removed = $false
     Say-Step 4 'Removing FullUI...'
-    if ($fu) {
-        $r = Invoke-Api -Method DELETE -Url (Api "/Plugins/$(Get-Prop $fu 'Id')/$(Get-Prop $fu 'Version')") -Retries 1
-        if ($r.Status -notin @(200, 204)) { Fail (Explain-Http $r 'Removing FullUI') 'Use an administrator account, or remove it in Dashboard > Plugins > FullUI > Uninstall.' $r.Body }
+    if ($fu.Count -gt 0) {
+        Remove-AllVersions $fu 'FullUI' 'Use an administrator account, or remove it in Dashboard > Plugins > FullUI > Uninstall.'
         Say-Ok 'FullUI removed.'
         $removed = $true
     } else { Say-Info 'Skipped.' }
     Say-Step 5 'File Transformation (other plugins may use it)...'
     $rmFt = [bool]$RemoveFileTransformation
-    if ($ft -and -not $rmFt -and -not $Unattended) { $rmFt = Ask-YesNo 'Also remove File Transformation? Choose No if you use other plugins like Home Screen Sections.' $false }
-    if ($ft -and $rmFt) {
-        $r = Invoke-Api -Method DELETE -Url (Api "/Plugins/$(Get-Prop $ft 'Id')/$(Get-Prop $ft 'Version')") -Retries 1
-        if ($r.Status -notin @(200, 204)) { Fail (Explain-Http $r 'Removing File Transformation') 'Remove it in Dashboard > Plugins instead.' $r.Body }
+    if ($ft.Count -gt 0 -and -not $rmFt -and -not $Unattended) { $rmFt = Ask-YesNo 'Also remove File Transformation? Choose No if you use other plugins like Home Screen Sections.' $false }
+    if ($ft.Count -gt 0 -and $rmFt) {
+        Remove-AllVersions $ft 'File Transformation' 'Remove it in Dashboard > Plugins instead.'
         Say-Ok 'File Transformation removed.'; $removed = $true
     } else { Say-Info 'Kept.' }
     Say-Step 6 'Finishing...'
@@ -925,7 +1095,7 @@ function Run-Uninstall {
     }
     if ($PurgeData) {
         Say-Info 'Note: Jellyfin cannot delete plugin data through its web API. To erase it, stop Jellyfin and delete the'
-        Say-Info 'FullUI folders under its data directory: plugins/configurations/ (FullUI*.xml) and data/plugins/FullUI.'
+        Say-Info 'FullUI files: <data folder>/fullui/store.json and plugins/configurations/Jellyfin.Plugin.FullUI.xml (the plugin folder itself is removed by the uninstall).'
     } else { Say-Info 'Your FullUI settings and data were kept.' }
     Say ''
     Out-Say '  Done. FullUI has been uninstalled.' 'Green'
