@@ -23,7 +23,11 @@ public sealed record ItemCard(
     int MyRating,                 // -1, 0 (none), 1, 2
     bool InMyList,
     int? Rank,                    // 1..10 in Top 10 rows
-    string? ImageTag = null);     // primary image tag: add &tag= to image URLs for long-lived caching
+    string? ImageTag = null,      // primary image tag: add &tag= to image URLs for long-lived caching
+    int? MatchPercent = null,     // 1..99, calibrated from the ranker score; null when unknown (cold start)
+    string? Reason = null,        // short plain-English why, e.g. "Because you watched Dark"
+    string? SeriesLabel = null,   // continue-watching label such as "S2:E5", null for movies
+    int? MinutesLeft = null);     // minutes remaining when resumable
 
 public sealed record ComingSoonCard(
     int TmdbId,

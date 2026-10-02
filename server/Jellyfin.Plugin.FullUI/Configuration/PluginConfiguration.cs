@@ -30,6 +30,15 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public bool RequestNotifications { get; set; } = true;
 
+    /// <summary>Skip-intro / next-episode overlay on the native player. Admin kill switch.</summary>
+    public bool PlayerAssistEnabled { get; set; } = true;
+
+    /// <summary>Exclude users with a restrictive parental cap (kids) from shared charts and collaborative filtering.</summary>
+    public bool ExcludeKidsFromSharedSignals { get; set; } = true;
+
+    /// <summary>Record anonymous-to-peers impression/interaction events for the metrics page (admin sees aggregates only).</summary>
+    public bool CollectInteractionMetrics { get; set; } = true;
+
     /// <summary>Lets admins switch off trailer autoplay for everyone (clients load the YouTube player only when this is true).</summary>
     public bool TrailersEnabled { get; set; } = true;
 }
