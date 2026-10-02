@@ -323,11 +323,12 @@ public sealed partial class RecEngine
         : _series.TryGetValue(c.Id, out var st) && st.CaughtUp;
 
     /// <summary>
-    /// THE eligibility rule every row goes through: visible to the user, not thumbed down, not hidden by the user, not a
-    /// dropped show and (except for Watch Again) not already finished.
+    /// THE eligibility rule every row goes through: visible to the user, not thumbed down, not a dropped show and (except
+    /// for Watch Again) not already finished. Titles the user removed from Continue Watching are filtered only in that row
+    /// (Netflix behaviour), see <see cref="ContinueItems"/>.
     /// </summary>
     private bool Eligible(CatalogItem c, bool allowFinished = false) =>
-        IsVisible(c) && MyRating(c.Id) >= 0 && !_hidden.Contains(c.Id) && !IsDropped(c.Id) && (allowFinished || !IsFinished(c));
+        IsVisible(c) && MyRating(c.Id) >= 0 && !IsDropped(c.Id) && (allowFinished || !IsFinished(c));
 
     private bool Shared(Guid user) => !_sharedExcluded.Contains(user);
 

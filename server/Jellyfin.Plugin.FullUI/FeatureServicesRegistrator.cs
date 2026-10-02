@@ -23,7 +23,7 @@ public class FeatureServicesRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<HiddenItemsService>();
         serviceCollection.TryAddSingleton<IHiddenItems>(sp => sp.GetRequiredService<HiddenItemsService>());
         serviceCollection.TryAddSingleton<IHomeInvalidator, HomeServiceInvalidator>();
-        serviceCollection.TryAddSingleton<ICastIndex, NullCastIndex>();
+        serviceCollection.AddSingleton<ICastIndex, CatalogCastIndex>();
         serviceCollection.AddSingleton<SuggestService>();
 
         // Measurement

@@ -73,12 +73,15 @@ public class EligibilityAndPagesTests
     }
 
     [Fact]
-    public void HiddenTitle_AppearsInNoRow()
+    public void HiddenTitle_LeavesContinueWatchingOnly()
     {
+        // Netflix: "Remove from row" on Continue Watching removes it from that row, not from the user's list or the library.
         var (catalog, target, signals) = Setup();
         signals.Add(Play(Viewer, target, 1, 0.4, false));
         var rows = Build(Input(Viewer, catalog, signals, myList: new() { Key(Viewer, target) }, hidden: new[] { target.Id }));
-        AssertNowhere(rows, target, "hidden by the user");
+
+        Assert.DoesNotContain(Row(rows, "continue")?.Items ?? Array.Empty<Jellyfin.Plugin.FullUI.Recs.RankedItem>(), i => i.Item.Id == target.Id);
+        Assert.Contains(Row(rows, "mylist")!.Items, i => i.Item.Id == target.Id);
     }
 
     [Fact]

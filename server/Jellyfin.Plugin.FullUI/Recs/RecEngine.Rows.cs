@@ -364,7 +364,7 @@ public sealed partial class RecEngine
             }
 
             // A resumable movie may be a rewatch of a finished one: that is still worth continuing.
-            if (_idx.ById.TryGetValue(latest.ItemId, out var item) && Eligible(item, allowFinished: true) && seen.Add(item.Id))
+            if (_idx.ById.TryGetValue(latest.ItemId, out var item) && Eligible(item, allowFinished: true) && !_hidden.Contains(item.Id) && seen.Add(item.Id))
             {
                 var label = item.Kind == CatalogKind.Series ? SeriesLabel(latest.Season, latest.Episode) : null;
                 result.Add(new RankedItem(item, BadgesFor(item), null, progress, MatchFor(item), "Pick up where you left off", label, MinutesLeft(item, progress)));
@@ -374,7 +374,7 @@ public sealed partial class RecEngine
         // A series whose last episode was finished has nothing "in progress" but still has a next episode to play.
         foreach (var id in _nextUp)
         {
-            if (_idx.ById.TryGetValue(id, out var series) && series.Kind == CatalogKind.Series && Eligible(series) && seen.Add(id))
+            if (_idx.ById.TryGetValue(id, out var series) && series.Kind == CatalogKind.Series && Eligible(series) && !_hidden.Contains(id) && seen.Add(id))
             {
                 var next = _in.NextUpEpisodes.GetValueOrDefault(id);
                 result.Add(new RankedItem(series, BadgesFor(series), null, null, MatchFor(series), "Your next episode is ready", SeriesLabel(next?.Season, next?.Episode), null));
@@ -434,7 +434,7 @@ public sealed partial class RecEngine
         }
 
         return _seedsCache = last.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key)
-            .Where(kv => _idx.ById.TryGetValue(kv.Key, out var c) && IsVisible(c) && MyRating(kv.Key) >= 0 && !_hidden.Contains(kv.Key))
+            .Where(kv => _idx.ById.TryGetValue(kv.Key, out var c) && IsVisible(c) && MyRating(kv.Key) >= 0)
             .Select(kv => _idx.ById[kv.Key])
             .Take(8).ToList();
     }

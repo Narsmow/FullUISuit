@@ -38,7 +38,7 @@ public sealed class HomeService
     private (IReadOnlyList<CatalogItem> Catalog, DateTime At, HashSet<Guid> Checked, HashSet<Guid> Kids)? _kids;
     private (IReadOnlyList<CatalogItem> Catalog, string Model, int Count, DateTime At, EmbeddingIndex Index)? _emb;
 
-    public HomeService(PluginStore store, ICatalog catalog, ILogger<HomeService> log, IConfigSource? config = null, INextUpSource? nextUp = null, IWatchStateSource? watch = null)
+    public HomeService(PluginStore store, ICatalog catalog, ILogger<HomeService> log, IConfigSource? config = null, INextUpSource? nextUp = null, IWatchStateSource? watch = null, Discovery.IHiddenItems? hidden = null, Metrics.IRowEngagementProvider? engagement = null)
     {
         _store = store;
         _catalog = catalog;
@@ -46,8 +46,13 @@ public sealed class HomeService
         _config = config;
         _nextUp = nextUp;
         _watch = watch;
+        _hiddenItems = hidden;
+        _engagement = engagement;
         _catalog.Changed += (_, _) => Invalidate();
     }
+
+    private readonly Discovery.IHiddenItems? _hiddenItems;
+    private readonly Metrics.IRowEngagementProvider? _engagement;
 
     private PluginConfiguration? Cfg => _config?.Current ?? Plugin.Instance?.Configuration;
 
@@ -193,11 +198,22 @@ public sealed class HomeService
             ? KidUsers(catalog, userId)
             : new HashSet<Guid>();
         var embeddings = EmbeddingsFor(catalog, cfg);
+        IReadOnlySet<Guid> hiddenForUser = new HashSet<Guid>();
+        try
+        {
+            hiddenForUser = _hiddenItems?.HiddenFor(userId) ?? hiddenForUser;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "FullUI: could not read hidden titles for {User}", userId);
+        }
+
         var input = _store.Read(d =>
         {
             var inp = new RecInput
             {
                 UserId = userId,
+                HiddenItems = hiddenForUser,
                 Catalog = catalog,
                 Visible = visible,
                 Signals = d.Signals.ToList(),
@@ -274,7 +290,16 @@ public sealed class HomeService
         }
 
         // Clients key their lists on the row id; a duplicate crashes some of them, so enforce uniqueness here.
-        var unique = result.DistinctBy(r => r.Id).ToList();
+        IReadOnlyList<HomeRow> unique = result.DistinctBy(r => r.Id).ToList();
+        try
+        {
+            unique = RowOrdering.Apply(unique, _engagement?.GetEngagement(userId));
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "FullUI: row ordering skipped for {User}", userId);
+        }
+
         return new HomeResponse(serverName, Branding.NormalizeAccent(cfg?.AccentColor), unique);
     }
 
