@@ -7,16 +7,17 @@ using Jellyfin.Plugin.FullUI.Library;
 namespace Jellyfin.Plugin.FullUI.Recs;
 
 /// <summary>
-/// Pure recommendation engine: content similarity (cosine over sparse features), a decayed per-user
-/// profile, optional item-item collaborative filtering and the row builders. No Jellyfin types.
+/// Pure recommendation engine: content similarity (cosine over sparse features with IDF weights, plus optional AI embeddings),
+/// a decayed per-user profile, optional item-item collaborative filtering and the row builders. No Jellyfin types.
 /// </summary>
-public sealed class RecEngine
+public sealed partial class RecEngine
 {
     // Row positions, exactly the order in docs/api-contract.md. "comingsoon" (5) is inserted by HomeService.
     public const int OrderContinue = 0;
     public const int OrderTopPicks = 1;
     public const int OrderTop10Movies = 2;
     public const int OrderBecause = 3;
+    public const int OrderCollection = 3;   // "Next in the X collection" sits right before the Because-you-watched rows
     public const int OrderTrending = 4;
     public const int OrderComingSoon = 5;
     public const int OrderMyList = 6;
@@ -29,39 +30,79 @@ public sealed class RecEngine
 
     public const double HalfLifeDays = 90;
     private const int RowSize = 20;
-    private const int MinRowItems = 5;
     private const int MinChartItems = 3;
 
+    /// <summary>Weight of the embedding similarity next to the feature similarity (when both titles have a vector).</summary>
+    public const double EmbeddingWeight = 0.25;
+
     private readonly RecInput _in;
-    private readonly Dictionary<Guid, CatalogItem> _byId;
-    private readonly Dictionary<Guid, SparseVector> _vecs = new();
+    private readonly CatalogIndex _idx;
+    private readonly Dictionary<Guid, Guid> _alias;              // duplicate edition -> the edition we show
+    private readonly IReadOnlyList<CatalogItem> _catalog;        // one entry per title (duplicates merged)
+    private readonly List<PlaySignal> _signals;                  // everyone's signals, duplicates remapped
+    private readonly ILookup<Guid, PlaySignal> _byUser;
     private readonly List<PlaySignal> _mySignals;
+    private readonly UserTables _tables;
+    private readonly Dictionary<Guid, int> _myRatings;
+    private readonly HashSet<Guid> _myList;
+    private readonly HashSet<Guid> _hidden;
+    private readonly IReadOnlyList<Guid> _nextUp;
+    private readonly Dictionary<Guid, SeriesState> _series;
+    private readonly HashSet<Guid> _finishedMovies = new();
+    private readonly HashSet<Guid> _sharedExcluded;              // users whose signals are left out of charts, popularity and CF
     private readonly Dictionary<Guid, double> _weights;
-    private readonly HashSet<Guid> _touched;     // titles the user has any signal for
+    private readonly HashSet<Guid> _touched;                     // titles the user has any signal for
     private readonly SparseVector _profile = new();
     private readonly bool _cold;
     private readonly Dictionary<Guid, double> _pop = new();
     private readonly Dictionary<Guid, int> _usersPerItem = new();
     private readonly Dictionary<Guid, double> _cf = new();
+    private readonly Dictionary<Guid, double> _scoreCache = new();
+    private float[]? _embProfile;
+    private double[] _scoreSorted = Array.Empty<double>();
     private Dictionary<Guid, int> _ranks = new();
+    private List<CatalogItem>? _seedsCache;
 
     private RecEngine(RecInput input)
     {
         _in = input;
-        _byId = input.Catalog.GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First());
-        _mySignals = input.Signals.Where(s => s.UserId == input.UserId).ToList();
+        _idx = CatalogIndex.For(input.Catalog);
+        _alias = BuildAliases(input, _idx);
+        _catalog = _alias.Count == 0 ? input.Catalog : input.Catalog.Where(c => !_alias.ContainsKey(c.Id)).ToList();
+        _signals = _alias.Count == 0 ? input.Signals as List<PlaySignal> ?? input.Signals.ToList() : input.Signals.Select(s => Remap(s)).ToList();
+        _byUser = _signals.ToLookup(s => s.UserId);
+        _mySignals = _byUser[input.UserId].ToList();
         _touched = _mySignals.Select(s => s.ItemId).ToHashSet();
-        _weights = ItemWeights(input, input.UserId);
+        _tables = UserTables.Build(input.Ratings, input.MyList, _alias);
+        _myRatings = _tables.Ratings.GetValueOrDefault(input.UserId) ?? new Dictionary<Guid, int>();
+        _myList = _tables.MyList.GetValueOrDefault(input.UserId) ?? new HashSet<Guid>();
+        _hidden = input.HiddenItems.Select(Canon).ToHashSet();
+        _nextUp = input.NextUpSeries.Select(Canon).Distinct().ToList();
 
+        var viewerIsKid = input.KidUsers.Contains(input.UserId);
+        _sharedExcluded = new HashSet<Guid>(input.ExcludedUsers);
+        if (!viewerIsKid)
+        {
+            _sharedExcluded.UnionWith(input.KidUsers);
+        }
+
+        _series = SeriesStates.Compute(input, _idx, _mySignals, id => _myRatings.GetValueOrDefault(id), id => _myList.Contains(id), useWatchSource: true);
+        foreach (var grp in _mySignals.Where(s => !s.IsEpisode && s.Completed))
+        {
+            _finishedMovies.Add(grp.ItemId);
+        }
+
+        _weights = ComputeWeights(input.Now, _mySignals, _myRatings, _myList, _series);
         foreach (var (id, w) in _weights)
         {
-            if (w != 0 && _byId.TryGetValue(id, out var item))
+            if (w != 0 && _idx.ById.TryGetValue(id, out var item))
             {
                 _profile.AddScaled(Vec(item), w);
             }
         }
 
         _cold = !_weights.Values.Any(w => w > 0);
+        BuildEmbeddingProfile();
         ComputePopularity();
         ComputeCf();
     }
@@ -69,49 +110,185 @@ public sealed class RecEngine
     /// <summary>Builds the user's rows in contract order (without the Coming Soon row).</summary>
     public static IReadOnlyList<RecRow> Build(RecInput input) => new RecEngine(input).Compose();
 
+    private static Dictionary<Guid, Guid> BuildAliases(RecInput input, CatalogIndex idx)
+    {
+        var alias = new Dictionary<Guid, Guid>();
+        if (idx.DuplicateGroups.Count == 0)
+        {
+            return alias;
+        }
+
+        var counts = new Dictionary<Guid, int>();
+        foreach (var s in input.Signals)
+        {
+            counts[s.ItemId] = counts.GetValueOrDefault(s.ItemId) + 1;
+        }
+
+        foreach (var group in idx.DuplicateGroups)
+        {
+            // Stable ordering keeps the catalog's own metadata-quality order for ties.
+            var best = group.OrderByDescending(m => input.Visible.Contains(m.Id) ? 1 : 0)
+                .ThenByDescending(m => counts.GetValueOrDefault(m.Id))
+                .First();
+            foreach (var m in group)
+            {
+                if (m.Id != best.Id)
+                {
+                    alias[m.Id] = best.Id;
+                }
+            }
+        }
+
+        return alias;
+    }
+
+    private Guid Canon(Guid id) => _alias.TryGetValue(id, out var p) ? p : id;
+
+    private PlaySignal Remap(PlaySignal s) => !_alias.TryGetValue(s.ItemId, out var p)
+        ? s
+        : new PlaySignal { UserId = s.UserId, ItemId = p, IsEpisode = s.IsEpisode, At = s.At, Completion = s.Completion, Completed = s.Completed, Season = s.Season, Episode = s.Episode };
+
+    /// <summary>Ratings and My List entries parsed once per user ("{user:N}|{item:N}" keys; malformed keys are ignored).</summary>
+    internal sealed class UserTables
+    {
+        public Dictionary<Guid, Dictionary<Guid, int>> Ratings { get; } = new();
+
+        public Dictionary<Guid, HashSet<Guid>> MyList { get; } = new();
+
+        public static UserTables Build(IReadOnlyDictionary<string, int> ratings, IReadOnlySet<string> myList, IReadOnlyDictionary<Guid, Guid>? alias = null)
+        {
+            var t = new UserTables();
+            foreach (var (key, rating) in ratings)
+            {
+                if (!TryParseKey(key, alias, out var user, out var item))
+                {
+                    continue;
+                }
+
+                if (!t.Ratings.TryGetValue(user, out var d))
+                {
+                    t.Ratings[user] = d = new Dictionary<Guid, int>();
+                }
+
+                // Two editions of one title: a thumbs-down wins, otherwise the stronger like.
+                d[item] = d.TryGetValue(item, out var cur) ? (cur == -1 || rating == -1 ? -1 : Math.Max(cur, rating)) : rating;
+            }
+
+            foreach (var key in myList)
+            {
+                if (TryParseKey(key, alias, out var user, out var item))
+                {
+                    if (!t.MyList.TryGetValue(user, out var set))
+                    {
+                        t.MyList[user] = set = new HashSet<Guid>();
+                    }
+
+                    set.Add(item);
+                }
+            }
+
+            return t;
+        }
+
+        private static bool TryParseKey(string key, IReadOnlyDictionary<Guid, Guid>? alias, out Guid user, out Guid item)
+        {
+            user = item = Guid.Empty;
+            if (key.Length != 65 || key[32] != '|'
+                || !Guid.TryParseExact(key.AsSpan(0, 32), "N", out user)
+                || !Guid.TryParseExact(key.AsSpan(33), "N", out item))
+            {
+                return false;
+            }
+
+            if (alias is not null && alias.TryGetValue(item, out var p))
+            {
+                item = p;
+            }
+
+            return true;
+        }
+    }
+
     /// <summary>
-    /// Per-title signed weight for one user. Completed=1, partial=completion*0.8, movie abandoned (&lt;10%)=-0.3,
-    /// extra completions add a rewatch bonus, all with a 90-day half-life; then ratings override and My List adds +1.
+    /// Per-title signed weight for one user. Movies: completed=1, partial=completion*0.8, abandoned (&lt;10%)=-0.3, extra
+    /// completions add a rewatch bonus. Series: the share of episodes watched (at least 0.15 once started), -0.3 when dropped.
+    /// All with a 90-day half-life; then ratings override and My List adds +1.
     /// </summary>
     public static Dictionary<Guid, double> ItemWeights(RecInput input, Guid userId)
     {
+        var idx = CatalogIndex.For(input.Catalog);
+        var tables = UserTables.Build(input.Ratings, input.MyList);
+        var ratings = tables.Ratings.GetValueOrDefault(userId) ?? new Dictionary<Guid, int>();
+        var list = tables.MyList.GetValueOrDefault(userId) ?? new HashSet<Guid>();
+        var sigs = input.Signals.Where(s => s.UserId == userId).ToList();
+        var states = SeriesStates.Compute(input, idx, sigs, id => ratings.GetValueOrDefault(id), id => list.Contains(id),
+            useWatchSource: userId == input.UserId);
+        return ComputeWeights(input.Now, sigs, ratings, list, states);
+    }
+
+    private static Dictionary<Guid, double> ComputeWeights(
+        DateTime now,
+        IReadOnlyList<PlaySignal> signals,
+        IReadOnlyDictionary<Guid, int> ratings,
+        IReadOnlySet<Guid> myList,
+        IReadOnlyDictionary<Guid, SeriesState> states)
+    {
         var result = new Dictionary<Guid, double>();
-        foreach (var grp in input.Signals.Where(s => s.UserId == userId).GroupBy(s => s.ItemId))
+        foreach (var grp in signals.GroupBy(s => s.ItemId))
         {
             double sum = 0;
-            var completions = 0;
-            foreach (var s in grp.OrderBy(x => x.At))
+            if (grp.Any(s => s.IsEpisode))
             {
-                var age = Math.Max(0, (input.Now - s.At).TotalDays);
-                var decay = Math.Pow(0.5, age / HalfLifeDays);
-                double basis;
-                if (s.Completed)
+                var real = grp.Where(s => s.Season != 0).ToList();   // specials never count
+                if (real.Count == 0)
                 {
-                    basis = completions++ == 0 ? 1.0 : 0.3;
+                    continue;
                 }
-                else if (!s.IsEpisode && s.Completion < 0.10)
+
+                var latest = real.Max(s => s.At);
+                var decay = Math.Pow(0.5, Math.Max(0, (now - latest).TotalDays) / HalfLifeDays);
+                double basis;
+                if (states.TryGetValue(grp.Key, out var st))
                 {
-                    basis = -0.3;
+                    basis = st.Dropped ? -0.3 : Math.Max(0.15, st.Share);
                 }
                 else
                 {
-                    basis = s.Completion * 0.8;
+                    basis = Math.Max(0.15, Math.Min(1.0, real.Count(s => s.Completed) / 12.0));
                 }
 
-                sum += basis * decay;
+                sum = basis * decay;
+            }
+            else
+            {
+                var completions = 0;
+                foreach (var s in grp.OrderBy(x => x.At))
+                {
+                    var age = Math.Max(0, (now - s.At).TotalDays);
+                    var decay = Math.Pow(0.5, age / HalfLifeDays);
+                    double basis;
+                    if (s.Completed)
+                    {
+                        basis = completions++ == 0 ? 1.0 : 0.3;
+                    }
+                    else if (s.Completion < 0.10)
+                    {
+                        basis = -0.3;
+                    }
+                    else
+                    {
+                        basis = s.Completion * 0.8;
+                    }
+
+                    sum += basis * decay;
+                }
             }
 
             result[grp.Key] = Math.Clamp(sum, -1.5, 2.0);
         }
 
-        var prefix = userId.ToString("N") + "|";
-        foreach (var (key, rating) in input.Ratings)
+        foreach (var (id, rating) in ratings)
         {
-            if (!key.StartsWith(prefix, StringComparison.Ordinal) || !Guid.TryParse(key.AsSpan(prefix.Length), out var id))
-            {
-                continue;
-            }
-
             switch (rating)
             {
                 case -1: result[id] = -3; break;
@@ -120,48 +297,55 @@ public sealed class RecEngine
             }
         }
 
-        foreach (var key in input.MyList)
+        foreach (var id in myList)
         {
-            if (key.StartsWith(prefix, StringComparison.Ordinal) && Guid.TryParse(key.AsSpan(prefix.Length), out var id))
+            var cur = result.GetValueOrDefault(id);
+            if (cur > -3)
             {
-                var cur = result.GetValueOrDefault(id);
-                if (cur > -3)
-                {
-                    result[id] = cur + 1;
-                }
+                result[id] = cur + 1;
             }
         }
 
         return result;
     }
 
-    private SparseVector Vec(CatalogItem item)
-    {
-        if (!_vecs.TryGetValue(item.Id, out var v))
-        {
-            _vecs[item.Id] = v = SparseVector.FromItem(item);
-        }
+    private SparseVector Vec(CatalogItem item) => _idx.Vec(item);
 
-        return v;
-    }
-
-    private int MyRating(Guid itemId) =>
-        _in.Ratings.GetValueOrDefault(StoreData.UserItemKey(_in.UserId, itemId));
+    private int MyRating(Guid itemId) => _myRatings.GetValueOrDefault(itemId);
 
     private bool IsVisible(CatalogItem c) => _in.Visible.Contains(c.Id);
+
+    private bool IsDropped(Guid id) => _series.TryGetValue(id, out var st) && st.Dropped;
+
+    /// <summary>The user has nothing left to watch of this title: a completed movie, or a series they are caught up on.</summary>
+    private bool IsFinished(CatalogItem c) => c.Kind == CatalogKind.Movie
+        ? _finishedMovies.Contains(c.Id)
+        : _series.TryGetValue(c.Id, out var st) && st.CaughtUp;
+
+    /// <summary>
+    /// THE eligibility rule every row goes through: visible to the user, not thumbed down, not hidden by the user, not a
+    /// dropped show and (except for Watch Again) not already finished.
+    /// </summary>
+    private bool Eligible(CatalogItem c, bool allowFinished = false) =>
+        IsVisible(c) && MyRating(c.Id) >= 0 && !_hidden.Contains(c.Id) && !IsDropped(c.Id) && (allowFinished || !IsFinished(c));
+
+    private bool Shared(Guid user) => !_sharedExcluded.Contains(user);
 
     private void ComputePopularity()
     {
         var since = _in.Now.AddDays(-30);
         var perItem = new Dictionary<Guid, HashSet<Guid>>();
-        foreach (var s in _in.Signals)
+        var users = new Dictionary<Guid, HashSet<Guid>>();
+        foreach (var s in _signals)
         {
-            if (!_usersPerItem.ContainsKey(s.ItemId))
+            if (!users.TryGetValue(s.ItemId, out var u))
             {
-                _usersPerItem[s.ItemId] = 0;
+                users[s.ItemId] = u = new HashSet<Guid>();
             }
 
-            if (s.At >= since && (s.Completed || s.Completion >= 0.5) && !_in.ExcludedUsers.Contains(s.UserId))
+            u.Add(s.UserId);
+
+            if (s.At >= since && (s.Completed || s.Completion >= 0.5) && Shared(s.UserId))
             {
                 if (!perItem.TryGetValue(s.ItemId, out var set))
                 {
@@ -172,9 +356,9 @@ public sealed class RecEngine
             }
         }
 
-        foreach (var grp in _in.Signals.GroupBy(s => s.ItemId))
+        foreach (var (id, set) in users)
         {
-            _usersPerItem[grp.Key] = grp.Select(s => s.UserId).Distinct().Count();
+            _usersPerItem[id] = set.Count;
         }
 
         var max = perItem.Count == 0 ? 0 : perItem.Values.Max(s => s.Count);
@@ -189,10 +373,45 @@ public sealed class RecEngine
         }
     }
 
-    /// <summary>Item-item co-occurrence across OTHER users (never the target), only with >=2 users with signals.</summary>
+    private Dictionary<Guid, double> WeightsOfOtherUser(Guid userId)
+    {
+        Dictionary<Guid, double> Compute()
+        {
+            var ratings = _tables.Ratings.GetValueOrDefault(userId) ?? new Dictionary<Guid, int>();
+            var list = _tables.MyList.GetValueOrDefault(userId) ?? new HashSet<Guid>();
+            var sigs = _byUser[userId].ToList();
+            var states = SeriesStates.Compute(_in, _idx, sigs, id => ratings.GetValueOrDefault(id), id => list.Contains(id), useWatchSource: false);
+            return ComputeWeights(_in.Now, sigs, ratings, list, states);
+        }
+
+        return _in.WeightsCache is null || _in.DataFingerprint is null
+            ? Compute()
+            : _in.WeightsCache.GetOrAdd(userId, _in.DataFingerprint + "|" + AliasSignature(), Compute);
+    }
+
+    private string AliasSignature()
+    {
+        if (_alias.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var h = 17;
+        foreach (var (k, v) in _alias)
+        {
+            h ^= (k.GetHashCode() * 31) ^ v.GetHashCode();
+        }
+
+        return _alias.Count + ":" + h;
+    }
+
+    /// <summary>
+    /// Item-item co-occurrence across OTHER users (never the target, never excluded users or - unless the viewer is one - kids),
+    /// only with >=2 users with signals. A user only contributes when they share enough positives with the target, and their
+    /// contribution is shrunk towards zero for small overlaps.
+    /// </summary>
     private void ComputeCf()
     {
-        var users = _in.Signals.Select(s => s.UserId).Distinct().ToList();
         CfEnabled = IsCfEnabled(_in);
         if (!CfEnabled)
         {
@@ -205,18 +424,27 @@ public sealed class RecEngine
             return;
         }
 
-        var positives = new List<HashSet<Guid>>();
-        foreach (var u in users.Where(u => u != _in.UserId))
+        var minOverlap = Math.Min(MinOverlap, seeds.Count);
+        var positives = new List<(HashSet<Guid> Set, double Shrink)>();
+        foreach (var u in _byUser.Select(g => g.Key).Where(u => u != _in.UserId && Shared(u)))
         {
-            var set = ItemWeights(_in, u).Where(kv => kv.Value >= 0.5).Select(kv => kv.Key).ToHashSet();
-            if (set.Count > 0)
+            var set = WeightsOfOtherUser(u).Where(kv => kv.Value >= 0.5).Select(kv => kv.Key).ToHashSet();
+            if (set.Count == 0)
             {
-                positives.Add(set);
+                continue;
             }
+
+            var overlap = set.Count(seeds.ContainsKey);
+            if (overlap < minOverlap)
+            {
+                continue;
+            }
+
+            positives.Add((set, overlap / (overlap + ShrinkK)));
         }
 
         var counts = new Dictionary<Guid, int>();
-        foreach (var set in positives)
+        foreach (var (set, _) in positives)
         {
             foreach (var id in set)
             {
@@ -224,7 +452,7 @@ public sealed class RecEngine
             }
         }
 
-        foreach (var set in positives)
+        foreach (var (set, shrink) in positives)
         {
             foreach (var s in set)
             {
@@ -237,7 +465,7 @@ public sealed class RecEngine
                 {
                     if (c != s)
                     {
-                        _cf[c] = _cf.GetValueOrDefault(c) + (w / Math.Sqrt(counts[s] * (double)counts[c]));
+                        _cf[c] = _cf.GetValueOrDefault(c) + (shrink * w / Math.Sqrt(counts[s] * (double)counts[c]));
                     }
                 }
             }
@@ -253,10 +481,22 @@ public sealed class RecEngine
         }
     }
 
+    /// <summary>Another user must share at least this many positively-rated titles with the target (or all of the target's, if fewer).</summary>
+    public const int MinOverlap = 2;
+
+    /// <summary>Shrinkage constant: a user with overlap n counts n / (n + K).</summary>
+    public const double ShrinkK = 2.0;
+
     public bool CfEnabled { get; private set; }
 
-    /// <summary>Collaborative filtering needs at least two users with signals.</summary>
-    public static bool IsCfEnabled(RecInput input) => input.Signals.Select(s => s.UserId).Distinct().Count() >= 2;
+    /// <summary>Collaborative filtering needs at least two users with signals (excluded users, and kids unless the viewer is one, do not count).</summary>
+    public static bool IsCfEnabled(RecInput input)
+    {
+        var viewerIsKid = input.KidUsers.Contains(input.UserId);
+        return input.Signals.Select(s => s.UserId)
+            .Where(u => u == input.UserId || (!input.ExcludedUsers.Contains(u) && (viewerIsKid || !input.KidUsers.Contains(u))))
+            .Distinct().Count() >= 2;
+    }
 
     private static double Quality(CatalogItem c) => c.Rating is float r ? Math.Clamp(r / 10.0, 0, 1) : 0.5;
 
@@ -267,184 +507,100 @@ public sealed class RecEngine
         return Math.Exp(-age / 60.0);
     }
 
+    private void BuildEmbeddingProfile()
+    {
+        var emb = _in.Embeddings;
+        if (emb is null || emb.Count == 0 || _cold)
+        {
+            return;
+        }
+
+        double[]? acc = null;
+        foreach (var (id, w) in _weights)
+        {
+            if (w <= 0 || emb.Unit(id) is not float[] v)
+            {
+                continue;
+            }
+
+            acc ??= new double[v.Length];
+            if (acc.Length != v.Length)
+            {
+                continue;
+            }
+
+            for (var i = 0; i < v.Length; i++)
+            {
+                acc[i] += w * v[i];
+            }
+        }
+
+        if (acc is null)
+        {
+            return;
+        }
+
+        var n = Math.Sqrt(acc.Sum(x => x * x));
+        if (n < 1e-9)
+        {
+            return;
+        }
+
+        _embProfile = acc.Select(x => (float)(x / n)).ToArray();
+    }
+
+    /// <summary>0..1 similarity of two raw embedding cosines (nomic-style vectors sit around 0.5 for unrelated titles).</summary>
+    private static double EmbeddingSim(double cosine) => Math.Clamp(0.5 + ((cosine - 0.55) * 1.25), 0, 1);
+
+    /// <summary>Feature similarity of two titles, blended with their embedding similarity when both have a vector.</summary>
+    private double Similarity(CatalogItem a, CatalogItem b)
+    {
+        var feat = SparseVector.Cosine(Vec(a), Vec(b));
+        if (_in.Embeddings?.Cosine(a.Id, b.Id) is double cos)
+        {
+            var e = Math.Clamp((cos - 0.5) / 0.4, 0, 1);
+            return ((1 - EmbeddingWeight) * feat) + (EmbeddingWeight * e);
+        }
+
+        return feat;
+    }
+
     private double Score(CatalogItem c)
     {
+        if (_scoreCache.TryGetValue(c.Id, out var cached))
+        {
+            return cached;
+        }
+
         var pop = _pop.GetValueOrDefault(c.Id);
+        double score;
         if (_cold)
         {
-            return (0.6 * pop) + (0.25 * Quality(c)) + (0.15 * Freshness(c));
+            score = (0.6 * pop) + (0.25 * Quality(c)) + (0.15 * Freshness(c));
+        }
+        else
+        {
+            var affinity = (SparseVector.Cosine(_profile, Vec(c)) + 1) / 2;
+            if (_embProfile is not null && _in.Embeddings?.Unit(c.Id) is float[] cv && EmbeddingIndex.Dot(_embProfile, cv) is double dcos)
+            {
+                affinity = ((1 - EmbeddingWeight) * affinity) + (EmbeddingWeight * EmbeddingSim(dcos));
+            }
+
+            var wAff = CfEnabled ? 0.55 : 0.80;
+            var wCf = CfEnabled ? 0.25 : 0.0;
+            score = (wAff * affinity) + (wCf * _cf.GetValueOrDefault(c.Id)) + (0.10 * pop) + (0.05 * Freshness(c)) + (0.05 * Quality(c));
         }
 
-        var affinity = (SparseVector.Cosine(_profile, Vec(c)) + 1) / 2;
-        var wAff = CfEnabled ? 0.55 : 0.80;
-        var wCf = CfEnabled ? 0.25 : 0.0;
-        return (wAff * affinity) + (wCf * _cf.GetValueOrDefault(c.Id)) + (0.10 * pop) + (0.05 * Freshness(c)) + (0.05 * Quality(c));
+        _scoreCache[c.Id] = score;
+        return score;
     }
 
-    /// <summary>Unwatched, visible, not thumbed-down titles that may appear in recommendation rows.</summary>
+    /// <summary>Eligible titles the user has no signal for yet: what recommendation rows may draw from.</summary>
     private List<CatalogItem> Candidates() =>
-        _in.Catalog.Where(c => IsVisible(c) && !_touched.Contains(c.Id) && MyRating(c.Id) >= 0).ToList();
+        _catalog.Where(c => Eligible(c) && !_touched.Contains(c.Id)).ToList();
 
-    private IReadOnlyList<RecRow> Compose()
-    {
-        var rows = new List<RecRow>();
-        var used = new HashSet<Guid>();
-        var cands = Candidates();
-        var scored = cands.Select(c => (Item: c, Score: Score(c))).OrderByDescending(x => x.Score).ThenBy(x => x.Item.Name, StringComparer.OrdinalIgnoreCase).ToList();
-
-        var topMovies = TopTen(CatalogKind.Movie);
-        var topShows = TopTen(CatalogKind.Series);
-        _ranks = new Dictionary<Guid, int>();
-        if (topMovies.Count >= MinChartItems)
-        {
-            foreach (var (id, i) in topMovies.Select((x, i) => (x.Id, i)))
-            {
-                _ranks[id] = i + 1;
-            }
-        }
-
-        if (topShows.Count >= MinChartItems)
-        {
-            foreach (var (id, i) in topShows.Select((x, i) => (x.Id, i)))
-            {
-                _ranks[id] = i + 1;
-            }
-        }
-
-        // Continue Watching
-        var cont = ContinueItems();
-        if (cont.Count >= 1)
-        {
-            rows.Add(new RecRow("continue", "Continue Watching", "continue", OrderContinue, cont));
-        }
-
-        // Top Picks (or cold-start popularity). Personalised rows are deduplicated against each other.
-        var picks = scored.Where(x => !used.Contains(x.Item.Id)).Take(RowSize).Select(x => x.Item).ToList();
-        if (picks.Count >= MinRowItems)
-        {
-            used.UnionWith(picks.Select(p => p.Id));
-            var title = _cold ? $"Popular on {_in.ServerName}" : "Top Picks for You";
-            rows.Add(new RecRow("toppicks", title, "toppicks", OrderTopPicks, Wrap(picks)));
-        }
-
-        if (topMovies.Count >= MinChartItems)
-        {
-            rows.Add(new RecRow("top10-movies", $"Top 10 Movies on {_in.ServerName} {TopTenPeriod(_in.TopTenWindowDays)}", "top10", OrderTop10Movies, Wrap(topMovies, ranked: true)));
-        }
-
-        // Because you watched X (x3)
-        if (!_cold)
-        {
-            var seedCount = 0;
-            foreach (var seed in Seeds())
-            {
-                if (seedCount >= 3)
-                {
-                    break;
-                }
-
-                var seedVec = Vec(seed);
-                var sims = scored
-                    .Where(x => !used.Contains(x.Item.Id) && x.Item.Id != seed.Id)
-                    .Select(x => (x.Item, Sim: SparseVector.Cosine(seedVec, Vec(x.Item))))
-                    .Where(x => x.Sim >= 0.1)
-                    .OrderByDescending(x => x.Sim + (0.1 * Quality(x.Item)))
-                    .Take(RowSize)
-                    .Select(x => x.Item)
-                    .ToList();
-                if (sims.Count >= MinRowItems)
-                {
-                    used.UnionWith(sims.Select(s => s.Id));
-                    rows.Add(new RecRow($"because-{seed.Id:N}", $"Because you watched {seed.Name}", "because", OrderBecause, Wrap(sims)));
-                    seedCount++;
-                }
-            }
-        }
-
-        // Trending (not deduplicated: it is a chart-like row)
-        var trending = Trending();
-        if (trending.Count >= MinRowItems)
-        {
-            rows.Add(new RecRow("trending", "Trending Now", "trending", OrderTrending, Wrap(trending)));
-        }
-
-        // My List
-        var myList = _in.MyList
-            .Where(k => k.StartsWith(_in.UserId.ToString("N") + "|", StringComparison.Ordinal))
-            .Select(k => Guid.TryParse(k.AsSpan(33), out var g) ? g : Guid.Empty)
-            .Where(g => _byId.ContainsKey(g))
-            .Select(g => _byId[g])
-            .Where(IsVisible)
-            .OrderByDescending(c => c.DateAdded)
-            .ToList();
-        if (myList.Count >= 1)
-        {
-            rows.Add(new RecRow("mylist", "My List", "mylist", OrderMyList, Wrap(myList)));
-        }
-
-        // Genre rows from the profile's strongest genres
-        if (!_cold)
-        {
-            var genreRows = 0;
-            var usedIds = new HashSet<string>(StringComparer.Ordinal);
-            var genres = _profile.Values.Where(kv => kv.Key.StartsWith("g:", StringComparison.Ordinal) && kv.Value > 0)
-                .OrderByDescending(kv => kv.Value).Select(kv => kv.Key[2..]).Take(6);
-            foreach (var genre in genres)
-            {
-                if (genreRows >= 3)
-                {
-                    break;
-                }
-
-                var items = scored
-                    .Where(x => !used.Contains(x.Item.Id) && x.Item.Genres.Contains(genre, StringComparer.OrdinalIgnoreCase))
-                    .Take(RowSize).Select(x => x.Item).ToList();
-                if (items.Count >= MinRowItems)
-                {
-                    used.UnionWith(items.Select(i => i.Id));
-                    var title = _in.RowTitles.TryGetValue(genre, out var t) && !string.IsNullOrWhiteSpace(t) ? t : $"{genre} Picks for You";
-                    rows.Add(new RecRow(UniqueGenreId(genre, usedIds), title, "genre", OrderGenre, Wrap(items)));
-                    genreRows++;
-                }
-            }
-        }
-
-        if (topShows.Count >= MinChartItems)
-        {
-            rows.Add(new RecRow("top10-shows", $"Top 10 Shows on {_in.ServerName} {TopTenPeriod(_in.TopTenWindowDays)}", "top10", OrderTop10Shows, Wrap(topShows, ranked: true)));
-        }
-
-        var newSeasons = NewSeasons();
-        if (newSeasons.Count >= 1)
-        {
-            rows.Add(new RecRow("newseasons", "New Episodes", "newseasons", OrderNewSeasons, Wrap(newSeasons)));
-        }
-
-        var recent = _in.Catalog.Where(IsVisible)
-            .OrderByDescending(c => c.LatestEpisodeAdded is DateTime l && l > c.DateAdded ? l : c.DateAdded)
-            .Take(RowSize).ToList();
-        if (recent.Count >= MinRowItems)
-        {
-            rows.Add(new RecRow("recent", "Recently Added", "recent", OrderRecent, Wrap(recent)));
-        }
-
-        var hidden = scored.Where(x => !used.Contains(x.Item.Id) && x.Item.Rating >= 7.5f && _usersPerItem.GetValueOrDefault(x.Item.Id) <= 1)
-            .OrderByDescending(x => x.Item.Rating).ThenByDescending(x => x.Score)
-            .Take(RowSize).Select(x => x.Item).ToList();
-        if (hidden.Count >= MinRowItems)
-        {
-            used.UnionWith(hidden.Select(i => i.Id));
-            rows.Add(new RecRow("hidden", "Hidden Gems", "hidden", OrderHidden, Wrap(hidden)));
-        }
-
-        var again = WatchAgain();
-        if (again.Count >= MinChartItems)
-        {
-            rows.Add(new RecRow("again", "Watch Again", "again", OrderAgain, Wrap(again)));
-        }
-
-        return rows.OrderBy(r => r.Order).ToList();
-    }
+    /// <summary>Smallest row we still show: 5 for a normal library, down to 3 when the library is small.</summary>
+    public static int MinRowFor(int candidates) => candidates >= 50 ? 5 : candidates >= 24 ? 4 : 3;
 
     /// <summary>"This Week" for the default 7 days; otherwise the title says what the window really is.</summary>
     public static string TopTenPeriod(int windowDays) => windowDays switch
@@ -474,22 +630,6 @@ public sealed class RecEngine
 
         return id;
     }
-
-    private List<RankedItem> Wrap(IEnumerable<CatalogItem> items, bool ranked = false)
-    {
-        var list = new List<RankedItem>();
-        var i = 0;
-        foreach (var c in items)
-        {
-            i++;
-            list.Add(new RankedItem(c, BadgesFor(c), ranked ? i : null, null));
-        }
-
-        return list;
-    }
-
-    private string[] BadgesFor(CatalogItem c) =>
-        Badges(c, _in.Now, _ranks.TryGetValue(c.Id, out var rank) ? rank : null);
 
     /// <summary>Badges for one title: chart rank, Recently Added (&lt;=14d), New Episodes, Top Rated (&gt;=8.0).</summary>
     public static string[] Badges(CatalogItem c, DateTime now, int? topTenRank = null)
@@ -530,103 +670,5 @@ public sealed class RecEngine
         }
 
         return latest.Completion;
-    }
-
-    private List<RankedItem> ContinueItems()
-    {
-        var result = new List<RankedItem>();
-        var seen = new HashSet<Guid>();
-        foreach (var grp in _mySignals.GroupBy(s => s.ItemId).Select(g => g.OrderByDescending(s => s.At).First()).OrderByDescending(s => s.At))
-        {
-            if (ResumeProgress(grp, _in.Now) is not double progress)
-            {
-                continue;
-            }
-
-            if (_byId.TryGetValue(grp.ItemId, out var item) && IsVisible(item) && seen.Add(item.Id))
-            {
-                result.Add(new RankedItem(item, BadgesFor(item), null, progress));
-            }
-        }
-
-        // A series whose last episode was finished has nothing "in progress" but still has a next episode to play.
-        foreach (var id in _in.NextUpSeries)
-        {
-            if (_byId.TryGetValue(id, out var series) && series.Kind == CatalogKind.Series && IsVisible(series)
-                && MyRating(id) >= 0 && seen.Add(id))
-            {
-                result.Add(new RankedItem(series, BadgesFor(series), null, null));
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>Latest completed/loved titles, newest first, as "Because you watched" seeds.</summary>
-    private IEnumerable<CatalogItem> Seeds()
-    {
-        var last = _mySignals.Where(s => s.Completed).GroupBy(s => s.ItemId).ToDictionary(g => g.Key, g => g.Max(s => s.At));
-        foreach (var (key, rating) in _in.Ratings)
-        {
-            if (rating == 2 && key.StartsWith(_in.UserId.ToString("N") + "|", StringComparison.Ordinal)
-                && Guid.TryParse(key.AsSpan(33), out var id) && !last.ContainsKey(id))
-            {
-                last[id] = _in.Now.AddDays(-1);
-            }
-        }
-
-        return last.OrderByDescending(kv => kv.Value)
-            .Where(kv => MyRating(kv.Key) >= 0 && _byId.ContainsKey(kv.Key))
-            .Select(kv => _byId[kv.Key])
-            .Take(8);
-    }
-
-    /// <summary>Top 10 for one kind: distinct users first, then completed plays; windowed, excluded users removed.</summary>
-    private List<CatalogItem> TopTen(CatalogKind kind)
-    {
-        var since = _in.Now.AddDays(-Math.Max(1, _in.TopTenWindowDays));
-        return _in.Signals
-            .Where(s => s.Completed && s.At >= since && !_in.ExcludedUsers.Contains(s.UserId))
-            .GroupBy(s => s.ItemId)
-            .Where(g => _byId.TryGetValue(g.Key, out var c) && c.Kind == kind && IsVisible(c))
-            .Select(g => (Item: _byId[g.Key], Users: g.Select(s => s.UserId).Distinct().Count(), Plays: g.Count()))
-            .OrderByDescending(x => x.Users).ThenByDescending(x => x.Plays)
-            .ThenByDescending(x => x.Item.Rating ?? 0).ThenBy(x => x.Item.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(10).Select(x => x.Item).ToList();
-    }
-
-    /// <summary>Momentum: recent engagement with a 3-day half-life, one vote per user and title.</summary>
-    private List<CatalogItem> Trending()
-    {
-        var since = _in.Now.AddDays(-14);
-        return _in.Signals
-            .Where(s => s.At >= since && (s.Completed || s.Completion >= 0.25) && !_in.ExcludedUsers.Contains(s.UserId))
-            .GroupBy(s => (s.ItemId, s.UserId))
-            .Select(g => (g.Key.ItemId, Weight: Math.Pow(0.5, Math.Max(0, (_in.Now - g.Max(s => s.At)).TotalDays) / 3.0)))
-            .GroupBy(x => x.ItemId)
-            .Select(g => (Id: g.Key, Score: g.Sum(x => x.Weight)))
-            .Where(x => _byId.TryGetValue(x.Id, out var c) && IsVisible(c))
-            .OrderByDescending(x => x.Score).ThenBy(x => _byId[x.Id].Name, StringComparer.OrdinalIgnoreCase)
-            .Take(RowSize).Select(x => _byId[x.Id]).ToList();
-    }
-
-    private List<CatalogItem> NewSeasons()
-    {
-        return _touched
-            .Where(id => _byId.TryGetValue(id, out var c) && c.Kind == CatalogKind.Series && IsVisible(c)
-                         && c.LatestEpisodeAdded is DateTime l && (_in.Now - l).TotalDays <= 14
-                         && (_in.Now - c.DateAdded).TotalDays > 30 && MyRating(id) >= 0)
-            .Select(id => _byId[id])
-            .OrderByDescending(c => c.LatestEpisodeAdded)
-            .ToList();
-    }
-
-    private List<CatalogItem> WatchAgain()
-    {
-        return _mySignals.Where(s => s.Completed).GroupBy(s => s.ItemId)
-            .Where(g => (_in.Now - g.Max(s => s.At)).TotalDays >= 30 && _byId.TryGetValue(g.Key, out var c) && IsVisible(c) && MyRating(g.Key) >= 0)
-            .Select(g => _byId[g.Key])
-            .OrderByDescending(c => _weights.GetValueOrDefault(c.Id)).ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(RowSize).ToList();
     }
 }

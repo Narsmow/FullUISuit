@@ -32,7 +32,7 @@ public sealed class NlSearch
         var items = _catalog.All.Where(i => visible.Contains(i.Id)).ToList();
         if (_ollama.Enabled)
         {
-            var q = await _ollama.EmbedQueryAsync(query, ct).ConfigureAwait(false);
+            var q = await _ollama.EmbedQueryAsync(EmbeddingIndexer.QueryPrefix(_ollama.EmbedModel) + query, ct).ConfigureAwait(false);
             if (q is { Count: 1 })
             {
                 var model = _ollama.EmbedModel;

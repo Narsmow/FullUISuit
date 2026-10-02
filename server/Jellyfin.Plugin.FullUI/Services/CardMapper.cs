@@ -16,7 +16,11 @@ public static class CardMapper
         double? progress,
         int myRating,
         bool inMyList,
-        StoreData store)
+        StoreData store,
+        int? matchPercent = null,
+        string? reason = null,
+        string? seriesLabel = null,
+        int? minutesLeft = null)
     {
         var trailer = item.TrailerKey;
         if (string.IsNullOrEmpty(trailer))
@@ -43,7 +47,11 @@ public static class CardMapper
             myRating,
             inMyList,
             rank,
-            item.PrimaryImageTag);
+            item.PrimaryImageTag,
+            matchPercent is int m ? Math.Clamp(m, 1, 99) : null,
+            string.IsNullOrWhiteSpace(reason) ? null : reason,
+            string.IsNullOrWhiteSpace(seriesLabel) ? null : seriesLabel,
+            minutesLeft is int left && left > 0 ? left : null);
     }
 
     public static ComingSoonCard ToCard(ComingSoonEntry e, int myVote) =>

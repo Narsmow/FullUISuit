@@ -97,8 +97,9 @@ public class RecEngineTests
         var x = Movie(2, "X", new[] { "Action" });
         var y = Movie(3, "Y", new[] { "Action" });
         var z = Movie(4, "Z", new[] { "Comedy" });
+        var z2 = Movie(5, "Z2", new[] { "Comedy" });   // keeps Comedy exactly as common as Action: with IDF weighting a rarer genre would win the tie
         var pad = Many(10, 6, "Pad", "Drama");
-        var catalog = new[] { a, x, y, z }.Concat(pad).ToList();
+        var catalog = new[] { a, x, y, z, z2 }.Concat(pad).ToList();
         var signals = new[] { Play(U1, a) };
 
         var neutral = Row(RecEngine.Build(Input(U1, catalog, signals)), "toppicks")!;
@@ -151,7 +152,8 @@ public class RecEngineTests
             Play(U1, m[5], 1, completion: 0.5, completed: false),
         };
 
-        var rows = RecEngine.Build(Input(U2, movies, signals, excluded: new[] { U4 }));
+        // The viewer has watched none of them (finished titles are no longer offered to the viewer in a chart).
+        var rows = RecEngine.Build(Input(Id(9005), movies, signals, excluded: new[] { U4 }));
 
         var top = Row(rows, "top10-movies");
         Assert.NotNull(top);
@@ -168,8 +170,9 @@ public class RecEngineTests
         var movies = Many(1, 3, "M", "Action");
         var signals = movies.Select(mv => Play(U1, mv, 10)).ToList();
 
-        Assert.Null(Row(RecEngine.Build(Input(U1, movies, signals, window: 7)), "top10-movies"));
-        Assert.NotNull(Row(RecEngine.Build(Input(U1, movies, signals, window: 14)), "top10-movies"));
+        var viewer = Id(9005);   // has not watched them (finished titles are not offered in a chart)
+        Assert.Null(Row(RecEngine.Build(Input(viewer, movies, signals, window: 7)), "top10-movies"));
+        Assert.NotNull(Row(RecEngine.Build(Input(viewer, movies, signals, window: 14)), "top10-movies"));
     }
 
     [Fact]
@@ -225,13 +228,20 @@ public class RecEngineTests
     }
 
     [Fact]
-    public void RowsWithFewerThanFiveItems_AreDropped()
+    public void SmallLibraries_KeepTheirRows_WithAdaptiveMinimumSize()
     {
+        // Behaviour change (page generation): the minimum row size shrinks from 5 to 3 for small libraries instead of dropping the rows.
         var catalog = Many(1, 4, "Act", "Action");   // after one watched, only 3 candidates
         var rows = RecEngine.Build(Input(U1, catalog, new[] { Play(U1, catalog[0]) }));
 
-        Assert.Null(Row(rows, "toppicks"));
-        Assert.Null(Row(rows, "recent"));
+        Assert.Equal(3, Row(rows, "toppicks")!.Items.Count);
+        Assert.Equal(3, Row(rows, "recent")!.Items.Count);
+
+        // Fewer than three titles left: nothing worth a row.
+        var tiny = Many(1, 3, "Act", "Action");
+        var none = RecEngine.Build(Input(U1, tiny, new[] { Play(U1, tiny[0]) }));
+        Assert.Null(Row(none, "toppicks"));
+        Assert.Null(Row(none, "recent"));
     }
 
     [Fact]

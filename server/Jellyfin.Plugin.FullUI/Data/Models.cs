@@ -14,6 +14,10 @@ public sealed class PlaySignal
     public DateTime At { get; set; }
     public double Completion { get; set; }    // 0..1
     public bool Completed { get; set; }
+
+    /// <summary>Season and episode number of the episode this signal came from (null for movies and for signals recorded by older versions).</summary>
+    public int? Season { get; set; }
+    public int? Episode { get; set; }
 }
 
 public sealed class VoteEntry
