@@ -10,3 +10,5 @@ local.properties
 *.jks
 FullUI-install-*.log
 __pycache__/
+server/Jellyfin.Plugin.FullUI/Web/fullui.*
+.claude/worktrees/
