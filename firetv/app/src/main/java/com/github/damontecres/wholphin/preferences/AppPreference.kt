@@ -515,6 +515,19 @@ sealed interface AppPreference<Pref, T> {
                 summaryOff = R.string.disabled,
             )
 
+        // FullUI: switch between the Netflix-style FullUI home and the stock Wholphin UI
+        val FullUiEnabled =
+            AppSwitchPreference<AppPreferences>(
+                title = R.string.fullui_interface,
+                defaultValue = true,
+                getter = { !it.interfacePreferences.fullUiDisabled },
+                setter = { prefs, value ->
+                    prefs.updateInterfacePreferences { fullUiDisabled = !value }
+                },
+                summaryOn = R.string.fullui_interface_on,
+                summaryOff = R.string.fullui_interface_off,
+            )
+
         val DisplayTogglesPref =
             AppMultiChoicePreference<AppPreferences, DisplayToggle>(
                 title = R.string.display_toggles_title,
@@ -1219,6 +1232,7 @@ val advancedPreferences =
                 title = R.string.ui_interface,
                 preferences =
                     listOf(
+                        AppPreference.FullUiEnabled,
                         AppPreference.ShowClock,
                         AppPreference.BackdropStylePref,
                         AppPreference.ShowLogos,

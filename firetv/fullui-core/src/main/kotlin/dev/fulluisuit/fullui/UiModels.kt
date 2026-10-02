@@ -109,3 +109,12 @@ data class HomeUi(
     val rows: List<UiRow>,
     val hero: UiCard?,
 )
+
+/** "My <Server>" tab: Continue Watching, My List and the titles the user asked for. */
+data class MyServerUi(
+    val continueWatching: List<UiCard>,
+    val myList: List<UiCard>,
+    val wanted: List<UiComingSoon>,
+) {
+    val isEmpty: Boolean get() = continueWatching.isEmpty() && myList.isEmpty() && wanted.isEmpty()
+}

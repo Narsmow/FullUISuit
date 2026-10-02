@@ -21,6 +21,7 @@ import com.github.damontecres.wholphin.services.BackdropService
 import com.github.damontecres.wholphin.services.NavigationManager
 import com.github.damontecres.wholphin.ui.components.ErrorMessage
 import com.github.damontecres.wholphin.ui.launchIO
+import dev.fulluisuit.fullui.ui.FullUiHost
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
@@ -86,16 +87,27 @@ fun ApplicationContent(
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else if (user != null && server != null) {
-                        NavDrawer(
+                        // FullUI: Netflix-style top-nav shell when the FullUI server plugin is
+                        // available and enabled, otherwise the stock navigation drawer.
+                        FullUiHost(
                             destination = key,
                             preferences = preferences,
-                            user = user,
                             server = server,
-                            drawerState = drawerState,
-                            navDrawerListState = navDrawerListState,
+                            user = user,
                             onClearBackdrop = viewModel::clearBackdrop,
                             modifier = Modifier.fillMaxSize(),
-                        )
+                        ) {
+                            NavDrawer(
+                                destination = key,
+                                preferences = preferences,
+                                user = user,
+                                server = server,
+                                drawerState = drawerState,
+                                navDrawerListState = navDrawerListState,
+                                onClearBackdrop = viewModel::clearBackdrop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     } else {
                         ErrorMessage("Trying to go to $key without a user logged in", null)
                     }

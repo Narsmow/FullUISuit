@@ -268,3 +268,64 @@ class ModelsAndMappingTest {
         assertTrue(ImageUrls.youtubeEmbedUrl("k").contains("mute=1"))
     }
 }
+
+class TabFilterAndTrailerTest {
+    private val home =
+        Mapping.home(
+            FullUiJson.decodeFromString<HomeResponse>(
+                javaClass.classLoader!!.getResource("home.json")!!.readText(),
+            ),
+        )
+
+    @Test
+    fun `shows tab keeps only series and tv coming soon`() {
+        val shows = home.filterByType(series = true)
+        assertTrue(shows.rows.flatMap { it.cards }.all { it.isSeries })
+        assertEquals(listOf("continue", "comingsoon"), shows.rows.map { it.id })
+        assertEquals(listOf("tv"), shows.rows.last().comingSoon.map { it.mediaType })
+        assertEquals("Half Watched", shows.hero?.name)
+    }
+
+    @Test
+    fun `movies tab keeps only movies and movie coming soon`() {
+        val movies = home.filterByType(series = false)
+        assertTrue(movies.rows.flatMap { it.cards }.none { it.isSeries })
+        assertEquals(listOf("toppicks", "top10-movies", "comingsoon"), movies.rows.map { it.id })
+        assertEquals(listOf("movie"), movies.rows.last().comingSoon.map { it.mediaType })
+        assertEquals("Big Buck Bunny", movies.hero?.name)
+    }
+
+    @Test
+    fun `trailer page only accepts plain youtube ids`() {
+        assertTrue(TrailerHtml.isValidVideoId("aqz-KE-bpKQ"))
+        assertFalse(TrailerHtml.isValidVideoId("x');alert(1);//"))
+        assertFalse(TrailerHtml.isValidVideoId(""))
+        assertFalse(TrailerHtml.isValidVideoId(null))
+        assertNull(TrailerHtml.page("bad id"))
+        val page = TrailerHtml.page("aqz-KE-bpKQ", muted = true)!!
+        assertTrue(page.contains("videoId: 'aqz-KE-bpKQ'"))
+        assertTrue(page.contains("var wantMuted = true;"))
+        assertTrue(page.contains("FullUiBridge.onPlaying()"))
+        assertTrue(page.contains("iframe_api"))
+        assertTrue(TrailerHtml.page("aqz-KE-bpKQ", muted = false)!!.contains("var wantMuted = false;"))
+    }
+}
+
+class MyServerMappingTest {
+    @Test
+    fun `my server maps and patches`() {
+        val res =
+            FullUiJson.decodeFromString<MyServerResponse>(
+                """{"continueWatching":[{"id":"a","name":"A","progress":0.5}],"myList":[{"id":"a","name":"A","inMyList":true},{"id":"b","name":"B"}],"wanted":[{"tmdbId":9,"mediaType":"movie","title":"W","myVote":1}]}""",
+            )
+        val ui = Mapping.myServer(res)
+        assertFalse(ui.isEmpty)
+        assertEquals(0.5f, ui.continueWatching.single().progress!!, 0.0001f)
+        val patched = ui.updateCard("a") { it.copy(myRating = 2) }
+        assertEquals(2, patched.continueWatching.single().myRating)
+        assertEquals(2, patched.myList.first().myRating)
+        assertEquals(0, patched.myList.last().myRating)
+        assertEquals(-1, ui.updateVote(9, "movie", -1).wanted.single().myVote)
+        assertTrue(Mapping.myServer(MyServerResponse()).isEmpty)
+    }
+}

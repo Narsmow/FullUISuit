@@ -22,3 +22,8 @@
 -keep class androidx.media3.ui.SubtitlePainter {
   private final float outlineWidth;
 }
+
+# FullUI: methods called from the YouTube IFrame page through the WebView JavaScript bridge
+-keepclassmembers class dev.fulluisuit.fullui.ui.TrailerBridge {
+  @android.webkit.JavascriptInterface <methods>;
+}

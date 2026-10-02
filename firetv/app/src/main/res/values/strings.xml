@@ -932,4 +932,8 @@
         <item quantity="one">%1$d Episode</item>
         <item quantity="other">%1$d Episodes</item>
     </plurals>
+    <!-- FullUI -->
+    <string name="fullui_interface" translatable="false">FullUI interface</string>
+    <string name="fullui_interface_on" translatable="false">Netflix-style home when the FullUI server plugin is installed</string>
+    <string name="fullui_interface_off" translatable="false">Using the stock Wholphin interface</string>
 </resources>

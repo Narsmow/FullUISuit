@@ -49,6 +49,18 @@ Because `applicationId` differs, none of these collide with an installed Wholphi
 * Upstream's `.github/` directory was removed from this copy (it only works at a repository
   root); the FullUI workflow is `.github/workflows/firetv.yml` at the monorepo root.
 
-### Features added (all new code lives in `dev.fulluisuit.fullui`, plus small hooks)
+### Features added
 
-See `BUILDING.md` and the "Architecture" section there for the exact list of touched upstream files.
+All new code lives in the pure-JVM module `fullui-core/` and in `app/src/main/java/dev/fulluisuit/fullui/`,
+plus small hooks in upstream files (listed in `BUILDING.md`, "What changed in upstream files"):
+
+* `FullUiClient` / `FullUiService`: client for `/FullUI/Home`, `Rate`, `MyList`, `ComingSoon`, `Vote`,
+  `MyServer`, `Notifications`, `Search`, `Item/{id}`, using Wholphin's authenticated OkHttp client and
+  current server URL; models mirror `server/Jellyfin.Plugin.FullUI/Api/Dtos.cs`.
+* One-time-per-session feature detection with automatic fallback to the stock Wholphin UI
+  (`FeatureDetector`), and a Settings switch (Interface, "FullUI interface") to use the stock UI.
+* Netflix-style top navigation bar (Home, Shows, Movies, My `<Server>`, Search) replacing the drawer,
+  hero with muted YouTube trailer (WebView IFrame player, backdrop with slow zoom as fallback),
+  focus-expanding cards with badges, Top 10 numbering, three-level thumbs, My List, Coming Soon cards
+  with "I want this" / "Not for me", in-UI notifications.
+* Playback, authentication, user/profile switching, details pages and settings are Wholphin's own code.

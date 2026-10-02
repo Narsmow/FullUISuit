@@ -35,6 +35,13 @@ object Mapping {
         )
     }
 
+    fun myServer(r: MyServerResponse): MyServerUi =
+        MyServerUi(
+            continueWatching = r.continueWatching.map { card(it) },
+            myList = r.myList.map { card(it) },
+            wanted = r.wanted.map { comingSoon(it) },
+        )
+
     fun row(row: HomeRow): UiRow {
         val kind = RowKind.fromWire(row.type)
         var cards = row.items.map { card(it) }
@@ -216,3 +223,36 @@ fun HomeUi.updateVote(
                 )
             },
     )
+
+/**
+ * The Shows / Movies tabs reuse the Home payload: keep only titles of that type (and Coming Soon
+ * cards of the matching media type), drop rows that become empty and re-pick the hero.
+ */
+fun HomeUi.filterByType(series: Boolean): HomeUi {
+    val mediaType = if (series) "tv" else "movie"
+    val filtered =
+        rows
+            .map { r ->
+                r.copy(
+                    cards = r.cards.filter { it.isSeries == series },
+                    comingSoon = r.comingSoon.filter { it.mediaType.equals(mediaType, ignoreCase = true) },
+                )
+            }.filterNot { it.isEmpty }
+    return copy(rows = filtered, hero = Mapping.pickHero(filtered))
+}
+
+fun MyServerUi.updateCard(
+    id: String,
+    transform: (UiCard) -> UiCard,
+): MyServerUi =
+    copy(
+        continueWatching = continueWatching.map { if (it.id == id) transform(it) else it },
+        myList = myList.map { if (it.id == id) transform(it) else it },
+    )
+
+fun MyServerUi.updateVote(
+    tmdbId: Int,
+    mediaType: String,
+    vote: Int,
+): MyServerUi =
+    copy(wanted = wanted.map { if (it.tmdbId == tmdbId && it.mediaType == mediaType) it.copy(myVote = vote) else it })

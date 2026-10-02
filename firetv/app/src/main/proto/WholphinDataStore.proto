@@ -205,6 +205,8 @@ message InterfacePreferences {
   bool show_logos = 13;
   SearchPreferences search_preferences = 14;
   repeated DisplayToggle display_toggles = 15;
+  // FullUI: true = user switched back to the stock Wholphin UI (default false = FullUI when the plugin is present)
+  bool full_ui_disabled = 16;
 }
 
 message AdvancedPreferences {

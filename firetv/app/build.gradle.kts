@@ -300,6 +300,9 @@ tasks.named("preBuild") {
 }
 
 dependencies {
+    // FullUI: API client, feature detection, row/badge mapping (pure JVM, unit-tested without Android)
+    implementation(project(":fullui-core"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(platform(libs.androidx.compose.bom))
