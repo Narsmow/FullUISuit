@@ -79,6 +79,10 @@ public class FullUIController : ControllerBase
             ollamaEnabled = cfg?.OllamaEnabled ?? false,
             trailersEnabled = cfg?.TrailersEnabled ?? true,
             webInjected = WebInjection.Status.Registered,
+            playerAssistEnabled = cfg?.PlayerAssistEnabled ?? true,
+            collectMetrics = cfg?.CollectInteractionMetrics ?? true,
+            tmdbAttribution = true,
+            tmdbAttributionText = TmdbAttribution.Text,
         });
     }
 
@@ -94,6 +98,7 @@ public class FullUIController : ControllerBase
         {
             "fullui.js" => ("fullui.js", "application/javascript"),
             "fullui.css" => ("fullui.css", "text/css"),
+            "tmdb-logo.svg" => ("tmdb-logo.svg", "image/svg+xml"),
             _ => (string.Empty, string.Empty),
         };
         if (name.Length == 0)

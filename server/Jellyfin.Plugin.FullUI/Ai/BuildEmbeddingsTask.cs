@@ -13,9 +13,11 @@ public class BuildEmbeddingsTask : IScheduledTask
     private readonly EmbeddingIndexer _indexer;
     private readonly RowTitleGenerator _titles;
     private readonly ILogger<BuildEmbeddingsTask> _log;
+    private readonly Ops.ITaskRunLog? _runs;
 
-    public BuildEmbeddingsTask(EmbeddingIndexer indexer, RowTitleGenerator titles, ILogger<BuildEmbeddingsTask> log)
+    public BuildEmbeddingsTask(EmbeddingIndexer indexer, RowTitleGenerator titles, ILogger<BuildEmbeddingsTask> log, Ops.ITaskRunLog? runs = null)
     {
+        _runs = runs;
         _log = log;
         _indexer = indexer;
         _titles = titles;
@@ -38,6 +40,7 @@ public class BuildEmbeddingsTask : IScheduledTask
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _log.LogWarning(ex, "FullUI: building search embeddings failed; keyword search keeps working");
+            _runs?.Note(Key, "The AI index could not be built (is Ollama running?). Keyword search keeps working.", problem: true);
         }
 
         try
@@ -47,6 +50,7 @@ public class BuildEmbeddingsTask : IScheduledTask
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _log.LogWarning(ex, "FullUI: generating row titles failed; default titles are used");
+            _runs?.Note(Key, "Custom row titles could not be written; the standard titles are used.", problem: true);
         }
 
         progress.Report(100);

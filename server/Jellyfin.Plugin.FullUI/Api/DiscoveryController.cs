@@ -28,9 +28,11 @@ public class DiscoveryController : ControllerBase
     private readonly IConfigSource _config;
     private readonly ITmdbClient _tmdb;
     private readonly ILogger<DiscoveryController> _log;
+    private readonly SuggestService? _suggest;
 
-    public DiscoveryController(PluginStore store, ICatalog catalog, VoteService votes, NlSearch search, IConfigSource config, ITmdbClient tmdb, ILogger<DiscoveryController> log)
+    public DiscoveryController(PluginStore store, ICatalog catalog, VoteService votes, NlSearch search, IConfigSource config, ITmdbClient tmdb, ILogger<DiscoveryController> log, SuggestService? suggest = null)
     {
+        _suggest = suggest;
         _store = store;
         _catalog = catalog;
         _votes = votes;
@@ -157,7 +159,28 @@ public class DiscoveryController : ControllerBase
             q = q[..200];
         }
 
-        var (mode, hits) = await _search.SearchAsync(userId, q, ct).ConfigureAwait(false);
+        var (mode, found) = await _search.SearchAsync(userId, q, ct).ConfigureAwait(false);
+        var hits = found.ToList();
+        if (_suggest is not null)
+        {
+            // People (when the catalog knows the cast) and typos: appended after the normal results, never replacing them.
+            try
+            {
+                var have = hits.Select(h => h.Item.Id).ToHashSet();
+                foreach (var extra in _suggest.Extras(userId, q, includeTypoTitles: hits.Count == 0))
+                {
+                    if (have.Add(extra.Id))
+                    {
+                        hits.Add(new SearchHit(extra, 0));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug("FullUI: extra search matches skipped ({Type})", ex.GetType().Name);
+            }
+        }
+
         var now = DateTime.UtcNow;
         var cards = _store.Read(d => hits.Select(h =>
         {

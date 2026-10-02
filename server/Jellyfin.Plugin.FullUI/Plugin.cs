@@ -41,5 +41,15 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             MenuSection = "server",
             MenuIcon = "star",
         };
+
+        yield return new PluginPageInfo
+        {
+            Name = "FullUIHealth",
+            DisplayName = "FullUI Health",
+            EmbeddedResourcePath = $"{GetType().Namespace}.Configuration.health.html",
+            EnableInMainMenu = true,
+            MenuSection = "server",
+            MenuIcon = "healing",
+        };
     }
 }

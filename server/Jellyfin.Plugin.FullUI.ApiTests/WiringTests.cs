@@ -39,6 +39,7 @@ public sealed class DependencyInjectionTests : IDisposable
         sc.AddSingleton(Stub.Make<ISessionManager>());
         sc.AddSingleton(Stub.Make<IUserDataManager>());
         sc.AddSingleton(Stub.Make<IPlaylistManager>());
+        sc.AddSingleton(Stub.Make<ITaskManager>());
         sc.AddSingleton(Stub.Make<MediaBrowser.Model.Globalization.ILocalizationManager>());
         sc.AddSingleton(Stub.Make<ITVSeriesManager>());
         var host = Stub.Make<IServerApplicationHost>();
@@ -70,6 +71,7 @@ public sealed class DependencyInjectionTests : IDisposable
         Assert.Contains("PlaybackBackfillService", names);
         Assert.Contains("RequestSyncHostedService", names);
         Assert.Contains("WebInjectionHostedService", names);
+        Assert.Contains("TaskRunRecorderService", names);
     }
 
     [Fact]
@@ -80,7 +82,7 @@ public sealed class DependencyInjectionTests : IDisposable
             .Select(t => (IScheduledTask)ActivatorUtilities.CreateInstance(sp, t))
             .ToList();
 
-        Assert.Equal(5, tasks.Count);
+        Assert.Equal(6, tasks.Count);
         Assert.Equal(tasks.Count, tasks.Select(t => t.Key).Distinct().Count());
         Assert.All(tasks, t => Assert.False(string.IsNullOrWhiteSpace(t.Name)));
     }
@@ -98,7 +100,7 @@ public sealed class DependencyInjectionTests : IDisposable
     {
         using var sp = Build();
         var controllers = PluginTypes<ControllerBase>().ToList();
-        Assert.True(controllers.Count >= 4);
+        Assert.True(controllers.Count >= 9);
         foreach (var t in controllers)
         {
             Assert.NotNull(ActivatorUtilities.CreateInstance(sp, t));
