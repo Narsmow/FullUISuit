@@ -9,6 +9,17 @@ Status column: `open` until fixed; "unverified" = reviewer could not confirm wit
 
 Installer/CI review: done (section at the bottom; IDs B-75 and up).
 
+## Fix status (updated as branches merge)
+
+- **FIXED (server, merged, 197 tests pass):** B-02, B-05, B-06, B-07, B-15, B-16, B-17, B-18, B-19, B-20, B-21, B-22, B-23, B-36, B-44, B-45, B-47, B-49, B-55, B-77, B-82
+- **PARTIAL (server):** B-24 (TTL shortened, restricted-user check needs a live server), B-43 (task registration changed, dashboard check needs a live server), B-46 (request URLs no longer logged; Ollama/Test URL left as acceptable admin-only), B-48 (ETag/no-cache and youtu.be fixed; replayed-movie Continue Watching and Compose copy remain)
+- **NOT DONE (server):** B-94 (pinning Jellyfin.Controller to 10.11.0 does not compile; the code uses APIs from later 10.11.x, so decide the oldest supported server version and test on it)
+- **FIXED (web, merged, 36 unit + 56 e2e pass):** B-01, B-08, B-09, B-25, B-26, B-27, B-28, B-29, B-30, B-32, B-33, B-50, B-52, B-53, B-54, B-57, B-58, B-59, B-60, B-62, B-63
+- **PARTIAL (web):** B-10 (referrer-safe iframe built; needs real YouTube test), B-31 (card/hero handoff fixed; no offscreen pause), B-51 (Escape clears search, no history.back; TV parts deferred), B-56 (client supports `imageTag`; server now supplies it), B-61 (done before the desktop-only scope; rest deferred)
+- **Needs a real Jellyfin to confirm:** B-06/B-77 (injection registration), B-24, B-25 (Play button selectors), B-27 (overlay timing), B-10 (YouTube), `#/login` fallback route
+- **DEFERRED (desktop-only scope):** Fire TV and TV items (see scope note)
+- **IN PROGRESS:** installer and CI (B-75 to B-103 and B-13/B-81/B-82 CI parts)
+
 ## CRITICAL
 
 | ID | Area | Where | Problem | Fix | Status |

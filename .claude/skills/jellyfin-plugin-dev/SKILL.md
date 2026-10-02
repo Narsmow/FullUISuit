@@ -13,14 +13,18 @@ Plugins only change **jellyfin-web**. Native clients (official Android TV/Fire T
   - `Plugin.cs` plugin id `7c3f2d9a-5b1e-4a86-9d0c-2f8e6b4a1c57` (also used in `settings.html` and `WebInjection.cs`; keep all three identical).
   - `Configuration/PluginConfiguration.cs` stored settings (TMDB key, Ollama, branding). Adding a setting means: property here, field in `settings.html` load + save, and `Status` endpoint only if clients need it.
   - `Api/FullUIController.cs` REST under `/FullUI/*`. Admin-only endpoints use `[Authorize(Policy = "RequiresElevation")]`; per-user endpoints use `[Authorize]` and must derive the user from the auth token, never from a client-supplied id.
-  - `WebInjection.cs` registers an `index.html` transformation with the File Transformation plugin by reflection.
+  - `WebInjection.cs` + `WebInjectionHostedService.cs` register an `index.html` transformation with the File Transformation plugin by reflection, from a hosted service AFTER startup with retries (Jellyfin runs plugin service registrators before plugins are constructed, and File Transformation's static Instance is only set in its constructor, so registering inside `RegisterServices` silently fails). The injected URLs are page-relative so Jellyfin base paths work; the outcome is logged and shown on the settings page (`GET FullUI/Admin/Injection`).
 - `web/` Vite + TypeScript. Builds one IIFE `dist/fullui.js` plus `dist/fullui.css`, which CI copies into `server/.../Web/` as embedded resources served at `/FullUI/web/fullui.{js,css}`.
 
 ## Secrets rule
 The TMDB key lives only in `PluginConfiguration` on the server. Never return it from any endpoint or put it in the bundle. Clients call TMDB through the plugin API. `Status` exposes only `tmdbConfigured: bool`.
 
+## JSON rule
+Jellyfin's MVC formatter is PascalCase. Every action must return through `SafeApi.Json(...)` (camelCase); ApiTests asserts lowercase keys through a Jellyfin-like pipeline. Never return a raw record from an action.
+
 ## Build and test
 - Web (works anywhere with Node): `cd web && npm ci && npm run typecheck && npm test && npm run build`.
+- Server tests: `cd server && dotnet test` runs Tests, DiscoveryTests and ApiTests (DI-resolution smoke test, [Authorize] reflection test, PluginStore tests, JSON casing).
 - Plugin: `dotnet build server/Jellyfin.Plugin.FullUI -c Release`. The Claude cloud sandbox cannot download the .NET SDK (builds.dotnet.microsoft.com is blocked), so C# is verified by GitHub Actions (`.github/workflows/ci.yml`). Say plainly when C# was not compiled locally, and read the CI result instead of assuming.
 - Bundle order matters: web first, then copy into `Web/`, then `dotnet build` (csproj embeds `Web/fullui.*` only if they exist).
 
