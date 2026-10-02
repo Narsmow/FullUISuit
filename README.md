@@ -6,7 +6,23 @@ Netflix-style UI plus personalized rows and suggestions for a personal Jellyfin 
 - `web/` TypeScript bundle injected into jellyfin-web (desktop, Android/iOS apps, webOS/Tizen)
 - `firetv/` (planned) Wholphin fork, sideloaded APK for Fire TV
 
-## Install (dev)
+## Install
+
+**Users (Windows or Linux Jellyfin 10.11.x, no Docker, no coding):** download one file from the
+[latest release](https://github.com/Narsmow/FullUISuit/releases/latest) and run it.
+
+- Windows: `FullUI-Installer.cmd`, double-click it.
+- Linux/macOS: `FullUI-Installer.sh`, run `bash FullUI-Installer.sh`.
+
+It signs in to your running Jellyfin (admin account), adds the plugin repositories, installs File Transformation and FullUI,
+restarts Jellyfin, checks everything is active, and optionally sets up TMDB and Ollama. Step-by-step guide,
+troubleshooting, Fire TV sideload, update and uninstall: [docs/INSTALL.md](docs/INSTALL.md).
+Source and tests for the installer: `installer/` (`bash installer/tests/run-tests.sh`).
+
+Manual plugin repository URL (Dashboard > Plugins > Repositories):
+`https://raw.githubusercontent.com/Narsmow/FullUISuit/main/manifest.json`
+
+## Install (dev, manual)
 1. Install the **File Transformation** plugin (IAmParadox27) on Jellyfin.
 2. Build: `cd web && npm ci && npm run build`, copy `dist/*` to `server/Jellyfin.Plugin.FullUI/Web/`, then `dotnet build -c Release server/Jellyfin.Plugin.FullUI`.
 3. Copy `Jellyfin.Plugin.FullUI.dll` into `<jellyfin data>/plugins/FullUI/` and restart.
