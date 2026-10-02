@@ -201,13 +201,20 @@ public sealed class MetricsService : IRowEngagementProvider
         var ev = Events(now).Where(e => e.At >= from).ToList();
 
         var rows = new Dictionary<string, (int Shown, int Clicks, int Plays, int Expanded)>(StringComparer.OrdinalIgnoreCase);
-        var playsTotal = 0;
+        var clientPlays = 0;
+        var serverPlays = 0;
         var playsFromRows = 0;
         foreach (var e in ev)
         {
+            if (e.Type == EventTypes.ServerPlay)
+            {
+                serverPlays++;
+                continue;
+            }
+
             if (e.Type == "playStarted")
             {
-                playsTotal++;
+                clientPlays++;
             }
 
             if (string.IsNullOrEmpty(e.RowType))
@@ -227,6 +234,9 @@ public sealed class MetricsService : IRowEngagementProvider
             rows[e.RowType] = r;
         }
 
+        // The server sees every playback start (from FullUI rows, search, the stock screens, other apps); the web page only the
+        // ones it started. Take the larger so the total is never below the plays attributed to rows (e.g. older log lines).
+        var playsTotal = Math.Max(serverPlays, clientPlays);
         var rowList = rows
             .Select(kv => new RowMetric(
                 kv.Key,

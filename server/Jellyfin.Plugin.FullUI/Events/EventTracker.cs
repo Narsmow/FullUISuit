@@ -1,8 +1,11 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.FullUI.Data;
+using Jellyfin.Plugin.FullUI.Discovery;
 using Jellyfin.Plugin.FullUI.Library;
+using Jellyfin.Plugin.FullUI.Metrics;
 using Jellyfin.Plugin.FullUI.Services;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
@@ -22,6 +25,8 @@ public sealed class EventTracker : IHostedService
     private readonly ICatalog _catalog;
     private readonly HomeService _home;
     private readonly ILogger<EventTracker> _log;
+    private readonly InteractionLog? _interactions;
+    private readonly IConfigSource? _config;
 
     public EventTracker(
         ISessionManager sessions,
@@ -29,7 +34,9 @@ public sealed class EventTracker : IHostedService
         PluginStore store,
         ICatalog catalog,
         HomeService home,
-        ILogger<EventTracker> log)
+        ILogger<EventTracker> log,
+        InteractionLog? interactions = null,
+        IConfigSource? config = null)
     {
         _sessions = sessions;
         _library = library;
@@ -37,6 +44,8 @@ public sealed class EventTracker : IHostedService
         _catalog = catalog;
         _home = home;
         _log = log;
+        _interactions = interactions;
+        _config = config;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -45,6 +54,7 @@ public sealed class EventTracker : IHostedService
         {
             _sessions.PlaybackStopped += OnPlaybackStopped;
             _library.ItemAdded += OnItemAdded;
+            _sessions.PlaybackStart += OnPlaybackStart;
         }
         catch (Exception ex)
         {
@@ -60,6 +70,7 @@ public sealed class EventTracker : IHostedService
         {
             _sessions.PlaybackStopped -= OnPlaybackStopped;
             _library.ItemAdded -= OnItemAdded;
+            _sessions.PlaybackStart -= OnPlaybackStart;
         }
         catch (Exception ex)
         {
@@ -97,6 +108,52 @@ public sealed class EventTracker : IHostedService
             Season = isEpisode ? season : null,
             Episode = isEpisode ? episode : null,
         };
+    }
+
+    /// <summary>
+    /// The title id an interaction event is about: the movie, or the SERIES for an episode (the ids clients use for cards).
+    /// Null for anything else (music, live TV, specials, which say nothing about the user's taste).
+    /// </summary>
+    public static Guid? InteractionTitleId(Guid itemId, Guid? seriesId, bool isEpisode, bool isMovie, int? season)
+    {
+        if (isEpisode)
+        {
+            return seriesId is Guid s && s != Guid.Empty && season != 0 ? s : null;
+        }
+
+        return isMovie && itemId != Guid.Empty ? itemId : null;
+    }
+
+    /// <summary>
+    /// Counts every playback start, whatever started it, as a server-side <c>serverPlayStarted</c> usage event. Together with the
+    /// web page's own <c>playStarted</c> events (which carry the row they came from) this gives the Metrics page the denominator for
+    /// "how many plays did FullUI's rows cause". Respects the admin's "collect usage statistics" switch and never throws.
+    /// </summary>
+    internal void OnPlaybackStart(object? sender, PlaybackProgressEventArgs e)
+    {
+        try
+        {
+            if (_interactions is null || _config?.Current.CollectInteractionMetrics == false)
+            {
+                return;
+            }
+
+            var item = e.Item;
+            var episode = item as Episode;
+            var id = InteractionTitleId(item.Id, episode?.SeriesId, episode is not null, item is Movie, episode?.ParentIndexNumber);
+            if (id is null)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            var events = e.Users.Select(u => new StoredEvent(u.Id, EventTypes.ServerPlay, null, id.Value.ToString("N"), null, now)).ToList();
+            _interactions.Append(events);
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "FullUI: could not record a playback start");
+        }
     }
 
     private void OnPlaybackStopped(object? sender, PlaybackStopEventArgs e)

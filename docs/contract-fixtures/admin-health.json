@@ -99,7 +99,7 @@
     {
       "name": "events.jsonl",
       "bytes": 912,
-      "count": 91
+      "count": 106
     }
   ],
   "counts": {
@@ -114,7 +114,7 @@
     "hiddenContinue": 0,
     "onboarding": 0,
     "embeddings": 8,
-    "events": 91
+    "events": 106
   },
   "recentErrors": [],
   "generatedAt": "2026-06-01T12:00:00Z"

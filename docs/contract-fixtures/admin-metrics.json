@@ -2,7 +2,7 @@
   "collecting": true,
   "generatedAt": "2026-06-01T12:00:00Z",
   "windowDays": 30,
-  "totalEvents": 91,
+  "totalEvents": 106,
   "activeUsers": 3,
   "rows": [
     {
@@ -37,7 +37,7 @@
     "genre"
   ],
   "playsFromRows": 10,
-  "playsTotal": 10,
+  "playsTotal": 15,
   "topSearches": [
     {
       "query": "blade runner",
@@ -154,23 +154,23 @@
     },
     {
       "day": "2026-05-27",
-      "events": 18
-    },
-    {
-      "day": "2026-05-28",
-      "events": 12
-    },
-    {
-      "day": "2026-05-29",
       "events": 21
     },
     {
+      "day": "2026-05-28",
+      "events": 15
+    },
+    {
+      "day": "2026-05-29",
+      "events": 24
+    },
+    {
       "day": "2026-05-30",
-      "events": 14
+      "events": 17
     },
     {
       "day": "2026-05-31",
-      "events": 19
+      "events": 22
     },
     {
       "day": "2026-06-01",

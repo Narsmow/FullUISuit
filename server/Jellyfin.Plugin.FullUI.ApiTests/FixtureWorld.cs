@@ -356,6 +356,13 @@ internal sealed class FixtureWorld
                 {
                     events.Add(new StoredEvent(user, "cardClicked", "toppicks", Id(6).ToString("N"), null, at.AddSeconds(9)));
                     events.Add(new StoredEvent(user, "playStarted", "toppicks", Id(6).ToString("N"), null, at.AddSeconds(12)));
+                    events.Add(new StoredEvent(user, EventTypes.ServerPlay, null, Id(6).ToString("N"), null, at.AddSeconds(12)));
+                }
+
+                if (day % 2 == 0)
+                {
+                    // A play started from the stock Jellyfin screens: the server sees it, the FullUI rows did not cause it.
+                    events.Add(new StoredEvent(user, EventTypes.ServerPlay, null, Id(9).ToString("N"), null, at.AddMinutes(30)));
                 }
 
                 if (day % 3 == 0)
