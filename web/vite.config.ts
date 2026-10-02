@@ -8,5 +8,5 @@ export default defineConfig({
     rollupOptions: { output: { assetFileNames: 'fullui[extname]' } },
     emptyOutDir: true,
   },
-  test: { environment: 'jsdom' },
+  test: { environment: 'jsdom', include: ['src/**/*.test.ts'] },
 });
