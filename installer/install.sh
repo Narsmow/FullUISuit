@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # FullUI installer for Linux / macOS.
 # Uses PowerShell (pwsh) if it is installed, otherwise the bundled Python 3 version.
-# It never installs anything by itself. Both do exactly the same steps.
+# Both do exactly the same steps. This script does not install PowerShell or Python for you. FullUI itself and its
+# helper plugin File Transformation are installed through Jellyfin. ONLY if you answer yes to the optional Ollama AI
+# helper (or pass -InstallOllama) does the installer download and run Ollama's own official installer (ollama.com).
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PS1="$HERE/install.ps1"

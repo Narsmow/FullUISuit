@@ -13,6 +13,8 @@ Implements only what the installer uses (shapes taken from the Jellyfin REST API
 
 Failure modes (comma separated, --modes a,b):
   wrong_version      server reports 10.10.7
+  jf_10_11_5         server reports 10.11.5 (too old: FullUI needs 10.11.6+)
+  jf_10_11_6         server reports 10.11.6 (the oldest supported); default is 10.11.11
   repo_down          FullUI manifest answers 503
   ft_repo_down       File Transformation manifest answers 503
   no_packages        server catalog never lists the plugins (server cannot reach repos)
@@ -23,11 +25,27 @@ Failure modes (comma separated, --modes a,b):
   malfunction        FullUI shows up as Malfunctioned after restart
   tmdb_reject        fake TMDB rejects every key
   restart_refused    /System/Restart answers 403
+  no_actual_restart  /System/Restart answers 204 but nothing restarts (server never goes down)
+  old_ft_installed   user already has File Transformation 2.2.1.0 (Active, their own copy)
+  ft_unsupported     ... and Jellyfin reports that copy as NotSupported
+  no_repositories_endpoint  GET/POST /Repositories answer 404 (very old server)
+  baseurl            everything is served under /jellyfin (Jellyfin "BaseUrl" setting)
+  bad_inject_path    with baseurl: the injected script tag ignores the base path (browser would 404)
+  tls                serve HTTPS with a self-signed certificate (installer must not trust it silently)
+  redirect           a second port (FRONT=) answers every request with 301 -> the real server
+Behaviour copied from real Jellyfin 10.11 (this mock must never be MORE lenient than the real thing):
+  * POST /Users/AuthenticateByName without Authorization: MediaBrowser Client=, Device=, DeviceId=, Version= -> HTTP 500
+  * installing another version of a plugin ADDS a version; older ones stay (Superseded after a restart)
+  * GET /Plugins is ordered by name (then version, oldest first)
+  * DELETE /Plugins/{id}/{version} removes only that exact version
+  * GET/POST /Repositories (admin only) list / replace the plugin repositories
+  * POST /System/Configuration replaces the whole configuration
 Accounts: admin/Adm1nPass! (administrator), kid/KidPass1 (normal user).
 Valid TMDB key: 0123456789abcdef0123456789abcdef
 """
 import argparse
 import json
+import re
 import sys
 import threading
 import time
@@ -55,6 +73,10 @@ class State:
         self.plugins = []  # dicts Name, Version, Id, Status
         self.plugin_cfg = {FULLUI_GUID: {"ServerName": "FullUI", "TmdbApiKey": "", "OllamaEnabled": False,
                                          "OllamaUrl": "http://localhost:11434"}}
+        self.fu_versions = ["0.1.0.0"]
+        if "old_ft_installed" in self.modes:
+            self.plugins.append({"Name": "File Transformation", "Version": "2.2.1.0", "Id": FT_GUID,
+                                 "Status": "NotSupported" if "ft_unsupported" in self.modes else "Active", "CanUninstall": True})
         self.down_until = 0.0
         self.down_forever = False
         self.injected = False
@@ -63,10 +85,13 @@ class State:
 
     @property
     def base(self):
-        return "http://127.0.0.1:%d" % self.port
+        return "%s://127.0.0.1:%d" % ("https" if "tls" in self.modes else "http", self.port)
 
     def version(self):
-        return "10.10.7" if "wrong_version" in self.modes else "10.11.4"
+        for m, v in (("wrong_version", "10.10.7"), ("jf_10_11_5", "10.11.5"), ("jf_10_11_6", "10.11.6")):
+            if m in self.modes:
+                return v
+        return "10.11.11"
 
     def manifests(self):
         ft = [{"guid": FT_GUID, "name": "File Transformation", "description": "x", "overview": "x",
@@ -78,20 +103,43 @@ class State:
                     "checksum": "00", "timestamp": "2025-09-01T00:00:00Z"}]}]
         fu = [{"guid": FULLUI_GUID, "name": "FullUI", "description": "x", "overview": "x", "owner": "narsmow",
                "category": "General",
-               "versions": [{"version": "0.1.0.0", "changelog": "first", "targetAbi": "10.11.0.0",
-                             "sourceUrl": self.base + "/dl/fu.zip", "checksum": "00", "timestamp": "2026-01-01T00:00:00Z"}]}]
+               "versions": [{"version": v, "changelog": "c", "targetAbi": "10.11.6.0",
+                             "sourceUrl": self.base + "/dl/fu.zip", "checksum": "00", "timestamp": "2026-01-01T00:00:00Z"}
+                            for v in reversed(self.fu_versions)]}]
         return ft, fu
 
     def is_down(self):
         return self.down_forever or time.time() < self.down_until
 
     def apply_restart(self):
+        # like PluginManager at startup: per plugin id the HIGHEST version loads, older ones are Superseded
+        best = {}
         for p in self.plugins:
-            if p["Status"] == "Restart":
+            k = p["Id"]
+            if k not in best or vkey(p["Version"]) > vkey(best[k]["Version"]):
+                best[k] = p
+        for p in self.plugins:
+            if p is not best[p["Id"]]:
+                p["Status"] = "Superseded"
+            elif p["Status"] == "Restart":
                 p["Status"] = "Malfunctioned" if (p["Name"] == "FullUI" and "malfunction" in self.modes) else "Active"
         ft_active = any(p["Name"] == "File Transformation" and p["Status"] == "Active" for p in self.plugins)
         fu_active = any(p["Name"] == "FullUI" and p["Status"] == "Active" for p in self.plugins)
         self.injected = ft_active and fu_active and "no_injection" not in self.modes
+
+
+def vkey(v):
+    return tuple(int(x) for x in (str(v).split(".") + ["0"] * 4)[:4])
+
+
+def auth_fields(headers):
+    """Parse 'MediaBrowser Client="..", Device=".."' like Jellyfin's AuthorizationContext."""
+    raw = headers.get("X-Emby-Authorization") or headers.get("Authorization") or ""
+    out = {}
+    if raw.split(" ", 1)[0] in ("MediaBrowser", "Emby"):
+        for m in re.finditer(r'(\w+)="([^"]*)"', raw):
+            out[m.group(1)] = m.group(2)
+    return out
 
 
 def make_handler(st):
@@ -153,6 +201,16 @@ def make_handler(st):
             if path == "/__mock/state":
                 return self.send(200, {"restarts": st.restarts, "log": st.log, "plugins": st.plugins,
                                        "config": st.config, "plugin_cfg": st.plugin_cfg})
+            if path == "/__mock/publish" and self.command == "POST":  # a new FullUI version appears in the repository
+                st.fu_versions.append((self.body() or {}).get("version", "0.2.0.0"))
+                return self.send(204)
+            if path in ("/fu-stale/manifest.json", "/fu-other/manifest.json"):
+                # valid JSON that is NOT a usable FullUI list: empty versions / some other plugin
+                ft, fu = st.manifests()
+                if path.startswith("/fu-stale"):
+                    fu[0]["versions"] = []
+                    return self.send(200, fu)
+                return self.send(200, ft)
             if path.startswith("/ft/") or path.startswith("/fu/"):
                 if (path.startswith("/fu/") and "repo_down" in st.modes) or (path.startswith("/ft/") and "ft_repo_down" in st.modes):
                     return self.send(503, raw="down")
@@ -164,6 +222,11 @@ def make_handler(st):
                 if "tmdb_reject" in st.modes or not (key == GOOD_TMDB or auth == "Bearer " + GOOD_TMDB):
                     return self.send(401, {"status_code": 7, "status_message": "Invalid API key"})
                 return self.send(200, {"images": {}})
+            if "baseurl" in st.modes:  # served under a base path, like Jellyfin's BaseUrl setting
+                if path == "/jellyfin" or path.startswith("/jellyfin/"):
+                    path = path[len("/jellyfin"):] or "/"
+                else:
+                    return self.send(404, raw="not found")
             if st.is_down():
                 return self.send(503, raw="Server is starting")
             if path == "/System/Info/Public":
@@ -171,6 +234,10 @@ def make_handler(st):
                                        "ProductName": "Jellyfin Server", "OperatingSystem": "", "Id": "abc",
                                        "StartupWizardCompleted": True})
             if path == "/Users/AuthenticateByName" and self.command == "POST":
+                f = auth_fields(self.headers)
+                if not (f.get("Client") and f.get("Device") and f.get("DeviceId") and f.get("Version")):
+                    # real Jellyfin: SessionManager throws on empty app / device / version -> 500
+                    return self.send(500, raw="Error processing request.")
                 b = self.body() or {}
                 name = b.get("Username", "")
                 acct = USERS.get(name.lower())
@@ -199,6 +266,8 @@ def make_handler(st):
                 if not self.need_admin():
                     return
                 st.restarts += 1
+                if "no_actual_restart" in st.modes:
+                    return self.send(204)
                 delay = 6 if "slow_restart" in st.modes else 2
                 self.send(204)
                 if "no_restart_return" in st.modes:
@@ -233,19 +302,36 @@ def make_handler(st):
                 ver = (q.get("version") or [""])[0]
                 time.sleep(1)
                 with st.lock:
-                    st.plugins = [p for p in st.plugins if p["Name"] != name]
                     gid = FT_GUID if name == "File Transformation" else FULLUI_GUID
+                    # the same version is replaced in place; another version is ADDED beside the old one
+                    st.plugins = [p for p in st.plugins if not (p["Id"] == gid and p["Version"] == ver)]
                     st.plugins.append({"Name": name, "Version": ver, "Id": gid, "Status": "Restart", "CanUninstall": True})
+                    st.plugins.sort(key=lambda p: (p["Name"], vkey(p["Version"])))
                 return self.send(204)
             if path == "/Plugins" and self.command == "GET":
                 if not self.user():
                     return self.send(401, raw="")
-                return self.send(200, st.plugins)
+                return self.send(200, sorted(st.plugins, key=lambda p: (p["Name"], vkey(p["Version"]))))
             if path.startswith("/Plugins/") and self.command == "DELETE":
                 if not self.need_admin():
                     return
                 parts = path.split("/")
-                st.plugins = [p for p in st.plugins if p["Id"] != parts[2]]
+                keep = [p for p in st.plugins if not (p["Id"] == parts[2] and p["Version"] == parts[3])]
+                if len(keep) == len(st.plugins):
+                    return self.send(404, raw="")
+                st.plugins = keep
+                return self.send(204)
+            if path == "/Repositories" and self.command in ("GET", "POST"):
+                if "no_repositories_endpoint" in st.modes:
+                    return self.send(404, raw="")
+                if not self.need_admin():
+                    return
+                if self.command == "GET":
+                    return self.send(200, st.config.get("PluginRepositories", []))
+                b = self.body()
+                if not isinstance(b, list):
+                    return self.send(400, raw="bad")
+                st.config["PluginRepositories"] = b
                 return self.send(204)
             if path.startswith("/Plugins/") and path.endswith("/Configuration"):
                 if not self.need_admin():
@@ -271,7 +357,7 @@ def make_handler(st):
             if path in ("/web/index.html", "/web/"):
                 html = "<html><body>jellyfin</body></html>"
                 if st.injected:
-                    html = html.replace("</body>", '<script defer src="/FullUI/web/fullui.js"></script></body>')
+                    html = html.replace("</body>", '<script defer src="%s/FullUI/web/fullui.js"></script></body>' % ("/jellyfin" if ("baseurl" in st.modes and "bad_inject_path" not in st.modes) else ""))
                 return self.send(200, raw=html, ctype="text/html")
             return self.send(404, raw="not found")
 
@@ -288,7 +374,39 @@ def main():
     srv = ThreadingHTTPServer(("127.0.0.1", a.port), None)
     st = State(a.modes.split(","), srv.server_address[1])
     srv.RequestHandlerClass = make_handler(st)
+    if "tls" in st.modes:
+        import os
+        import ssl
+        import subprocess
+        import tempfile
+        d = tempfile.mkdtemp(prefix="mock-tls-")
+        k, c = os.path.join(d, "k.pem"), os.path.join(d, "c.pem")
+        subprocess.check_call(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", k, "-out", c,
+                               "-days", "2", "-subj", "/CN=localhost"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(c, k)
+        srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
     print("PORT=%d" % srv.server_address[1], flush=True)
+    if "redirect" in st.modes:
+        class R(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *a):
+                pass
+
+            def go(self):
+                n = int(self.headers.get("Content-Length") or 0)
+                if n:
+                    self.rfile.read(n)
+                self.send_response(301)
+                self.send_header("Location", st.base + self.path)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            do_GET = do_POST = do_DELETE = do_HEAD = do_PUT = go
+        front = ThreadingHTTPServer(("127.0.0.1", 0), R)
+        threading.Thread(target=front.serve_forever, daemon=True).start()
+        print("FRONT=%d" % front.server_address[1], flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

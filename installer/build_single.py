@@ -24,13 +24,27 @@ set "FULLUI_SELF=%~f0"
 set "FULLUI_DIR=%~dp0"
 if "%FULLUI_DIR:~-1%"=="\" set "FULLUI_DIR=%FULLUI_DIR:~0,-1%"
 set "FULLUI_PS=%TEMP%\FullUI-install-%RANDOM%%RANDOM%.ps1"
+set "FULLUI_MARK=%FULLUI_PS%.started"
+set "UNATT="
+for %%A in (%*) do if /i "%%~A"=="-Unattended" set "UNATT=1"
 where powershell >nul 2>nul
 if errorlevel 1 goto nops
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$t=[IO.File]::ReadAllText($env:FULLUI_SELF); $i=$t.IndexOf([string][char]10+'#PAYLOAD-BEGIN'); $j=$t.IndexOf([char]10,$i+1)+1; [IO.File]::WriteAllText($env:FULLUI_PS,$t.Substring($j),(New-Object Text.UTF8Encoding($true)))"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$t=[IO.File]::ReadAllText($env:FULLUI_SELF); $i=$t.IndexOf(([string][char]10+'#PAYLOAD-BEGIN'),[StringComparison]::Ordinal); $j=$t.IndexOf([char]10,$i+1)+1; [IO.File]::WriteAllText($env:FULLUI_PS,$t.Substring($j),(New-Object Text.UTF8Encoding($true)))"
 if not exist "%FULLUI_PS%" goto unpackfail
 powershell -NoProfile -ExecutionPolicy Bypass -File "%FULLUI_PS%" -LogDir "%FULLUI_DIR%" %*
 set "RC=%ERRORLEVEL%"
 del "%FULLUI_PS%" >nul 2>nul
+if not exist "%FULLUI_MARK%" goto blocked
+del "%FULLUI_MARK%" >nul 2>nul
+goto finish
+:blocked
+echo.
+echo The installer could not start. Windows or your antivirus (or a company/school policy) blocked it.
+echo   1. Right-click this file, choose Properties, tick "Unblock" if you see it, press OK, then run it again.
+echo   2. Try moving it to your Desktop and running it from there.
+echo   3. On a company or school computer, ask the person who manages it. Nothing was changed on your Jellyfin.
+echo   4. Or install by hand - see docs\INSTALL.md ("Install by hand").
+set "RC=1"
 goto finish
 :unpackfail
 echo.
@@ -44,8 +58,7 @@ echo Windows PowerShell was not found on this computer, so the installer cannot 
 set "RC=1"
 :finish
 echo.
-echo %* | findstr /i "unattended" >nul
-if errorlevel 1 (
+if not defined UNATT (
   echo Press any key to close this window...
   pause >nul
 )
@@ -57,7 +70,7 @@ with open(os.path.join(out, "FullUI-Installer.cmd"), "w", newline="") as f:
 
 SH = r"""#!/usr/bin/env bash
 # FullUI one-file installer for Linux / macOS.  Run:  bash FullUI-Installer.sh
-# Uses PowerShell (pwsh) if present, else Python 3. Installs nothing by itself.
+# Uses PowerShell (pwsh) if present, else Python 3. It does not install PowerShell or Python for you.
 set -u
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 HERE="$(dirname "$SELF")"

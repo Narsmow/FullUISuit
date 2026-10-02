@@ -89,6 +89,13 @@ def main():
             print("FAIL .cmd must use CRLF line endings throughout")
         else:
             print("PASS .cmd uses CRLF line endings")
+        for must in ("StringComparison]::Ordinal", 'for %%A in (%*) do if /i "%%~A"=="-Unattended"', "FULLUI_MARK"):
+            if must not in cmdtext:
+                fails.append("cmd-" + must[:12])
+                print("FAIL .cmd lacks %r" % must)
+        if "echo %* |" in cmdtext:
+            fails.append("cmd-echo-args")
+            print("FAIL .cmd still pipes %* through echo (breaks on quotes and &)")
         if pwsh:
             line = [l for l in cmdtext.split("\r\n") if l.startswith("powershell") and "-Command" in l][0]
             snippet = re.search(r'-Command "(.*)"$', line).group(1)

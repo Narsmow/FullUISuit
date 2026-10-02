@@ -1,14 +1,43 @@
 name: Installer tests
+# Runs the installer (install.ps1 and fullui_install.py) against a fake Jellyfin that behaves like the real one
+# (see installer/tests/mock_jellyfin.py), on Linux and on Windows under REAL Windows PowerShell 5.1 and PowerShell 7.
+# Used by ci.yml (every push to main and every pull request, so it also runs when server/** or web/** change)
+# and by release.yml (tests must pass before anything is published). Can also be started by hand.
 on:
-  push:
-    paths: ['installer/**', 'manifest.json', '.github/workflows/release.yml', '.github/workflows/installer-tests.yml']
-  pull_request:
-    paths: ['installer/**', 'manifest.json']
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  mock-jellyfin:
+  mock-jellyfin-linux:
     runs-on: ubuntu-latest   # has pwsh 7 and python3 preinstalled
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: pwsh -Version && python3 --version
       - run: bash installer/tests/run-tests.sh
+
+  mock-jellyfin-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # powershell = Windows PowerShell 5.1 (what the .cmd launcher uses on every Windows PC), pwsh = PowerShell 7
+        ps: [powershell, pwsh]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.x' }
+      - name: Show versions
+        run: |
+          python --version
+          ${{ matrix.ps }} -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+      - name: Installer scenarios under ${{ matrix.ps }}
+        run: python installer/tests/run_tests.py --impl all --ps-exe ${{ matrix.ps }}
+      - name: Release helpers
+        run: python installer/tests/test_release.py
+      - name: Consistency with the plugin source
+        run: python installer/tests/test_consistency.py

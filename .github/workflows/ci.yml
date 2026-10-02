@@ -1,7 +1,16 @@
 name: CI
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   web:
@@ -17,13 +26,29 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: web-bundle, path: web/dist }
 
+  server-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          # both: the plugin and Tests target net9.0, DiscoveryTests may still target net10.0
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - run: dotnet test server/Jellyfin.Plugin.FullUI.Tests -c Release
+      - run: dotnet test server/Jellyfin.Plugin.FullUI.DiscoveryTests -c Release
+
   plugin:
     needs: web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: 9.0.x }
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
       - uses: actions/download-artifact@v4
         with: { name: web-bundle, path: server/Jellyfin.Plugin.FullUI/Web }
       - run: dotnet build server/Jellyfin.Plugin.FullUI -c Release
@@ -31,3 +56,23 @@ jobs:
         with:
           name: plugin-dll
           path: server/Jellyfin.Plugin.FullUI/bin/Release/net9.0/Jellyfin.Plugin.FullUI.dll
+
+  # Proves the plugin binary works against every supported Jellyfin (10.11.6 .. latest 10.11.x); needs network access to nuget.
+  abi-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - run: dotnet build server/Jellyfin.Plugin.FullUI -c Release
+      - name: ABI matrix (fails on any incompatibility)
+        run: bash tools/abi-matrix.sh
+
+  # Installer tests: Linux (pwsh 7 + Python), and Windows under Windows PowerShell 5.1 and pwsh 7.
+  # Runs on every push to main and every pull request, so it also covers changes in server/** and web/**.
+  installer:
+    uses: ./.github/workflows/installer-tests.yml

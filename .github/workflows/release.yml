@@ -1,11 +1,18 @@
 name: Release
-# Push a tag like v1.2.3 to publish: plugin zip, manifest.json, one-file installers, Fire TV APK (when firetv/ exists).
+# Push a tag like v1.2.3 to publish: plugin zip, manifest.json, one-file installers, SHA256SUMS.
+# (A tag like v1.2.3-rc1 publishes a GitHub *pre*release only; it never touches the stable manifest on main.)
+# The Fire TV app is NOT built here: .github/workflows/firetv.yml builds, signs and publishes it
+# (releases/download/firetv-latest/FullUI-release.apk).
 on:
   push:
-    tags: ['v*']
+    tags: ['v[0-9]*']
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false   # two tags pushed close together must not race on manifest.json
 
 jobs:
   web:
@@ -21,64 +28,65 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: web-bundle, path: web/dist }
 
+  server-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - run: dotnet test server/Jellyfin.Plugin.FullUI.Tests -c Release
+      - run: dotnet test server/Jellyfin.Plugin.FullUI.DiscoveryTests -c Release
+
+  # Proves the plugin binary works against every supported Jellyfin (10.11.6 .. latest 10.11.x); needs network access to nuget.
+  abi-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - run: dotnet build server/Jellyfin.Plugin.FullUI -c Release
+      - name: ABI matrix (fails on any incompatibility)
+        run: bash tools/abi-matrix.sh
+
+  installer-tests:
+    uses: ./.github/workflows/installer-tests.yml
+
   plugin:
-    needs: web
+    # nothing is built for publishing until every test has passed
+    needs: [web, server-tests, abi-matrix, installer-tests]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: 9.0.x }
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
       - uses: actions/download-artifact@v4
         with: { name: web-bundle, path: server/Jellyfin.Plugin.FullUI/Web }
-      - name: Work out the version from the tag (v1.2.3 -> 1.2.3.0)
+      - name: Work out the version from the tag (v1.2.3 -> 1.2.3.0; v1.2.3-rc1 -> 1.2.2.9001, below the final)
         id: ver
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          V="$(python3 - "$TAG" <<'PY'
-          import re,sys
-          m=re.match(r'^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?',sys.argv[1])
-          print('%s.%s.%s.%s'%(m.group(1),m.group(2),m.group(3),m.group(4) or '0')) if m else sys.exit('bad tag')
-          PY
-          )"
-          echo "version=$V" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(python3 installer/make_release.py version --tag "${GITHUB_REF_NAME}")" >> "$GITHUB_OUTPUT"
       - run: dotnet build server/Jellyfin.Plugin.FullUI -c Release -p:Version=${{ steps.ver.outputs.version }} -p:AssemblyVersion=${{ steps.ver.outputs.version }} -p:FileVersion=${{ steps.ver.outputs.version }}
-      - name: Zip the plugin (dll + meta.json)
+      - name: Zip the plugin (dll + meta.json); fails on any unaccounted dependency DLL
         run: python3 installer/make_release.py pack --tag "${GITHUB_REF_NAME}" --bin-dir server/Jellyfin.Plugin.FullUI/bin/Release/net9.0 --out-dir out
       - uses: actions/upload-artifact@v4
         with: { name: plugin-zip, path: out/*.zip }
 
-  firetv:
-    # Tolerant: the Fire TV app may not exist yet, or may fail to build. The release goes ahead either way.
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - id: has
-        run: |
-          if [ -f firetv/gradlew ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "No firetv/gradlew - skipping the APK."; fi
-      - if: steps.has.outputs.present == 'true'
-        uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
-      - if: steps.has.outputs.present == 'true'
-        name: Build APK (release if signing is configured in Gradle, else debug-signed so it still installs)
-        working-directory: firetv
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease || ./gradlew --no-daemon assembleDebug
-          APK="$(find . -path '*outputs/apk*' -name '*.apk' ! -name '*unsigned*' | sort | head -n1)"
-          [ -n "$APK" ] || { echo "no installable apk produced"; exit 1; }
-          mkdir -p ../out && cp "$APK" ../out/FullUI-FireTV.apk
-      - if: steps.has.outputs.present == 'true'
-        uses: actions/upload-artifact@v4
-        with: { name: firetv-apk, path: out/FullUI-FireTV.apk }
-
   release:
-    needs: [plugin, firetv]
-    # run even if firetv failed or was skipped
-    if: ${{ !cancelled() && needs.plugin.result == 'success' }}
+    needs: [plugin]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # only this job may publish / push
     steps:
       - uses: actions/checkout@v4
         with: { path: src, fetch-depth: 0 }
@@ -87,16 +95,15 @@ jobs:
         with: { ref: main, path: mainbranch }
       - uses: actions/download-artifact@v4
         with: { name: plugin-zip, path: out }
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
-        with: { name: firetv-apk, path: out }
-      - name: Changelog from commits since the previous tag
+      - name: Changelog from commits since the previous release tag
         id: log
         working-directory: src
         run: |
-          PREV="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          PREV="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
           if [ -n "$PREV" ]; then RANGE="$PREV..${GITHUB_REF_NAME}"; else RANGE="${GITHUB_REF_NAME}"; fi
-          { echo 'text<<EOF'; git log --pretty='format:- %s' "$RANGE" | head -n 30; echo; echo 'EOF'; } >> "$GITHUB_OUTPUT"
+          # a random delimiter: a commit subject can never end the block early
+          DELIM="CHANGELOG_$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+          { echo "text<<$DELIM"; git log --pretty='format:- %s' "$RANGE" | head -n 30; echo; echo "$DELIM"; } >> "$GITHUB_OUTPUT"
       - name: Generate manifest.json (adds this version, keeps older ones)
         env:
           CHANGELOG: ${{ steps.log.outputs.text }}
@@ -104,15 +111,19 @@ jobs:
           python3 src/installer/make_release.py manifest --manifest mainbranch/manifest.json --output out/manifest.json \
             --tag "${GITHUB_REF_NAME}" --zip out/FullUI_*.zip --repo "${GITHUB_REPOSITORY}" --changelog "$CHANGELOG"
           cat out/manifest.json
-      - name: Build the one-file installers
+      - name: Build the one-file installers and the checksum list
         run: |
           python3 src/installer/build_single.py out
-          cp src/installer/install.ps1 src/installer/fullui_install.py src/installer/install.sh src/installer/Install-FullUI.cmd out/ || true
+          cp src/installer/install.ps1 src/installer/fullui_install.py src/installer/install.sh src/installer/Install-FullUI.cmd out/
+          cd out
+          sha256sum FullUI_*.zip manifest.json FullUI-Installer.cmd FullUI-Installer.sh install.ps1 fullui_install.py install.sh Install-FullUI.cmd > SHA256SUMS
+          cat SHA256SUMS
       - name: Publish the GitHub release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
           files: |
             out/FullUI_*.zip
             out/manifest.json
@@ -122,16 +133,29 @@ jobs:
             out/fullui_install.py
             out/install.sh
             out/Install-FullUI.cmd
-            out/FullUI-FireTV.apk
+            out/SHA256SUMS
       - name: Update manifest.json on main (stable raw URL used by Jellyfin)
+        # Fails the run (red X) if it cannot be done: then new versions would not reach users who added the raw URL.
         if: ${{ !contains(github.ref_name, '-') }}
-        continue-on-error: true   # protected branch? the release asset URL still works as a fallback
         working-directory: mainbranch
+        env:
+          CHANGELOG: ${{ steps.log.outputs.text }}
         run: |
-          cp ../out/manifest.json manifest.json
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add manifest.json
-          git diff --cached --quiet && { echo "manifest unchanged"; exit 0; }
-          git commit -m "Release ${GITHUB_REF_NAME}: update plugin manifest"
-          git push origin HEAD:main
+          for attempt in 1 2 3 4 5; do
+            # start from the newest main every time and add this version again (a rebase of a JSON file would only conflict)
+            git fetch origin main
+            git reset --hard origin/main
+            python3 ../src/installer/make_release.py manifest --manifest manifest.json --output manifest.json \
+              --tag "${GITHUB_REF_NAME}" --zip ../out/FullUI_*.zip --repo "${GITHUB_REPOSITORY}" --changelog "$CHANGELOG"
+            git add manifest.json
+            if git diff --cached --quiet; then echo "manifest on main already has this version"; exit 0; fi
+            git commit -m "Release ${GITHUB_REF_NAME}: update plugin manifest"
+            if git push origin HEAD:main; then echo "manifest pushed on attempt $attempt"; exit 0; fi
+            echo "push to main was rejected (attempt $attempt of 5); retrying with the newest main"
+            sleep $((attempt * 5))
+          done
+          echo "::error title=manifest.json on main was NOT updated::The release assets are published, and the fallback address https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/manifest.json has the new version, but the stable raw URL still serves the old list. Is main protected? Allow github-actions to push, or merge out/manifest.json by hand."
+          exit 1
