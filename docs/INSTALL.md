@@ -10,7 +10,7 @@ and it is always safe to just run the file again.
 - You use **Windows 10 or 11**, Linux or macOS. (Older Windows needs Windows PowerShell 5.1 and .NET 4.5 installed first; the installer
   cannot do that for you.)
 - Jellyfin is **running** on your PC or server, and you can open it in your browser.
-- Its version is **10.11.x** (Jellyfin web page, bottom of the menu: Dashboard shows the version).
+- Its version is **10.11.6 or newer** (any later 10.11.x is fine; 10.11.0 to 10.11.5 are too old, and 10.10 or 10.12 are not supported). The Jellyfin Dashboard shows the version; update at jellyfin.org/downloads if needed.
 - You know the **username and password of a Jellyfin administrator** (the account you use to change settings).
 - The computer running Jellyfin is **connected to the internet** (Jellyfin downloads the plugins itself).
 - Best: run the installer **on the same computer as Jellyfin**. It also works from another computer on your network; you just type Jellyfin's address.
@@ -58,7 +58,7 @@ The window prints numbered steps, **[1/9]** up to **[9/9]**. Green `OK` lines me
 | Step | What you see | What to do |
 |---|---|---|
 | 1 | `Looking for your Jellyfin server...` then `OK Found 'My Server' at http://localhost:8096` | Nothing. If it cannot find it, it asks "Jellyfin address": type what you type in your browser, for example `192.168.1.20` or `192.168.1.20:8096`. |
-| 2 | `Version 10.11.x - supported.` | Nothing. If your version is different it explains and asks if you want to continue anyway. Say **n** unless a helper told you to say **y**. |
+| 2 | `Version 10.11.x - supported.` | Nothing. If your version is older than 10.11.6 (or is not 10.11) it explains and asks if you want to continue anyway. Say **n**, update Jellyfin, and run the file again, unless a helper told you to say **y**. |
 | 3 | `Admin username:` then `Password (typing is hidden):` | Type your admin username, press Enter, type the password (nothing appears while you type, that is normal), press Enter. You get 3 tries. The password is never saved or written to the log. |
 | 4 | `Adding the plugin download sources` | Nothing. |
 | 5-6 | `Installing File Transformation ...`, `Installing FullUI ...` | Wait about a minute. |
@@ -94,12 +94,12 @@ Send that file to whoever helps you.
 1. **"I could not find a Jellyfin server."** Jellyfin is not running, or it is on a different computer. Open Jellyfin in your browser to check, then run again and type the address when asked.
 2. **"The username or password was not accepted."** Try signing in to Jellyfin in your browser with the same details. Passwords are case-sensitive. Be careful with accounts that have no password set: type nothing and press Enter.
 3. **"... is a normal user, not an administrator."** Use the account you use for Dashboard and settings. Create an administrator in Dashboard > Users if needed.
-4. **"Jellyfin is version 10.x ... FullUI is built for 10.11.x."** Update Jellyfin to 10.11 (jellyfin.org/downloads), or ask for a FullUI build for your version. Continuing anyway usually ends with the plugin not loading.
+4. **"Jellyfin is version 10.x ... too old" / "... is not 10.11.x".** FullUI needs Jellyfin 10.11.6 or newer. Update Jellyfin (jellyfin.org/downloads) and run the file again. Continuing anyway usually ends with Jellyfin refusing the plugin ("No version of FullUI is built for ...") or the plugin not loading.
 5. **"This computer cannot download the ... plugin list."** No internet, a firewall/proxy/VPN is blocking GitHub or iamparadox.dev, or the site is briefly down. Fix the connection and run again.
 6. **"Jellyfin's plugin catalog does not list ..."** The *Jellyfin server* itself cannot reach the internet (the installer reached it from your PC). Check the server's internet access, wait a minute, run again.
 7. **"Installing ... hit an error on the server side."** Jellyfin could not download or unpack the plugin: full disk, antivirus holding the file, or blocked download. Look at Jellyfin Dashboard > Logs for the reason. On Linux check the plugin folder is writable by the jellyfin user.
 8. **"Jellyfin did not come back within 300 seconds."** Jellyfin cannot restart itself in some setups. Start it by hand (Windows: tray app or the "Jellyfin Server" service; Linux: `sudo systemctl restart jellyfin`) and run the file again.
-9. **"A plugin did not become active (... Malfunctioned / NotSupported)."** The plugin was built for a different Jellyfin version. Check Dashboard > Logs and update Jellyfin to 10.11.x.
+9. **"A plugin did not become active (... Malfunctioned / NotSupported)."** The plugin was built for a different Jellyfin version. Check Dashboard > Logs and update Jellyfin to 10.11.6 or newer.
 10. **"The site looks like normal Jellyfin" / "The Jellyfin web page does NOT load FullUI yet."** Restart Jellyfin once more, wait a minute, then press **Ctrl + F5** in the browser (a stale copy is cached; on a phone app clear the app cache). If the check still fails, File Transformation is not working with your Jellyfin version - run the installer again and send the log.
 
 Other things worth knowing:
@@ -177,6 +177,9 @@ The plugin repository URL that Jellyfin uses is `https://raw.githubusercontent.c
 fallback (used when that list is unreachable, empty or out of date) is
 `https://github.com/Narsmow/FullUISuit/releases/latest/download/manifest.json`. The installer only accepts a list that really
 offers FullUI with at least one version, and tries the second address otherwise.
+
+The plugin is built against Jellyfin 10.11.6 (the oldest supported version) and its manifest entries say `targetAbi 10.11.6.0`;
+`tools/abi-matrix.sh` (run by CI and by the release workflow before publishing) proves it works on 10.11.6 up to the newest 10.11.x.
 
 The installer talks to the plugin by its GUID and configuration property names; `installer/tests/test_consistency.py` fails the
 build if these drift from `server/Jellyfin.Plugin.FullUI/Plugin.cs` and `Configuration/PluginConfiguration.cs`.

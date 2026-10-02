@@ -596,7 +596,7 @@ function Install-One([string]$display, [string]$guid, [bool]$shared) {
     }
     $sel = Select-PackageVersion $pkg (Norm-Version $script:ServerVersion)
     if (-not $sel) {
-        Fail "No version of $display is built for Jellyfin $($script:ServerVersion)." "The plugin author may not have updated it for your Jellyfin yet. Try again later, or update/downgrade Jellyfin to a 10.11.x version."
+        Fail "No version of $display is built for Jellyfin $($script:ServerVersion)." "The plugin author may not have updated it for your Jellyfin yet. Try again later, or update Jellyfin to 10.11.6 or newer."
     }
     $ver = Get-Prop $sel.Version 'version'
     if (-not $sel.Exact) { Say-Warn "$display's newest build targets an older Jellyfin than yours; it may not load." }
@@ -989,13 +989,22 @@ function Run-Install {
     Say-Step 2 'Checking the Jellyfin version...'
     $script:ServerVersion = "$(Get-Prop $info 'Version')"
     $sv = Norm-Version $script:ServerVersion
-    if ($sv.Major -eq 10 -and $sv.Minor -eq 11) { Say-Ok "Version $($script:ServerVersion) - supported." }
+    $is1011 = ($sv.Major -eq 10 -and $sv.Minor -eq 11)
+    if ($is1011 -and $sv.Build -ge 6) { Say-Ok "Version $($script:ServerVersion) - supported." }
     else {
-        Say-Warn "Your Jellyfin is version $($script:ServerVersion). FullUI is built for 10.11.x only."
-        Say-Info 'On other versions the plugin may refuse to load or show a broken page.'
-        Say-Info 'Best fix: update Jellyfin to 10.11.x (jellyfin.org/downloads) and run this again.'
+        if ($is1011) {
+            Say-Warn "Your Jellyfin is version $($script:ServerVersion). That is too old: FullUI needs Jellyfin 10.11.6 or newer (10.11.0 to 10.11.5 do not work)."
+            Say-Info 'Jellyfin itself will normally refuse to install the plugin on an older version.'
+        } else {
+            Say-Warn "Your Jellyfin is version $($script:ServerVersion). FullUI is built for Jellyfin 10.11.6 and newer 10.11.x versions only."
+            Say-Info 'On other versions the plugin may refuse to load or show a broken page.'
+        }
+        Say-Info 'Best fix: update Jellyfin to 10.11.6 or newer (jellyfin.org/downloads) and run this again.'
         if (-not $AllowOtherVersion) {
-            if ($Unattended) { Fail "Jellyfin $($script:ServerVersion) is not 10.11.x." 'Update Jellyfin to 10.11.x, or pass -AllowOtherVersion to try anyway.' }
+            if ($Unattended) {
+                if ($is1011) { Fail "Jellyfin $($script:ServerVersion) is older than 10.11.6." 'Update Jellyfin to 10.11.6 or newer (jellyfin.org/downloads), then run this again.' }
+                Fail "Jellyfin $($script:ServerVersion) is not 10.11.x." 'Update Jellyfin to 10.11.6 or newer, or pass -AllowOtherVersion to try anyway.'
+            }
             if (-not (Ask-YesNo 'Continue anyway at your own risk?' $false)) { Cancel-Run 'Stopped because of the Jellyfin version. Nothing was changed.' }
         } else { Say-Info '-AllowOtherVersion given; continuing.' }
     }

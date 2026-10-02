@@ -8,7 +8,7 @@ Netflix-style UI plus personalized rows and suggestions for a personal Jellyfin 
 
 ## Install
 
-**Users (Windows or Linux Jellyfin 10.11.x, no Docker, no coding):** download one file from the
+**Users (Windows or Linux Jellyfin 10.11.6 or newer, no Docker, no coding):** download one file from the
 [latest release](https://github.com/Narsmow/FullUISuit/releases/latest) and run it.
 
 - Windows 10/11: `FullUI-Installer.cmd`, double-click it.

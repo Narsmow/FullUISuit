@@ -593,7 +593,7 @@ def install_one(display, guid, shared=False):
     v, exact = select_version(pkg, nv(STATE["version"]))
     if not v:
         raise Fail("No version of %s is built for Jellyfin %s." % (display, STATE["version"]),
-                   "The plugin author may not have updated it for your Jellyfin yet. Try again later, or update/downgrade Jellyfin to a 10.11.x version.")
+                   "The plugin author may not have updated it for your Jellyfin yet. Try again later, or update Jellyfin to 10.11.6 or newer.")
     ver = prop(v, "version")
     if not exact:
         warn("%s's newest build targets an older Jellyfin than yours; it may not load." % display)
@@ -979,15 +979,22 @@ def run_install():
     step(2, "Checking the Jellyfin version...")
     STATE["version"] = str(prop(inf, "Version"))
     sv = nv(STATE["version"])
-    if sv[0] == 10 and sv[1] == 11:
+    is1011 = sv[0] == 10 and sv[1] == 11
+    if is1011 and sv[2] >= 6:
         ok("Version %s - supported." % STATE["version"])
     else:
-        warn("Your Jellyfin is version %s. FullUI is built for 10.11.x only." % STATE["version"])
-        info("On other versions the plugin may refuse to load or show a broken page.")
-        info("Best fix: update Jellyfin to 10.11.x (jellyfin.org/downloads) and run this again.")
+        if is1011:
+            warn("Your Jellyfin is version %s. That is too old: FullUI needs Jellyfin 10.11.6 or newer (10.11.0 to 10.11.5 do not work)." % STATE["version"])
+            info("Jellyfin itself will normally refuse to install the plugin on an older version.")
+        else:
+            warn("Your Jellyfin is version %s. FullUI is built for Jellyfin 10.11.6 and newer 10.11.x versions only." % STATE["version"])
+            info("On other versions the plugin may refuse to load or show a broken page.")
+        info("Best fix: update Jellyfin to 10.11.6 or newer (jellyfin.org/downloads) and run this again.")
         if not O["allowotherversion"]:
             if O["unattended"]:
-                raise Fail("Jellyfin %s is not 10.11.x." % STATE["version"], "Update Jellyfin to 10.11.x, or pass -AllowOtherVersion to try anyway.")
+                if is1011:
+                    raise Fail("Jellyfin %s is older than 10.11.6." % STATE["version"], "Update Jellyfin to 10.11.6 or newer (jellyfin.org/downloads), then run this again.")
+                raise Fail("Jellyfin %s is not 10.11.x." % STATE["version"], "Update Jellyfin to 10.11.6 or newer, or pass -AllowOtherVersion to try anyway.")
             if not ask_yn("Continue anyway at your own risk?", False):
                 raise Cancel("Stopped because of the Jellyfin version. Nothing was changed.")
         else:

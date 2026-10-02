@@ -246,6 +246,15 @@ def regression_scenarios():
              check=lambda s: None if ("3.0.0.0", "Active") in vers(s, "File Transformation") else "FT not upgraded with -Update")]))
     S.append(("unsupported_filetransformation_replaced", "old_ft_installed,ft_unsupported", [dict(args=ADMIN, code=0, out=["All done!"],
              check=lambda s: None if ("3.0.0.0", "Active") in vers(s, "File Transformation") else "unsupported FT not replaced: %s" % vers(s, "File Transformation"))]))
+    # supported Jellyfin versions: 10.11.6 and later 10.11.x (10.11.0 - 10.11.5 are too old)
+    S.append(("jellyfin_10_11_5_refused", "jf_10_11_5", [dict(args=ADMIN, code=1, out=["10.11.5", "older than 10.11.6", "10.11.6 or newer"],
+             check=lambda s: None if not s["plugins"] else "installed on a too-old Jellyfin")]))
+    S.append(("jellyfin_10_11_5_user_declines", "jf_10_11_5", [dict(args=[], stdin="n\n", code=2, out=["too old", "STOPPED", "Nothing was changed"],
+             check=lambda s: None if not s["plugins"] else "changed")]))
+    S.append(("jellyfin_10_11_5_forced_still_blocked_by_abi", "jf_10_11_5", [dict(args=ADMIN + ["-AllowOtherVersion"], code=1,
+             out=["No version of FullUI is built for Jellyfin 10.11.5"])]))
+    S.append(("jellyfin_10_11_6_ok", "jf_10_11_6", [dict(args=ADMIN, code=0, out=["Version 10.11.6 - supported.", "All done!"])]))
+    S.append(("jellyfin_10_11_11_ok", "", [dict(args=ADMIN, code=0, out=["Version 10.11.11 - supported.", "All done!"])]))
     # B-97: an "OK" restart needs evidence that Jellyfin actually restarted
     S.append(("restart_that_never_happens", "no_actual_restart", [dict(args=ADMIN + ["-RestartTimeoutSec", "26"], code=1, out=["never went offline", "restart"])]))
     # B-87: the self-test follows the script tag through the same base path

@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 
 GUID = "7c3f2d9a-5b1e-4a86-9d0c-2f8e6b4a1c57"
 DLL = "Jellyfin.Plugin.FullUI.dll"
-DEFAULT_ABI = "10.11.0.0"
+DEFAULT_ABI = "10.11.6.0"  # oldest Jellyfin the plugin is built and checked against
 # Libraries Jellyfin does NOT already provide to plugins and that must therefore ship inside the zip.
 # Today there are none: the plugin is a class library, so NuGet DLLs are not copied to the build output, and
 # Newtonsoft.Json is provided by Jellyfin itself. If the build output ever contains another DLL, `pack` FAILS

@@ -13,6 +13,8 @@ Implements only what the installer uses (shapes taken from the Jellyfin REST API
 
 Failure modes (comma separated, --modes a,b):
   wrong_version      server reports 10.10.7
+  jf_10_11_5         server reports 10.11.5 (too old: FullUI needs 10.11.6+)
+  jf_10_11_6         server reports 10.11.6 (the oldest supported); default is 10.11.11
   repo_down          FullUI manifest answers 503
   ft_repo_down       File Transformation manifest answers 503
   no_packages        server catalog never lists the plugins (server cannot reach repos)
@@ -86,7 +88,10 @@ class State:
         return "%s://127.0.0.1:%d" % ("https" if "tls" in self.modes else "http", self.port)
 
     def version(self):
-        return "10.10.7" if "wrong_version" in self.modes else "10.11.4"
+        for m, v in (("wrong_version", "10.10.7"), ("jf_10_11_5", "10.11.5"), ("jf_10_11_6", "10.11.6")):
+            if m in self.modes:
+                return v
+        return "10.11.11"
 
     def manifests(self):
         ft = [{"guid": FT_GUID, "name": "File Transformation", "description": "x", "overview": "x",
@@ -98,7 +103,7 @@ class State:
                     "checksum": "00", "timestamp": "2025-09-01T00:00:00Z"}]}]
         fu = [{"guid": FULLUI_GUID, "name": "FullUI", "description": "x", "overview": "x", "owner": "narsmow",
                "category": "General",
-               "versions": [{"version": v, "changelog": "c", "targetAbi": "10.11.0.0",
+               "versions": [{"version": v, "changelog": "c", "targetAbi": "10.11.6.0",
                              "sourceUrl": self.base + "/dl/fu.zip", "checksum": "00", "timestamp": "2026-01-01T00:00:00Z"}
                             for v in reversed(self.fu_versions)]}]
         return ft, fu
