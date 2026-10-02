@@ -21,4 +21,12 @@ public class PluginConfiguration : BasePluginConfiguration
 
     // Recommendations
     public int TopTenWindowDays { get; set; } = 7;
+
+    /// <summary>User ids (N format) excluded from Top 10 / Trending popularity.</summary>
+    public string[] ExcludedUserIds { get; set; } = System.Array.Empty<string>();
+
+    /// <summary>Also write per-user "FullUI:" playlists for clients that ignore the web reskin.</summary>
+    public bool MaterializePlaylists { get; set; }
+
+    public bool RequestNotifications { get; set; } = true;
 }
