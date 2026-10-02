@@ -1,0 +1,421 @@
+package com.github.damontecres.wholphin.ui.detail.discover
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
+import com.github.damontecres.wholphin.R
+import com.github.damontecres.wholphin.api.seerr.model.MovieDetails
+import com.github.damontecres.wholphin.data.model.DiscoverItem
+import com.github.damontecres.wholphin.data.model.DiscoverRating
+import com.github.damontecres.wholphin.data.model.LocalTrailer
+import com.github.damontecres.wholphin.data.model.RemoteTrailer
+import com.github.damontecres.wholphin.data.model.SeerrAvailability
+import com.github.damontecres.wholphin.data.model.SeerrPermission
+import com.github.damontecres.wholphin.data.model.Trailer
+import com.github.damontecres.wholphin.data.model.hasPermission
+import com.github.damontecres.wholphin.preferences.UserPreferences
+import com.github.damontecres.wholphin.services.SeerrUserConfig
+import com.github.damontecres.wholphin.services.TrailerService
+import com.github.damontecres.wholphin.ui.Cards
+import com.github.damontecres.wholphin.ui.cards.DiscoverItemCard
+import com.github.damontecres.wholphin.ui.cards.DiscoverPersonRow
+import com.github.damontecres.wholphin.ui.cards.ItemRow
+import com.github.damontecres.wholphin.ui.cards.SeasonCard
+import com.github.damontecres.wholphin.ui.components.ErrorMessage
+import com.github.damontecres.wholphin.ui.components.HeaderUtils
+import com.github.damontecres.wholphin.ui.components.LoadingPage
+import com.github.damontecres.wholphin.ui.data.ItemDetailsDialog
+import com.github.damontecres.wholphin.ui.data.ItemDetailsDialogInfo
+import com.github.damontecres.wholphin.ui.nav.Destination
+import com.github.damontecres.wholphin.ui.rememberInt
+import com.github.damontecres.wholphin.ui.tryRequestFocus
+import com.github.damontecres.wholphin.util.DataLoadingState
+import com.github.damontecres.wholphin.util.ExceptionHandler
+import kotlinx.coroutines.launch
+import org.jellyfin.sdk.model.api.BaseItemKind
+
+@Composable
+fun DiscoverMovieDetails(
+    preferences: UserPreferences,
+    destination: Destination.DiscoveredItem,
+    modifier: Modifier = Modifier,
+    viewModel: DiscoverMovieViewModel =
+        hiltViewModel<DiscoverMovieViewModel, DiscoverMovieViewModel.Factory>(
+            creationCallback = { it.create(destination.item) },
+        ),
+) {
+    val resources = LocalResources.current
+    val context = LocalContext.current
+    LifecycleResumeEffect(Unit) {
+        viewModel.init()
+        onPauseOrDispose { }
+    }
+    val state by viewModel.state.collectAsState()
+    val userConfig by viewModel.userConfig.collectAsState(null)
+    val request4kEnabled by viewModel.request4kEnabled.collectAsState(false)
+
+    var overviewDialog by remember { mutableStateOf<ItemDetailsDialogInfo?>(null) }
+    var showRequestDialog by remember { mutableStateOf(false) }
+
+    val requestStr = stringResource(R.string.request)
+    val request4kStr = stringResource(R.string.request_4k)
+
+    when (val st = state.movie) {
+        is DataLoadingState.Error -> {
+            ErrorMessage(st, modifier)
+        }
+
+        DataLoadingState.Loading,
+        DataLoadingState.Pending,
+        -> {
+            LoadingPage(modifier)
+        }
+
+        is DataLoadingState.Success<MovieDetails> -> {
+            val movie = st.data
+            DiscoverMovieDetailsContent(
+                preferences = preferences,
+                movie = movie,
+                userConfig = userConfig,
+                rating = state.rating,
+                canCancel = state.canCancelRequest,
+                people = state.people,
+                trailers = state.trailers,
+                similar = state.similar,
+                recommended = state.recommended,
+                requestOnClick = {
+                    viewModel.requestOnClick()
+                    showRequestDialog = true
+                },
+                cancelOnClick = {
+                    movie.id?.let { viewModel.cancelRequest(it) }
+                },
+                onClickItem = { index, item ->
+                    viewModel.navigateTo(Destination.DiscoveredItem(item))
+                },
+                onClickPerson = { item ->
+                    viewModel.navigateTo(Destination.DiscoveredItem(item))
+                },
+                overviewOnClick = {
+                    overviewDialog =
+                        ItemDetailsDialogInfo(
+                            title = movie.title ?: resources.getString(R.string.unknown),
+                            overview = movie.overview,
+                            genres = movie.genres?.mapNotNull { it.name }.orEmpty(),
+                            files = listOf(),
+                        )
+                },
+                goToOnClick = {
+                    viewModel.goTo(movie.mediaInfo, BaseItemKind.MOVIE)
+                },
+                moreOnClick = {},
+                onLongClickPerson = { index, person -> },
+                onLongClickSimilar = { index, similar ->
+                },
+                trailerOnClick = {
+                    TrailerService.onClick(context, it, viewModel::navigateTo)
+                },
+                modifier = modifier,
+            )
+            if (showRequestDialog) {
+                RequestMovieDialog(
+                    loading = state.profileLoading,
+                    data = state.requestData,
+                    request4kEnabled = request4kEnabled,
+                    movie = movie,
+                    onSubmit = {
+                        viewModel.request(it)
+                        showRequestDialog = false
+                    },
+                    onDismissRequest = { showRequestDialog = false },
+                )
+            }
+        }
+    }
+    overviewDialog?.let { info ->
+        ItemDetailsDialog(
+            info = info,
+            showFilePath = false,
+            onDismissRequest = { overviewDialog = null },
+        )
+    }
+}
+
+private const val HEADER_ROW = 0
+private const val PEOPLE_ROW = HEADER_ROW + 1
+private const val CHAPTER_ROW = PEOPLE_ROW + 1
+private const val EXTRAS_ROW = CHAPTER_ROW + 1
+private const val SIMILAR_ROW = EXTRAS_ROW + 1
+private const val RECOMMENDED_ROW = SIMILAR_ROW + 1
+
+@Composable
+fun DiscoverMovieDetailsContent(
+    preferences: UserPreferences,
+    userConfig: SeerrUserConfig?,
+    movie: MovieDetails,
+    rating: DiscoverRating?,
+    canCancel: Boolean,
+    people: List<DiscoverItem>,
+    trailers: List<Trailer>,
+    similar: List<DiscoverItem>,
+    recommended: List<DiscoverItem>,
+    requestOnClick: () -> Unit,
+    cancelOnClick: () -> Unit,
+    trailerOnClick: (Trailer) -> Unit,
+    overviewOnClick: () -> Unit,
+    goToOnClick: () -> Unit,
+    moreOnClick: () -> Unit,
+    onClickItem: (Int, DiscoverItem) -> Unit,
+    onClickPerson: (DiscoverItem) -> Unit,
+    onLongClickPerson: (Int, DiscoverItem) -> Unit,
+    onLongClickSimilar: (Int, DiscoverItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scope = rememberCoroutineScope()
+    var position by rememberInt(0)
+    val focusRequesters = remember { List(RECOMMENDED_ROW + 1) { FocusRequester() } }
+
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(Unit) {
+        focusRequesters.getOrNull(position)?.tryRequestFocus()
+    }
+    Box(modifier = modifier) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewRequester(bringIntoViewRequester),
+                ) {
+                    DiscoverMovieDetailsHeader(
+                        preferences = preferences,
+                        movie = movie,
+                        rating = rating,
+                        bringIntoViewRequester = bringIntoViewRequester,
+                        overviewOnClick = overviewOnClick,
+                        showLogo = preferences.appPreferences.interfacePreferences.showLogos,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = HeaderUtils.topPadding, bottom = 16.dp),
+                    )
+                    ExpandableDiscoverButtons(
+                        availability =
+                            SeerrAvailability.from(movie.mediaInfo?.status)
+                                ?: SeerrAvailability.UNKNOWN,
+                        requestOnClick = requestOnClick,
+                        cancelOnClick = cancelOnClick,
+                        moreOnClick = moreOnClick,
+                        goToOnClick = goToOnClick,
+                        buttonOnFocusChanged = {
+                            if (it.isFocused) {
+                                position = HEADER_ROW
+                                scope.launch(ExceptionHandler()) {
+                                    bringIntoViewRequester.bringIntoView()
+                                }
+                            }
+                        },
+                        canRequest = userConfig.hasPermission(SeerrPermission.REQUEST),
+                        canCancel = canCancel,
+                        trailers = trailers,
+                        trailerOnClick = trailerOnClick,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp)
+                                .focusRequester(focusRequesters[HEADER_ROW]),
+                    )
+                }
+            }
+            if (people.isNotEmpty()) {
+                item {
+                    DiscoverPersonRow(
+                        people = people,
+                        onClick = {
+                            position = PEOPLE_ROW
+                            onClickPerson.invoke(it)
+                        },
+                        onLongClick = { index, person ->
+                            position = PEOPLE_ROW
+                            onLongClickPerson.invoke(index, person)
+                        },
+                        modifier = Modifier.focusRequester(focusRequesters[PEOPLE_ROW]),
+                    )
+                }
+            }
+
+            if (similar.isNotEmpty()) {
+                item {
+                    ItemRow(
+                        title = stringResource(R.string.more_like_this),
+                        items = similar,
+                        onClickItem = { index, item ->
+                            position = SIMILAR_ROW
+                            onClickItem.invoke(index, item)
+                        },
+                        onLongClickItem = { index, similar ->
+                            position = SIMILAR_ROW
+                            onLongClickSimilar.invoke(index, similar)
+                        },
+                        cardContent = { index, item, mod, onClick, onLongClick ->
+                            DiscoverItemCard(
+                                item = item,
+                                onClick = onClick,
+                                onLongClick = onLongClick,
+                                showOverlay = true,
+                                modifier = mod,
+                            )
+                        },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequesters[SIMILAR_ROW]),
+                    )
+                }
+            }
+            if (recommended.isNotEmpty()) {
+                item {
+                    ItemRow(
+                        title = stringResource(R.string.recommended),
+                        items = recommended,
+                        onClickItem = { index, item ->
+                            position = RECOMMENDED_ROW
+                            onClickItem.invoke(index, item)
+                        },
+                        onLongClickItem = { index, similar ->
+                            position = RECOMMENDED_ROW
+                            onLongClickSimilar.invoke(index, similar)
+                        },
+                        cardContent = { index, item, mod, onClick, onLongClick ->
+                            DiscoverItemCard(
+                                item = item,
+                                onClick = onClick,
+                                onLongClick = onLongClick,
+                                showOverlay = true,
+                                modifier = mod,
+                            )
+                        },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequesters[RECOMMENDED_ROW]),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TrailerRow(
+    trailers: List<Trailer>,
+    onClickTrailer: (Trailer) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state = rememberLazyListState()
+    val firstFocus = remember { FocusRequester() }
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier,
+    ) {
+        Text(
+            text = stringResource(R.string.trailers_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        LazyRow(
+            state = state,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .focusRestorer(firstFocus),
+        ) {
+            itemsIndexed(trailers) { index, item ->
+                val cardModifier =
+                    if (index == 0) {
+                        Modifier.focusRequester(firstFocus)
+                    } else {
+                        Modifier
+                    }
+                when (item) {
+                    is LocalTrailer -> {
+                        SeasonCard(
+                            item = item.baseItem,
+                            onClick = { onClickTrailer.invoke(item) },
+                            onLongClick = {},
+                            imageHeight = Cards.height2x3,
+                            imageWidth = Dp.Unspecified,
+                            showImageOverlay = false,
+                            modifier = cardModifier,
+                        )
+                    }
+
+                    is RemoteTrailer -> {
+                        val subtitle =
+                            when (item.url.toUri().host) {
+                                "youtube.com", "www.youtube.com" -> "YouTube"
+                                else -> null
+                            }
+                        SeasonCard(
+                            title = item.name,
+                            subtitle = subtitle,
+                            name = item.name,
+                            imageUrl = null,
+                            isFavorite = false,
+                            isPlayed = false,
+                            unplayedItemCount = 0,
+                            playedPercentage = 0.0,
+                            numberOfVersions = -1,
+                            onClick = { onClickTrailer.invoke(item) },
+                            onLongClick = {},
+                            modifier = cardModifier,
+                            showImageOverlay = false,
+                            imageHeight = Cards.height2x3,
+                            imageWidth = Dp.Unspecified,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
