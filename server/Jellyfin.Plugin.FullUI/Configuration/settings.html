@@ -11,6 +11,10 @@
             <form id="FullUISettingsForm">
                 <h2>FullUI settings</h2>
 
+                <div id="fuiInjection" class="fieldDescription" style="margin:0 0 1em 0;padding:.6em .8em;border-radius:4px;background:rgba(128,128,128,.15)">
+                    Checking whether the FullUI screen is switched on...
+                </div>
+
                 <fieldset class="verticalSection">
                     <legend><h3>TMDB (discovery, Coming Soon, trailers)</h3></legend>
                     <div class="inputContainer">
@@ -37,7 +41,8 @@
                         <input is="emby-input" type="text" id="serverName" label="Server name" />
                     </div>
                     <div class="inputContainer">
-                        <input is="emby-input" type="text" id="accentColor" label="Accent color (hex)" />
+                        <input is="emby-input" type="text" id="accentColor" label="Accent color (hex, e.g. #e50914)" maxlength="9" />
+                        <div class="fieldDescription" id="accentHint">A color like #e50914. Anything else falls back to the default red.</div>
                     </div>
                 </fieldset>
 
@@ -70,6 +75,14 @@
                         <input is="emby-checkbox" type="checkbox" id="requestNotifications" />
                         <span>Notify users when a title they requested is added</span>
                     </label>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="trailersEnabled" />
+                        <span>Play trailers automatically on the FullUI home screen</span>
+                    </label>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="topTenWindowDays" label="Top 10 window (days)" min="1" max="90" step="1" />
+                        <div class="fieldDescription">How far back plays count for the "Top 10" rows. 7 shows "This Week".</div>
+                    </div>
                     <div class="inputContainer">
                         <input is="emby-input" type="text" id="excludedUserIds" label="Excluded user ids (comma separated, ignored for Top 10 / Trending and playlists)" />
                     </div>
@@ -77,6 +90,7 @@
 
                 <div>
                     <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+                    <div id="fuiSaveResult" class="fieldDescription" style="margin-top:.6em" role="status"></div>
                 </div>
             </form>
         </div>
@@ -88,8 +102,36 @@
             var page = document.querySelector('#FullUISettingsPage');
             var $ = function (id) { return page.querySelector('#' + id); };
 
+            var ACCENT_RE = /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+            function say(id, text, ok) {
+                var el = $(id);
+                el.textContent = text;
+                el.style.color = ok === undefined ? '' : (ok ? '#4caf50' : '#f44336');
+            }
+
+            function hideLoading() {
+                try { Dashboard.hideLoadingMsg(); } catch (e) { /* not on a dashboard page */ }
+            }
+
+            function showInjection() {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('FullUI/Admin/Injection'),
+                    dataType: 'json'
+                }).then(function (r) {
+                    var box = $('fuiInjection');
+                    box.textContent = (r.registered ? '\u2713 ' : '\u26A0 ') + (r.message || '');
+                    box.style.color = r.registered ? '#4caf50' : '#ff9800';
+                }, function () {
+                    $('fuiInjection').textContent = 'Could not check whether the FullUI screen is switched on. Reload this page.';
+                });
+            }
+
             page.addEventListener('pageshow', function () {
                 Dashboard.showLoadingMsg();
+                say('fuiSaveResult', '');
+                showInjection();
                 ApiClient.getPluginConfiguration(pluginId).then(function (c) {
                     $('tmdbApiKey').value = c.TmdbApiKey || '';
                     $('tmdbLanguage').value = c.TmdbLanguage || 'en-US';
@@ -102,8 +144,13 @@
                     $('ollamaChatModel').value = c.OllamaChatModel || 'llama3.2:3b';
                     $('materializePlaylists').checked = !!c.MaterializePlaylists;
                     $('requestNotifications').checked = c.RequestNotifications !== false;
+                    $('trailersEnabled').checked = c.TrailersEnabled !== false;
+                    $('topTenWindowDays').value = c.TopTenWindowDays > 0 ? c.TopTenWindowDays : 7;
                     $('excludedUserIds').value = (c.ExcludedUserIds || []).join(', ');
-                    Dashboard.hideLoadingMsg();
+                    hideLoading();
+                }, function () {
+                    hideLoading();
+                    say('fuiSaveResult', 'Could not load the settings. Check that you are signed in as an administrator and reload this page.', false);
                 });
             });
 
@@ -158,21 +205,40 @@
 
             $('FullUISettingsForm').addEventListener('submit', function (e) {
                 e.preventDefault();
+                var accent = $('accentColor').value.trim();
+                if (accent && accent.charAt(0) !== '#') { accent = '#' + accent; }
+                if (accent && !ACCENT_RE.test(accent)) {
+                    say('fuiSaveResult', 'The accent color must look like #e50914 (a # and 3, 4, 6 or 8 letters/digits 0-9, a-f). Nothing was saved.', false);
+                    return false;
+                }
+                var days = parseInt($('topTenWindowDays').value, 10);
+                if (!(days >= 1 && days <= 90)) { days = 7; }
+
                 Dashboard.showLoadingMsg();
+                say('fuiSaveResult', 'Saving...');
                 ApiClient.getPluginConfiguration(pluginId).then(function (c) {
                     c.TmdbApiKey = $('tmdbApiKey').value.trim();
                     c.TmdbLanguage = $('tmdbLanguage').value.trim();
                     c.TmdbRegion = $('tmdbRegion').value.trim();
                     c.ServerName = $('serverName').value.trim();
-                    c.AccentColor = $('accentColor').value.trim();
+                    c.AccentColor = accent || '#e50914';
                     c.OllamaEnabled = $('ollamaEnabled').checked;
                     c.OllamaUrl = $('ollamaUrl').value.trim();
                     c.OllamaEmbedModel = $('ollamaEmbedModel').value.trim();
                     c.OllamaChatModel = $('ollamaChatModel').value.trim();
                     c.MaterializePlaylists = $('materializePlaylists').checked;
                     c.RequestNotifications = $('requestNotifications').checked;
+                    c.TrailersEnabled = $('trailersEnabled').checked;
+                    c.TopTenWindowDays = days;
                     c.ExcludedUserIds = $('excludedUserIds').value.split(',').map(function (x) { return x.trim().replace(/-/g, ''); }).filter(function (x) { return x.length > 0; });
-                    ApiClient.updatePluginConfiguration(pluginId, c).then(Dashboard.processPluginConfigurationUpdateResult);
+                    return ApiClient.updatePluginConfiguration(pluginId, c);
+                }).then(function (result) {
+                    hideLoading();
+                    say('fuiSaveResult', 'Saved.', true);
+                    try { Dashboard.processPluginConfigurationUpdateResult(result); } catch (err) { /* the toast is optional */ }
+                }, function () {
+                    hideLoading();
+                    say('fuiSaveResult', 'Could not save the settings. Check that you are signed in as an administrator and try again.', false);
                 });
                 return false;
             });

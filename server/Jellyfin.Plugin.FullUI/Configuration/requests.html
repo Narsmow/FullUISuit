@@ -201,7 +201,8 @@
                     url: ApiClient.getUrl('FullUI/Admin/Requests.csv', { sort: state.sort }),
                     dataType: 'text'
                 }).then(function (text) {
-                    var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+                    // The response decoder drops the UTF-8 byte order mark; put it back so Excel shows accents correctly.
+                    var blob = new Blob(['\uFEFF' + text], { type: 'text/csv;charset=utf-8' });
                     var a = document.createElement('a');
                     a.href = URL.createObjectURL(blob);
                     a.download = 'fullui-requests.csv';
