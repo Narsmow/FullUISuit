@@ -1,0 +1,14 @@
+name: Installer tests
+on:
+  push:
+    paths: ['installer/**', 'manifest.json', '.github/workflows/release.yml', '.github/workflows/installer-tests.yml']
+  pull_request:
+    paths: ['installer/**', 'manifest.json']
+
+jobs:
+  mock-jellyfin:
+    runs-on: ubuntu-latest   # has pwsh 7 and python3 preinstalled
+    steps:
+      - uses: actions/checkout@v4
+      - run: pwsh -Version && python3 --version
+      - run: bash installer/tests/run-tests.sh

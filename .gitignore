@@ -8,3 +8,5 @@ dist/
 build/
 local.properties
 *.jks
+FullUI-install-*.log
+__pycache__/
