@@ -31,5 +31,15 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             Name = Name,
             EmbeddedResourcePath = $"{GetType().Namespace}.Configuration.settings.html",
         };
+
+        yield return new PluginPageInfo
+        {
+            Name = "FullUIRequests",
+            DisplayName = "FullUI Requests",
+            EmbeddedResourcePath = $"{GetType().Namespace}.Configuration.requests.html",
+            EnableInMainMenu = true,
+            MenuSection = "server",
+            MenuIcon = "star",
+        };
     }
 }

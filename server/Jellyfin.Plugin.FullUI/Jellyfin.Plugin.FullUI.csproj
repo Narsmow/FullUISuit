@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Configuration\settings.html" />
+    <EmbeddedResource Include="Configuration\requests.html" />
     <EmbeddedResource Include="Web\fullui.js" Condition="Exists('Web\fullui.js')" />
     <EmbeddedResource Include="Web\fullui.css" Condition="Exists('Web\fullui.css')" />
   </ItemGroup>
