@@ -25,7 +25,7 @@ Across the top you will find, from left to right:
 | **Use classic view** | Switches back to the standard Jellyfin home page (see section 12). |
 | Magnifying glass | Search. |
 | Bell | Notifications, for example "Dune is now available". A number on the bell means unread ones. |
-| Your round profile picture | A small menu with Settings (Jellyfin's own preferences page), Dashboard (only if you are an administrator) and Sign out. |
+| Your round profile picture | A small menu with Settings (Jellyfin's own preferences page), Use classic view, Dashboard (only if you are an administrator) and Sign out. |
 
 *What you will see:* a dark page with these items in a bar at the top. When you scroll down the bar becomes solid so it stays readable.
 
