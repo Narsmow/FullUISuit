@@ -5,7 +5,7 @@ namespace Jellyfin.Plugin.FullUI.Configuration;
 /// <summary>Validates admin-typed branding values so a typo can never make the UI unreadable.</summary>
 public static class Branding
 {
-    public const string DefaultAccent = "#e50914";
+    public const string DefaultAccent = "#e5383b";
 
     private static readonly Regex Hex = new("^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", RegexOptions.Compiled);
 

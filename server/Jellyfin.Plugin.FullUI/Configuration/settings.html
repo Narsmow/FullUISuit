@@ -41,8 +41,8 @@
                         <input is="emby-input" type="text" id="serverName" label="Server name" />
                     </div>
                     <div class="inputContainer">
-                        <input is="emby-input" type="text" id="accentColor" label="Accent color (hex, e.g. #e50914)" maxlength="9" />
-                        <div class="fieldDescription" id="accentHint">A color like #e50914. Anything else falls back to the default red.</div>
+                        <input is="emby-input" type="text" id="accentColor" label="Accent color (hex, e.g. #e5383b)" maxlength="9" />
+                        <div class="fieldDescription" id="accentHint">A color like #e5383b. Anything else falls back to the default red.</div>
                     </div>
                 </fieldset>
 
@@ -137,7 +137,7 @@
                     $('tmdbLanguage').value = c.TmdbLanguage || 'en-US';
                     $('tmdbRegion').value = c.TmdbRegion || 'US';
                     $('serverName').value = c.ServerName || 'FullUI';
-                    $('accentColor').value = c.AccentColor || '#e50914';
+                    $('accentColor').value = c.AccentColor || '#e5383b';
                     $('ollamaEnabled').checked = !!c.OllamaEnabled;
                     $('ollamaUrl').value = c.OllamaUrl || 'http://localhost:11434';
                     $('ollamaEmbedModel').value = c.OllamaEmbedModel || 'nomic-embed-text';
@@ -208,7 +208,7 @@
                 var accent = $('accentColor').value.trim();
                 if (accent && accent.charAt(0) !== '#') { accent = '#' + accent; }
                 if (accent && !ACCENT_RE.test(accent)) {
-                    say('fuiSaveResult', 'The accent color must look like #e50914 (a # and 3, 4, 6 or 8 letters/digits 0-9, a-f). Nothing was saved.', false);
+                    say('fuiSaveResult', 'The accent color must look like #e5383b (a # and 3, 4, 6 or 8 letters/digits 0-9, a-f). Nothing was saved.', false);
                     return false;
                 }
                 var days = parseInt($('topTenWindowDays').value, 10);
@@ -221,7 +221,7 @@
                     c.TmdbLanguage = $('tmdbLanguage').value.trim();
                     c.TmdbRegion = $('tmdbRegion').value.trim();
                     c.ServerName = $('serverName').value.trim();
-                    c.AccentColor = accent || '#e50914';
+                    c.AccentColor = accent || '#e5383b';
                     c.OllamaEnabled = $('ollamaEnabled').checked;
                     c.OllamaUrl = $('ollamaUrl').value.trim();
                     c.OllamaEmbedModel = $('ollamaEmbedModel').value.trim();

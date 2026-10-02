@@ -39,6 +39,7 @@ public sealed class DependencyInjectionTests : IDisposable
         sc.AddSingleton(Stub.Make<ISessionManager>());
         sc.AddSingleton(Stub.Make<IUserDataManager>());
         sc.AddSingleton(Stub.Make<IPlaylistManager>());
+        sc.AddSingleton(Stub.Make<MediaBrowser.Model.Globalization.ILocalizationManager>());
         sc.AddSingleton(Stub.Make<ITVSeriesManager>());
         var host = Stub.Make<IServerApplicationHost>();
         foreach (var t in PluginTypes<IPluginServiceRegistrator>())

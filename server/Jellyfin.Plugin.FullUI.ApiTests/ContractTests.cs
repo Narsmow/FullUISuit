@@ -106,7 +106,7 @@ public class ContractTests : IDisposable
 
         var response = home.GetHome(Http.User);
 
-        Assert.Equal("#e50914", response.AccentColor);
+        Assert.Equal("#e5383b", response.AccentColor);
         Assert.Equal("FullUI", response.ServerName);
     }
 

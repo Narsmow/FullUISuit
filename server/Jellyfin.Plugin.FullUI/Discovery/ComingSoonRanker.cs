@@ -165,11 +165,14 @@ public static class ComingSoonRanker
         public int SeedHits { get; set; }
 
         public bool Upcoming { get; set; }
+
+        /// <summary>Set for "a new season of a show you have"; such candidates are kept although the show is in the library.</summary>
+        public int? SeasonNumber { get; set; }
     }
 
     /// <summary>
     /// Excludes library titles, titles voted -1, and titles with no poster; scores the rest and keeps the best.
-    /// score = 2 per recommending seed + vote_average/10*2 + recency (upcoming soon / recent release) + 0.5 genre match.
+    /// score = 2 per recommending seed + vote_average/10*2 + proximity of an upcoming release + 0.5 genre match.
     /// </summary>
     public static IReadOnlyList<ComingSoonEntry> Rank(
         IEnumerable<Candidate> candidates,
@@ -184,7 +187,7 @@ public static class ComingSoonRanker
         {
             var t = c.Title;
             var key = Key(t.MediaType, t.Id);
-            if (libraryKeys.Contains(key) || downvotedKeys.Contains(key) || string.IsNullOrWhiteSpace(t.PosterPath))
+            if ((c.SeasonNumber is null && libraryKeys.Contains(key)) || downvotedKeys.Contains(key) || string.IsNullOrWhiteSpace(t.PosterPath))
             {
                 continue;
             }
@@ -205,13 +208,20 @@ public static class ComingSoonRanker
                 BackdropPath = t.BackdropPath,
                 ReleaseDate = t.ReleaseDate,
                 Score = Math.Round(score, 3),
+                Upcoming = IsUpcoming(t.ReleaseDate, now),
+                SeasonNumber = c.SeasonNumber,
             });
         }
 
         return scored.OrderByDescending(e => e.Score).ThenBy(e => e.Title, StringComparer.OrdinalIgnoreCase).Take(take).ToList();
     }
 
-    /// <summary>+1.5 for releases within the next 120 days, decaying for the past: +1 within a year, then 0.</summary>
+    /// <summary>True when the date parses and is today or later (UTC). Anything else is NOT "coming soon".</summary>
+    public static bool IsUpcoming(string? releaseDate, DateTime now)
+        => DateTime.TryParse(releaseDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d)
+            && d.Date >= now.ToUniversalTime().Date;
+
+    /// <summary>+1.5 for releases within the next 120 days, fading to 0 further out. A release in the past earns nothing: being old is not a reason to be "coming soon".</summary>
     public static double RecencyBonus(string? releaseDate, DateTime now)
     {
         if (!DateTime.TryParse(releaseDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d))
@@ -219,13 +229,12 @@ public static class ComingSoonRanker
             return 0;
         }
 
-        var days = (d - now).TotalDays;
+        var days = (d.Date - now.ToUniversalTime().Date).TotalDays;
         if (days >= 0)
         {
             return days <= 120 ? 1.5 : Math.Max(0, 1.5 - ((days - 120) / 240.0));
         }
 
-        var age = -days;
-        return age <= 365 ? 1.0 - (age / 365.0 * 0.5) : 0;
+        return 0;
     }
 }

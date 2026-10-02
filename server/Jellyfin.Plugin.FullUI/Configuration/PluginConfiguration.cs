@@ -6,7 +6,7 @@ public class PluginConfiguration : BasePluginConfiguration
 {
     // Branding
     public string ServerName { get; set; } = "FullUI";
-    public string AccentColor { get; set; } = "#e50914";
+    public string AccentColor { get; set; } = "#e5383b";
 
     // TMDB (v3 API key or v4 read access token). Never sent to clients.
     public string TmdbApiKey { get; set; } = string.Empty;
@@ -38,6 +38,9 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Record anonymous-to-peers impression/interaction events for the metrics page (admin sees aggregates only).</summary>
     public bool CollectInteractionMetrics { get; set; } = true;
+
+    /// <summary>Also list already-released titles that are not in the library ("Recommended for you") next to Coming Soon, so users can still request them.</summary>
+    public bool ShowRecommendedNotInLibrary { get; set; } = true;
 
     /// <summary>Lets admins switch off trailer autoplay for everyone (clients load the YouTube player only when this is true).</summary>
     public bool TrailersEnabled { get; set; } = true;

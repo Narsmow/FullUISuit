@@ -40,7 +40,8 @@ public class DiscoveryController : ControllerBase
         _log = log;
     }
 
-    public sealed record ComingSoonResponse(IReadOnlyList<ComingSoonCard> Cards);
+    /// <summary><c>Cards</c> are true Coming Soon titles (release date today or later). <c>Recommended</c> are already-released titles that are not in the library ("Recommended for you"); users can still request them.</summary>
+    public sealed record ComingSoonResponse(IReadOnlyList<ComingSoonCard> Cards, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ComingSoonCard>? Recommended = null);
 
     public sealed record NotificationsResponse(IReadOnlyList<NotificationDto> Items);
 
@@ -61,8 +62,12 @@ public class DiscoveryController : ControllerBase
         }
 
         var inLibrary = ComingSoonView.LibraryKeys(_catalog.All);
-        var cards = _store.Read(d => ComingSoonView.Cards(d, userId, inLibrary));
-        return SafeApi.Json(new ComingSoonResponse(cards));
+        var now = DateTime.UtcNow;
+        var cards = _store.Read(d => ComingSoonView.Cards(d, userId, inLibrary, now, ComingSoonKind.Upcoming));
+        List<ComingSoonCard>? recommended = _config.Current.ShowRecommendedNotInLibrary
+            ? _store.Read(d => ComingSoonView.Cards(d, userId, inLibrary, now, ComingSoonKind.Released))
+            : null;
+        return SafeApi.Json(new ComingSoonResponse(cards, recommended));
     }
 
     [HttpPost("Vote")]

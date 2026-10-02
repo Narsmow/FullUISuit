@@ -31,14 +31,31 @@ public sealed class ComingSoonService
     private readonly ITmdbClient _tmdb;
     private readonly IUserDirectory _users;
     private readonly ILogger<ComingSoonService> _log;
+    private readonly IRatingScorer? _scorer;
+    private readonly IConfigSource? _config;
 
-    public ComingSoonService(PluginStore store, ICatalog catalog, ITmdbClient tmdb, IUserDirectory users, ILogger<ComingSoonService> log)
+    // TMDB age ratings looked up during the current run, shared by all users (null value = TMDB has none).
+    private readonly ConcurrentDictionary<string, TmdbCertification?> _certs = new();
+
+    /// <summary>How many already-released recommendations are kept per user next to the upcoming ones.</summary>
+    internal const int RecommendedKeep = 20;
+
+    public ComingSoonService(
+        PluginStore store,
+        ICatalog catalog,
+        ITmdbClient tmdb,
+        IUserDirectory users,
+        ILogger<ComingSoonService> log,
+        IRatingScorer? scorer = null,
+        IConfigSource? config = null)
     {
         _store = store;
         _catalog = catalog;
         _tmdb = tmdb;
         _users = users;
         _log = log;
+        _scorer = scorer;
+        _config = config;
     }
 
     public async Task RunAsync(IProgress<double>? progress, CancellationToken ct, DateTime? nowOverride = null)
@@ -52,6 +69,7 @@ public sealed class ComingSoonService
 
         var now = nowOverride ?? DateTime.UtcNow;
         _trailerFailures = 0;
+        _certs.Clear();
         var items = _catalog.All;
         var libraryKeys = items.Where(i => i.TmdbId is > 0).Select(i => ComingSoonRanker.Key(ComingSoonRanker.MediaTypeOf(i), i.TmdbId!.Value)).ToHashSet();
 
@@ -63,6 +81,8 @@ public sealed class ComingSoonService
             genreMap["tv"] = await _tmdb.GenresAsync("tv", ct).ConfigureAwait(false);
             upcoming.AddRange(await _tmdb.UpcomingAsync("movie", ct).ConfigureAwait(false));
             upcoming.AddRange(await _tmdb.UpcomingAsync("tv", ct).ConfigureAwait(false));
+            // Whatever the source says, only a release date of today or later counts as upcoming.
+            upcoming.RemoveAll(t => !ComingSoonRanker.IsUpcoming(t.ReleaseDate, now));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -172,6 +192,27 @@ public sealed class ComingSoonService
             }
         }
 
+        // A genuinely new season (next episode is episode 1 of a later season) of a show the user has.
+        foreach (var seed in seeds.Where(sd => sd.MediaType == "tv"))
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var ns = await _tmdb.NextSeasonAsync(seed.Item.TmdbId!.Value, ct).ConfigureAwait(false);
+                if (ns is null || !ComingSoonRanker.IsUpcoming(ns.AirDate, now))
+                {
+                    continue;
+                }
+
+                var show = ns.Show with { Title = $"{ns.Show.Title}: Season {ns.SeasonNumber}", ReleaseDate = ns.AirDate };
+                candidates[$"tv:{show.Id}:s{ns.SeasonNumber}"] = new ComingSoonRanker.Candidate(show) { SeedHits = 2, Upcoming = true, SeasonNumber = ns.SeasonNumber };
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _log.LogDebug("FullUI: next-season lookup skipped ({Type})", ex.GetType().Name);
+            }
+        }
+
         var topGenres = ComingSoonRanker.TopGenres(seeds);
         var topIds = new HashSet<int>();
         foreach (var g in genreMap.Values)
@@ -196,7 +237,15 @@ public sealed class ComingSoonService
             c.Upcoming = true;
         }
 
-        var ranked = ComingSoonRanker.Rank(candidates.Values, libraryKeys, downvoted, topIds, now);
+        var pool = ComingSoonRanker.Rank(candidates.Values, libraryKeys, downvoted, topIds, now, take: 150);
+        var cap = SafeCap(userId);
+        var ranked = new List<ComingSoonEntry>();
+        ranked.AddRange(await KeepAllowedAsync(pool.Where(e => e.Upcoming).ToList(), cap, ComingSoonRanker.KeepPerUser, ct).ConfigureAwait(false));
+        if (_config?.Current.ShowRecommendedNotInLibrary ?? true)
+        {
+            ranked.AddRange(await KeepAllowedAsync(pool.Where(e => !e.Upcoming && e.SeasonNumber is null).ToList(), cap, RecommendedKeep, ct).ConfigureAwait(false));
+        }
+
         var known = _store.Read(d => d.TrailerKeys.ToDictionary(kv => kv.Key, kv => kv.Value));
         foreach (var e in ranked)
         {
@@ -222,6 +271,72 @@ public sealed class ComingSoonService
         }
 
         return ranked;
+    }
+
+    private int? SafeCap(Guid userId)
+    {
+        try
+        {
+            return _users.MaxParentalRatingScore(userId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Could not tell: treat the user as restricted with an unknown cap, which hides every title (fail closed).
+            _log.LogWarning("FullUI: could not read a user's parental limit ({Type}); hiding titles that are not in the library for them", ex.GetType().Name);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Applies the user's parental cap to titles that are not in the library using TMDB age ratings. Users without a cap
+    /// are not checked (no extra TMDB calls). Keeps the first <paramref name="keep"/> allowed entries in rank order.
+    /// </summary>
+    private async Task<IReadOnlyList<ComingSoonEntry>> KeepAllowedAsync(IReadOnlyList<ComingSoonEntry> ranked, int? cap, int keep, CancellationToken ct)
+    {
+        if (cap is null)
+        {
+            return ranked.Take(keep).ToList();
+        }
+
+        var kept = new List<ComingSoonEntry>();
+        foreach (var e in ranked)
+        {
+            if (kept.Count >= keep)
+            {
+                break;
+            }
+
+            ct.ThrowIfCancellationRequested();
+            var cert = await CertificationAsync(e.MediaType, e.TmdbId, ct).ConfigureAwait(false);
+            if (ParentalGate.Allows(cap, cert, _scorer))
+            {
+                e.Certification = ParentalGate.Format(cert);
+                kept.Add(e);
+            }
+        }
+
+        return kept;
+    }
+
+    private async Task<TmdbCertification?> CertificationAsync(string mediaType, int id, CancellationToken ct)
+    {
+        var key = ComingSoonRanker.Key(mediaType, id);
+        if (_certs.TryGetValue(key, out var hit))
+        {
+            return hit;
+        }
+
+        try
+        {
+            var c = await _tmdb.CertificationAsync(mediaType, id, ct).ConfigureAwait(false);
+            _certs[key] = c;
+            return c;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogDebug("FullUI: age rating lookup failed ({Type})", ex.GetType().Name);
+            return null; // not remembered: a restricted user simply does not see the title this run
+        }
     }
 
     private bool TrailerLookupsPaused => _trailerFailures >= MaxConsecutiveTrailerFailures;

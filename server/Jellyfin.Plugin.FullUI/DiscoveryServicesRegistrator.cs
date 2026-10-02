@@ -14,6 +14,7 @@ public class DiscoveryServicesRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IConfigSource, PluginConfigSource>();
         serviceCollection.AddSingleton<IUserDirectory, JellyfinUserDirectory>();
         serviceCollection.AddSingleton<ITmdbClient, TmdbClient>();
+        serviceCollection.AddSingleton<IRatingScorer, JellyfinRatingScorer>();
         serviceCollection.AddSingleton<ComingSoonService>();
         serviceCollection.AddSingleton<VoteService>();
         serviceCollection.AddSingleton<RequestService>();
