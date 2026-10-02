@@ -1,0 +1,125 @@
+{
+  "item": {
+    "id": "00000008000000000000000000000001",
+    "name": "Interstellar",
+    "type": "Movie",
+    "year": 2014,
+    "rating": 8.4,
+    "rated": "PG-13",
+    "overview": "A team of explorers travels through a wormhole in space in an attempt to ensure humanity's survival.",
+    "genres": [
+      "Science Fiction",
+      "Adventure",
+      "Drama"
+    ],
+    "runtimeMinutes": 169,
+    "badges": [
+      "Top Rated"
+    ],
+    "trailerKey": "zSWdZVtXT7E",
+    "tmdbId": 157336,
+    "progress": 0.42,
+    "hasBackdrop": true,
+    "hasLogo": false,
+    "myRating": 0,
+    "inMyList": false,
+    "rank": null,
+    "imageTag": "a1b2c3d4e5f68888",
+    "matchPercent": 94,
+    "reason": "Because you watched Arrival",
+    "seriesLabel": null,
+    "minutesLeft": null
+  },
+  "tagline": "Mankind was born on Earth. It was never meant to die here.",
+  "seasons": [],
+  "nextUp": null,
+  "people": [
+    {
+      "name": "Matthew McConaughey",
+      "role": "Cooper",
+      "type": "Actor",
+      "id": "00000385000000000000000000000001",
+      "hasImage": true
+    },
+    {
+      "name": "Anne Hathaway",
+      "role": "Brand",
+      "type": "Actor",
+      "id": "00000386000000000000000000000001",
+      "hasImage": true
+    },
+    {
+      "name": "Christopher Nolan",
+      "role": null,
+      "type": "Director",
+      "id": "00000387000000000000000000000001",
+      "hasImage": true
+    }
+  ],
+  "trailers": [
+    {
+      "key": "zSWdZVtXT7E",
+      "name": "Official Trailer"
+    }
+  ],
+  "similar": [
+    {
+      "id": "00000001000000000000000000000001",
+      "name": "Arrival",
+      "type": "Movie",
+      "year": 2016,
+      "rating": 7.9,
+      "rated": "PG-13",
+      "overview": "A linguist works with the military to communicate with alien visitors before the world slides into war.",
+      "genres": [
+        "Science Fiction",
+        "Drama"
+      ],
+      "runtimeMinutes": 116,
+      "badges": [],
+      "trailerKey": "tNQr0fKLvGE",
+      "tmdbId": 329865,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 2,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f61111",
+      "matchPercent": 91,
+      "reason": "Because you watched Arrival",
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000002000000000000000000000001",
+      "name": "Blade Runner 2049",
+      "type": "Movie",
+      "year": 2017,
+      "rating": 8,
+      "rated": "R",
+      "overview": "A young blade runner uncovers a long-buried secret that leads him to track down a missing legend.",
+      "genres": [
+        "Science Fiction",
+        "Thriller"
+      ],
+      "runtimeMinutes": 164,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": "gCcx85zbxz4",
+      "tmdbId": 335984,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": false,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f62222",
+      "matchPercent": 88,
+      "reason": "Because you watched Arrival",
+      "seriesLabel": null,
+      "minutesLeft": null
+    }
+  ]
+}

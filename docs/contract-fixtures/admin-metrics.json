@@ -1,0 +1,180 @@
+{
+  "collecting": true,
+  "generatedAt": "2026-06-01T12:00:00Z",
+  "windowDays": 30,
+  "totalEvents": 91,
+  "activeUsers": 3,
+  "rows": [
+    {
+      "rowType": "toppicks",
+      "shown": 16,
+      "clicks": 10,
+      "plays": 10,
+      "expanded": 16,
+      "takeRate": 1.25,
+      "playsPerShown": 0.625
+    },
+    {
+      "rowType": "because",
+      "shown": 15,
+      "clicks": 3,
+      "plays": 0,
+      "expanded": 0,
+      "takeRate": 0.2,
+      "playsPerShown": 0
+    },
+    {
+      "rowType": "genre",
+      "shown": 15,
+      "clicks": 0,
+      "plays": 0,
+      "expanded": 0,
+      "takeRate": 0,
+      "playsPerShown": 0
+    }
+  ],
+  "neverClickedRows": [
+    "genre"
+  ],
+  "playsFromRows": 10,
+  "playsTotal": 10,
+  "topSearches": [
+    {
+      "query": "blade runner",
+      "count": 2,
+      "users": 2
+    },
+    {
+      "query": "dune",
+      "count": 1,
+      "users": 1
+    },
+    {
+      "query": "space",
+      "count": 1,
+      "users": 1
+    }
+  ],
+  "eventsPerDay": [
+    {
+      "day": "2026-05-03",
+      "events": 0
+    },
+    {
+      "day": "2026-05-04",
+      "events": 0
+    },
+    {
+      "day": "2026-05-05",
+      "events": 0
+    },
+    {
+      "day": "2026-05-06",
+      "events": 0
+    },
+    {
+      "day": "2026-05-07",
+      "events": 0
+    },
+    {
+      "day": "2026-05-08",
+      "events": 0
+    },
+    {
+      "day": "2026-05-09",
+      "events": 0
+    },
+    {
+      "day": "2026-05-10",
+      "events": 0
+    },
+    {
+      "day": "2026-05-11",
+      "events": 0
+    },
+    {
+      "day": "2026-05-12",
+      "events": 0
+    },
+    {
+      "day": "2026-05-13",
+      "events": 0
+    },
+    {
+      "day": "2026-05-14",
+      "events": 0
+    },
+    {
+      "day": "2026-05-15",
+      "events": 0
+    },
+    {
+      "day": "2026-05-16",
+      "events": 0
+    },
+    {
+      "day": "2026-05-17",
+      "events": 0
+    },
+    {
+      "day": "2026-05-18",
+      "events": 0
+    },
+    {
+      "day": "2026-05-19",
+      "events": 0
+    },
+    {
+      "day": "2026-05-20",
+      "events": 0
+    },
+    {
+      "day": "2026-05-21",
+      "events": 0
+    },
+    {
+      "day": "2026-05-22",
+      "events": 0
+    },
+    {
+      "day": "2026-05-23",
+      "events": 0
+    },
+    {
+      "day": "2026-05-24",
+      "events": 0
+    },
+    {
+      "day": "2026-05-25",
+      "events": 0
+    },
+    {
+      "day": "2026-05-26",
+      "events": 0
+    },
+    {
+      "day": "2026-05-27",
+      "events": 18
+    },
+    {
+      "day": "2026-05-28",
+      "events": 12
+    },
+    {
+      "day": "2026-05-29",
+      "events": 21
+    },
+    {
+      "day": "2026-05-30",
+      "events": 14
+    },
+    {
+      "day": "2026-05-31",
+      "events": 19
+    },
+    {
+      "day": "2026-06-01",
+      "events": 7
+    }
+  ]
+}

@@ -1,0 +1,2734 @@
+{
+  "serverName": "Home Cinema",
+  "accentColor": "#e5383b",
+  "rows": [
+    {
+      "id": "continue",
+      "title": "Continue Watching",
+      "type": "continue",
+      "items": [
+        {
+          "id": "0000001f000000000000000000000001",
+          "name": "Severance",
+          "type": "Series",
+          "year": 2022,
+          "rating": 8.7,
+          "rated": "TV-MA",
+          "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+          "genres": [
+            "Science Fiction",
+            "Drama",
+            "Thriller"
+          ],
+          "runtimeMinutes": 50,
+          "badges": [
+            "#5 in Shows",
+            "New Episodes",
+            "Top Rated"
+          ],
+          "trailerKey": "xEQP4VVuyrY",
+          "tmdbId": 95396,
+          "progress": 0.35,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f8110f",
+          "matchPercent": 78,
+          "reason": "Pick up where you left off",
+          "seriesLabel": "S2:E5",
+          "minutesLeft": 32
+        },
+        {
+          "id": "00000008000000000000000000000001",
+          "name": "Interstellar",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.4,
+          "rated": "PG-13",
+          "overview": "A team of explorers travels through a wormhole in space in an attempt to ensure humanity's survival.",
+          "genres": [
+            "Science Fiction",
+            "Adventure",
+            "Drama"
+          ],
+          "runtimeMinutes": 169,
+          "badges": [
+            "#5 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "zSWdZVtXT7E",
+          "tmdbId": 157336,
+          "progress": 0.42,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f68888",
+          "matchPercent": 82,
+          "reason": "Pick up where you left off",
+          "seriesLabel": null,
+          "minutesLeft": 98
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "toppicks",
+      "title": "Top Picks for You",
+      "type": "toppicks",
+      "items": [
+        {
+          "id": "00000017000000000000000000000001",
+          "name": "Gone Girl",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.1,
+          "rated": "R",
+          "overview": "With his wife's disappearance, Nick Dunne becomes the focus of an intense media circus.",
+          "genres": [
+            "Thriller",
+            "Drama"
+          ],
+          "runtimeMinutes": 149,
+          "badges": [
+            "#4 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 210577,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f78887",
+          "matchPercent": 99,
+          "reason": "Because you watched Se7en",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000000a000000000000000000000001",
+          "name": "Parasite",
+          "type": "Movie",
+          "year": 2019,
+          "rating": 8.5,
+          "rated": "R",
+          "overview": "All unemployed, Ki-taek's family takes peculiar interest in the wealthy and glamorous Parks.",
+          "genres": [
+            "Thriller",
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 132,
+          "badges": [
+            "#1 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "5xH0HfJHsaY",
+          "tmdbId": 496243,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": true,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6aaaa",
+          "matchPercent": 95,
+          "reason": "Because you watched Blade Runner 2049",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000006000000000000000000000001",
+          "name": "Dune: Part Two",
+          "type": "Movie",
+          "year": 2024,
+          "rating": 8.3,
+          "rated": "PG-13",
+          "overview": "Paul Atreides unites with the Fremen while seeking revenge against those who destroyed his family.",
+          "genres": [
+            "Science Fiction",
+            "Adventure"
+          ],
+          "runtimeMinutes": 166,
+          "badges": [
+            "#7 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "Way9Dexny3w",
+          "tmdbId": 693134,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f66666",
+          "matchPercent": 90,
+          "reason": "Because you watched Arrival",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000012000000000000000000000001",
+          "name": "Mad Max: Fury Road",
+          "type": "Movie",
+          "year": 2015,
+          "rating": 7.6,
+          "rated": "R",
+          "overview": "In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search of her homeland.",
+          "genres": [
+            "Action",
+            "Adventure"
+          ],
+          "runtimeMinutes": 120,
+          "badges": [
+            "#2 in Movies"
+          ],
+          "trailerKey": null,
+          "tmdbId": 76341,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f73332",
+          "matchPercent": 86,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000018000000000000000000000001",
+          "name": "Prisoners",
+          "type": "Movie",
+          "year": 2013,
+          "rating": 8.2,
+          "rated": "R",
+          "overview": "When his daughter goes missing, a father takes matters into his own hands.",
+          "genres": [
+            "Thriller",
+            "Crime"
+          ],
+          "runtimeMinutes": 153,
+          "badges": [
+            "#8 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 146233,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f79998",
+          "matchPercent": 82,
+          "reason": "Because you watched Se7en",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000014000000000000000000000001",
+          "name": "Spirited Away",
+          "type": "Movie",
+          "year": 2001,
+          "rating": 8.5,
+          "rated": "PG",
+          "overview": "A young girl wanders into a world ruled by gods, witches and spirits, where humans are changed into beasts.",
+          "genres": [
+            "Animation",
+            "Family"
+          ],
+          "runtimeMinutes": 125,
+          "badges": [
+            "#3 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 129,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f75554",
+          "matchPercent": 78,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000015000000000000000000000001",
+          "name": "Spider-Man: Into the Spider-Verse",
+          "type": "Movie",
+          "year": 2018,
+          "rating": 8.4,
+          "rated": "PG",
+          "overview": "Teen Miles Morales becomes the Spider-Man of his universe and joins others from across the multiverse.",
+          "genres": [
+            "Animation",
+            "Action"
+          ],
+          "runtimeMinutes": 117,
+          "badges": [
+            "#6 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 324857,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f76665",
+          "matchPercent": 31,
+          "reason": "Top rated in Animation",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000000c000000000000000000000001",
+          "name": "Nomadland",
+          "type": "Movie",
+          "year": 2020,
+          "rating": 7.3,
+          "rated": "R",
+          "overview": "After losing everything in the Great Recession, a woman embarks on a journey through the American West.",
+          "genres": [
+            "Drama"
+          ],
+          "runtimeMinutes": 108,
+          "badges": [],
+          "trailerKey": null,
+          "tmdbId": 581734,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6cccc",
+          "matchPercent": 18,
+          "reason": "Because you watched Arrival",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000010000000000000000000000001",
+          "name": "The Grand Budapest Hotel",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.1,
+          "rated": "R",
+          "overview": "A writer encounters the owner of an aging high-class hotel who tells of his early years as a lobby boy.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 99,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 120467,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f71110",
+          "matchPercent": 14,
+          "reason": "Because you watched Arrival",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000011000000000000000000000001",
+          "name": "Knives Out",
+          "type": "Movie",
+          "year": 2019,
+          "rating": 7.9,
+          "rated": "PG-13",
+          "overview": "A detective investigates the death of a patriarch of an eccentric, combative family.",
+          "genres": [
+            "Mystery",
+            "Comedy"
+          ],
+          "runtimeMinutes": 130,
+          "badges": [],
+          "trailerKey": null,
+          "tmdbId": 546554,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f72221",
+          "matchPercent": 10,
+          "reason": "Top rated in Mystery",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000000f000000000000000000000001",
+          "name": "Paddington 2",
+          "type": "Movie",
+          "year": 2017,
+          "rating": 7.8,
+          "rated": "PG",
+          "overview": "Paddington picks up a series of odd jobs to buy the perfect present for his Aunt Lucy's 100th birthday.",
+          "genres": [
+            "Comedy",
+            "Family"
+          ],
+          "runtimeMinutes": 103,
+          "badges": [],
+          "trailerKey": null,
+          "tmdbId": 346648,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6ffff",
+          "matchPercent": 5,
+          "reason": "Top rated in Comedy",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "top10-movies",
+      "title": "Top 10 Movies on Home Cinema This Week",
+      "type": "top10",
+      "items": [
+        {
+          "id": "0000000a000000000000000000000001",
+          "name": "Parasite",
+          "type": "Movie",
+          "year": 2019,
+          "rating": 8.5,
+          "rated": "R",
+          "overview": "All unemployed, Ki-taek's family takes peculiar interest in the wealthy and glamorous Parks.",
+          "genres": [
+            "Thriller",
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 132,
+          "badges": [
+            "#1 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "5xH0HfJHsaY",
+          "tmdbId": 496243,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": true,
+          "rank": 1,
+          "imageTag": "a1b2c3d4e5f6aaaa",
+          "matchPercent": 95,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000012000000000000000000000001",
+          "name": "Mad Max: Fury Road",
+          "type": "Movie",
+          "year": 2015,
+          "rating": 7.6,
+          "rated": "R",
+          "overview": "In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search of her homeland.",
+          "genres": [
+            "Action",
+            "Adventure"
+          ],
+          "runtimeMinutes": 120,
+          "badges": [
+            "#2 in Movies"
+          ],
+          "trailerKey": null,
+          "tmdbId": 76341,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 2,
+          "imageTag": "a1b2c3d4e5f73332",
+          "matchPercent": 86,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000014000000000000000000000001",
+          "name": "Spirited Away",
+          "type": "Movie",
+          "year": 2001,
+          "rating": 8.5,
+          "rated": "PG",
+          "overview": "A young girl wanders into a world ruled by gods, witches and spirits, where humans are changed into beasts.",
+          "genres": [
+            "Animation",
+            "Family"
+          ],
+          "runtimeMinutes": 125,
+          "badges": [
+            "#3 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 129,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 3,
+          "imageTag": "a1b2c3d4e5f75554",
+          "matchPercent": 78,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000017000000000000000000000001",
+          "name": "Gone Girl",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.1,
+          "rated": "R",
+          "overview": "With his wife's disappearance, Nick Dunne becomes the focus of an intense media circus.",
+          "genres": [
+            "Thriller",
+            "Drama"
+          ],
+          "runtimeMinutes": 149,
+          "badges": [
+            "#4 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 210577,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 4,
+          "imageTag": "a1b2c3d4e5f78887",
+          "matchPercent": 99,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000008000000000000000000000001",
+          "name": "Interstellar",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.4,
+          "rated": "PG-13",
+          "overview": "A team of explorers travels through a wormhole in space in an attempt to ensure humanity's survival.",
+          "genres": [
+            "Science Fiction",
+            "Adventure",
+            "Drama"
+          ],
+          "runtimeMinutes": 169,
+          "badges": [
+            "#5 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "zSWdZVtXT7E",
+          "tmdbId": 157336,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 5,
+          "imageTag": "a1b2c3d4e5f68888",
+          "matchPercent": 82,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000015000000000000000000000001",
+          "name": "Spider-Man: Into the Spider-Verse",
+          "type": "Movie",
+          "year": 2018,
+          "rating": 8.4,
+          "rated": "PG",
+          "overview": "Teen Miles Morales becomes the Spider-Man of his universe and joins others from across the multiverse.",
+          "genres": [
+            "Animation",
+            "Action"
+          ],
+          "runtimeMinutes": 117,
+          "badges": [
+            "#6 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 324857,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 6,
+          "imageTag": "a1b2c3d4e5f76665",
+          "matchPercent": 31,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000006000000000000000000000001",
+          "name": "Dune: Part Two",
+          "type": "Movie",
+          "year": 2024,
+          "rating": 8.3,
+          "rated": "PG-13",
+          "overview": "Paul Atreides unites with the Fremen while seeking revenge against those who destroyed his family.",
+          "genres": [
+            "Science Fiction",
+            "Adventure"
+          ],
+          "runtimeMinutes": 166,
+          "badges": [
+            "#7 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "Way9Dexny3w",
+          "tmdbId": 693134,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 7,
+          "imageTag": "a1b2c3d4e5f66666",
+          "matchPercent": 90,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000018000000000000000000000001",
+          "name": "Prisoners",
+          "type": "Movie",
+          "year": 2013,
+          "rating": 8.2,
+          "rated": "R",
+          "overview": "When his daughter goes missing, a father takes matters into his own hands.",
+          "genres": [
+            "Thriller",
+            "Crime"
+          ],
+          "runtimeMinutes": 153,
+          "badges": [
+            "#8 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 146233,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 8,
+          "imageTag": "a1b2c3d4e5f79998",
+          "matchPercent": 82,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000004000000000000000000000001",
+          "name": "The Martian",
+          "type": "Movie",
+          "year": 2015,
+          "rating": 8,
+          "rated": "PG-13",
+          "overview": "An astronaut is stranded alone on Mars and must find a way to survive until rescue.",
+          "genres": [
+            "Science Fiction",
+            "Adventure"
+          ],
+          "runtimeMinutes": 144,
+          "badges": [
+            "#9 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "ej3ioOneTy8",
+          "tmdbId": 286217,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 9,
+          "imageTag": "a1b2c3d4e5f64444",
+          "matchPercent": 73,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000013000000000000000000000001",
+          "name": "John Wick",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 7.4,
+          "rated": "R",
+          "overview": "An ex-hitman comes out of retirement to track down the gangsters that took everything from him.",
+          "genres": [
+            "Action",
+            "Thriller"
+          ],
+          "runtimeMinutes": 101,
+          "badges": [
+            "#10 in Movies"
+          ],
+          "trailerKey": null,
+          "tmdbId": 245891,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 10,
+          "imageTag": "a1b2c3d4e5f74443",
+          "matchPercent": 61,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "because-00000003000000000000000000000001",
+      "title": "Because you watched Ex Machina",
+      "type": "because",
+      "items": [
+        {
+          "id": "00000013000000000000000000000001",
+          "name": "John Wick",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 7.4,
+          "rated": "R",
+          "overview": "An ex-hitman comes out of retirement to track down the gangsters that took everything from him.",
+          "genres": [
+            "Action",
+            "Thriller"
+          ],
+          "runtimeMinutes": 101,
+          "badges": [
+            "#10 in Movies"
+          ],
+          "trailerKey": null,
+          "tmdbId": 245891,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f74443",
+          "matchPercent": 61,
+          "reason": "Because you watched Ex Machina",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000007000000000000000000000001",
+          "name": "Moon",
+          "type": "Movie",
+          "year": 2009,
+          "rating": 7.8,
+          "rated": "R",
+          "overview": "Nearing the end of a lonely three-year stint on the moon, an astronaut begins to question what he knows.",
+          "genres": [
+            "Science Fiction",
+            "Drama"
+          ],
+          "runtimeMinutes": 97,
+          "badges": [],
+          "trailerKey": null,
+          "tmdbId": 17431,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f67777",
+          "matchPercent": 52,
+          "reason": "Because you watched Ex Machina",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000026000000000000000000000001",
+          "name": "Andor",
+          "type": "Series",
+          "year": 2022,
+          "rating": 8.4,
+          "rated": "TV-14",
+          "overview": "Cassian Andor discovers the difference he can make against the Empire.",
+          "genres": [
+            "Science Fiction",
+            "Drama"
+          ],
+          "runtimeMinutes": 45,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 83867,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": true,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f88886",
+          "matchPercent": 69,
+          "reason": "Because you watched Ex Machina",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "because-00000002000000000000000000000001",
+      "title": "Because you watched Blade Runner 2049",
+      "type": "because",
+      "items": [
+        {
+          "id": "00000019000000000000000000000001",
+          "name": "Poor Things",
+          "type": "Movie",
+          "year": 2023,
+          "rating": 7.8,
+          "rated": "R",
+          "overview": "The incredible tale of Bella Baxter, brought back to life by a brilliant, unorthodox scientist.",
+          "genres": [
+            "Comedy",
+            "Science Fiction"
+          ],
+          "runtimeMinutes": 141,
+          "badges": [
+            "Recently Added"
+          ],
+          "trailerKey": null,
+          "tmdbId": 792307,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f7aaa9",
+          "matchPercent": 35,
+          "reason": "Because you watched Blade Runner 2049",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000004000000000000000000000001",
+          "name": "The Martian",
+          "type": "Movie",
+          "year": 2015,
+          "rating": 8,
+          "rated": "PG-13",
+          "overview": "An astronaut is stranded alone on Mars and must find a way to survive until rescue.",
+          "genres": [
+            "Science Fiction",
+            "Adventure"
+          ],
+          "runtimeMinutes": 144,
+          "badges": [
+            "#9 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "ej3ioOneTy8",
+          "tmdbId": 286217,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f64444",
+          "matchPercent": 73,
+          "reason": "Because you watched Blade Runner 2049",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000005000000000000000000000001",
+          "name": "Dune",
+          "type": "Movie",
+          "year": 2021,
+          "rating": 8,
+          "rated": "PG-13",
+          "overview": "A noble family becomes embroiled in a war for control over the galaxy's most valuable asset.",
+          "genres": [
+            "Science Fiction",
+            "Adventure"
+          ],
+          "runtimeMinutes": 155,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": "n9xhJrPXop4",
+          "tmdbId": 438631,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": true,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f65555",
+          "matchPercent": 44,
+          "reason": "Because you watched Blade Runner 2049",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "because-00000001000000000000000000000001",
+      "title": "Because you watched Arrival",
+      "type": "because",
+      "items": [
+        {
+          "id": "0000000d000000000000000000000001",
+          "name": "The Father",
+          "type": "Movie",
+          "year": 2020,
+          "rating": 8.2,
+          "rated": "PG-13",
+          "overview": "A man refuses all assistance from his daughter as he ages and begins to doubt his own mind.",
+          "genres": [
+            "Drama"
+          ],
+          "runtimeMinutes": 97,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 600354,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6dddd",
+          "matchPercent": 27,
+          "reason": "Because you watched Arrival",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000000b000000000000000000000001",
+          "name": "Moonlight",
+          "type": "Movie",
+          "year": 2016,
+          "rating": 7.4,
+          "rated": "R",
+          "overview": "A young man grapples with his identity and sexuality while experiencing the everyday struggles of childhood.",
+          "genres": [
+            "Drama"
+          ],
+          "runtimeMinutes": 111,
+          "badges": [],
+          "trailerKey": null,
+          "tmdbId": 376867,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6bbbb",
+          "matchPercent": 22,
+          "reason": "Because you watched Arrival",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000024000000000000000000000001",
+          "name": "Fleabag",
+          "type": "Series",
+          "year": 2016,
+          "rating": 8.6,
+          "rated": "TV-MA",
+          "overview": "A dry-witted woman navigates life and love in London while grappling with a tragic loss.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 27,
+          "badges": [
+            "#4 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 67070,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f86664",
+          "matchPercent": 48,
+          "reason": "Because you watched Arrival",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "trending",
+      "title": "Trending Now",
+      "type": "trending",
+      "items": [
+        {
+          "id": "0000000a000000000000000000000001",
+          "name": "Parasite",
+          "type": "Movie",
+          "year": 2019,
+          "rating": 8.5,
+          "rated": "R",
+          "overview": "All unemployed, Ki-taek's family takes peculiar interest in the wealthy and glamorous Parks.",
+          "genres": [
+            "Thriller",
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 132,
+          "badges": [
+            "#1 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "5xH0HfJHsaY",
+          "tmdbId": 496243,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": true,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6aaaa",
+          "matchPercent": 95,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000012000000000000000000000001",
+          "name": "Mad Max: Fury Road",
+          "type": "Movie",
+          "year": 2015,
+          "rating": 7.6,
+          "rated": "R",
+          "overview": "In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search of her homeland.",
+          "genres": [
+            "Action",
+            "Adventure"
+          ],
+          "runtimeMinutes": 120,
+          "badges": [
+            "#2 in Movies"
+          ],
+          "trailerKey": null,
+          "tmdbId": 76341,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f73332",
+          "matchPercent": 86,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000017000000000000000000000001",
+          "name": "Gone Girl",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.1,
+          "rated": "R",
+          "overview": "With his wife's disappearance, Nick Dunne becomes the focus of an intense media circus.",
+          "genres": [
+            "Thriller",
+            "Drama"
+          ],
+          "runtimeMinutes": 149,
+          "badges": [
+            "#4 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 210577,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f78887",
+          "matchPercent": 99,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000021000000000000000000000001",
+          "name": "Succession",
+          "type": "Series",
+          "year": 2018,
+          "rating": 8.8,
+          "rated": "TV-MA",
+          "overview": "The Roy family is known for controlling the biggest media and entertainment company in the world.",
+          "genres": [
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 60,
+          "badges": [
+            "#1 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 76331,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f83331",
+          "matchPercent": 65,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000014000000000000000000000001",
+          "name": "Spirited Away",
+          "type": "Movie",
+          "year": 2001,
+          "rating": 8.5,
+          "rated": "PG",
+          "overview": "A young girl wanders into a world ruled by gods, witches and spirits, where humans are changed into beasts.",
+          "genres": [
+            "Animation",
+            "Family"
+          ],
+          "runtimeMinutes": 125,
+          "badges": [
+            "#3 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 129,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f75554",
+          "matchPercent": 78,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000008000000000000000000000001",
+          "name": "Interstellar",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.4,
+          "rated": "PG-13",
+          "overview": "A team of explorers travels through a wormhole in space in an attempt to ensure humanity's survival.",
+          "genres": [
+            "Science Fiction",
+            "Adventure",
+            "Drama"
+          ],
+          "runtimeMinutes": 169,
+          "badges": [
+            "#5 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "zSWdZVtXT7E",
+          "tmdbId": 157336,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f68888",
+          "matchPercent": 82,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000022000000000000000000000001",
+          "name": "Ted Lasso",
+          "type": "Series",
+          "year": 2020,
+          "rating": 8.8,
+          "rated": "TV-MA",
+          "overview": "An American football coach is hired to manage a British soccer team despite having no experience.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 30,
+          "badges": [
+            "#3 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 97546,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f84442",
+          "matchPercent": 39,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000001f000000000000000000000001",
+          "name": "Severance",
+          "type": "Series",
+          "year": 2022,
+          "rating": 8.7,
+          "rated": "TV-MA",
+          "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+          "genres": [
+            "Science Fiction",
+            "Drama",
+            "Thriller"
+          ],
+          "runtimeMinutes": 50,
+          "badges": [
+            "#5 in Shows",
+            "New Episodes",
+            "Top Rated"
+          ],
+          "trailerKey": "xEQP4VVuyrY",
+          "tmdbId": 95396,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f8110f",
+          "matchPercent": 78,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000027000000000000000000000001",
+          "name": "Chernobyl",
+          "type": "Series",
+          "year": 2019,
+          "rating": 9.1,
+          "rated": "TV-MA",
+          "overview": "The true story of one of the worst man-made catastrophes in history.",
+          "genres": [
+            "Drama",
+            "History"
+          ],
+          "runtimeMinutes": 62,
+          "badges": [
+            "#2 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 87108,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f89997",
+          "matchPercent": 56,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000024000000000000000000000001",
+          "name": "Fleabag",
+          "type": "Series",
+          "year": 2016,
+          "rating": 8.6,
+          "rated": "TV-MA",
+          "overview": "A dry-witted woman navigates life and love in London while grappling with a tragic loss.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 27,
+          "badges": [
+            "#4 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 67070,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f86664",
+          "matchPercent": 48,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000013000000000000000000000001",
+          "name": "John Wick",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 7.4,
+          "rated": "R",
+          "overview": "An ex-hitman comes out of retirement to track down the gangsters that took everything from him.",
+          "genres": [
+            "Action",
+            "Thriller"
+          ],
+          "runtimeMinutes": 101,
+          "badges": [
+            "#10 in Movies"
+          ],
+          "trailerKey": null,
+          "tmdbId": 245891,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f74443",
+          "matchPercent": 61,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000018000000000000000000000001",
+          "name": "Prisoners",
+          "type": "Movie",
+          "year": 2013,
+          "rating": 8.2,
+          "rated": "R",
+          "overview": "When his daughter goes missing, a father takes matters into his own hands.",
+          "genres": [
+            "Thriller",
+            "Crime"
+          ],
+          "runtimeMinutes": 153,
+          "badges": [
+            "#8 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 146233,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f79998",
+          "matchPercent": 82,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000006000000000000000000000001",
+          "name": "Dune: Part Two",
+          "type": "Movie",
+          "year": 2024,
+          "rating": 8.3,
+          "rated": "PG-13",
+          "overview": "Paul Atreides unites with the Fremen while seeking revenge against those who destroyed his family.",
+          "genres": [
+            "Science Fiction",
+            "Adventure"
+          ],
+          "runtimeMinutes": 166,
+          "badges": [
+            "#7 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "Way9Dexny3w",
+          "tmdbId": 693134,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f66666",
+          "matchPercent": 90,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000015000000000000000000000001",
+          "name": "Spider-Man: Into the Spider-Verse",
+          "type": "Movie",
+          "year": 2018,
+          "rating": 8.4,
+          "rated": "PG",
+          "overview": "Teen Miles Morales becomes the Spider-Man of his universe and joins others from across the multiverse.",
+          "genres": [
+            "Animation",
+            "Action"
+          ],
+          "runtimeMinutes": 117,
+          "badges": [
+            "#6 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 324857,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f76665",
+          "matchPercent": 31,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000004000000000000000000000001",
+          "name": "The Martian",
+          "type": "Movie",
+          "year": 2015,
+          "rating": 8,
+          "rated": "PG-13",
+          "overview": "An astronaut is stranded alone on Mars and must find a way to survive until rescue.",
+          "genres": [
+            "Science Fiction",
+            "Adventure"
+          ],
+          "runtimeMinutes": 144,
+          "badges": [
+            "#9 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "ej3ioOneTy8",
+          "tmdbId": 286217,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f64444",
+          "matchPercent": 73,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "comingsoon",
+      "title": "Coming Soon",
+      "type": "comingsoon",
+      "items": [],
+      "comingSoon": [
+        {
+          "tmdbId": 1001,
+          "mediaType": "movie",
+          "title": "The Odyssey",
+          "overview": "Christopher Nolan adapts Homer's epic about a king's ten-year voyage home.",
+          "posterPath": "/odyssey.jpg",
+          "backdropPath": "/odyssey-b.jpg",
+          "releaseDate": "2026-07-17",
+          "trailerKey": "ODYSSEY0001",
+          "myVote": 0,
+          "upcoming": true,
+          "reminded": true
+        },
+        {
+          "tmdbId": 1002,
+          "mediaType": "movie",
+          "title": "Supergirl",
+          "overview": "Kara Zor-El takes on a cosmic road trip.",
+          "posterPath": "/supergirl.jpg",
+          "backdropPath": "/supergirl-b.jpg",
+          "releaseDate": "2026-06-26",
+          "trailerKey": null,
+          "myVote": 1,
+          "upcoming": true,
+          "reminded": false
+        },
+        {
+          "tmdbId": 1003,
+          "mediaType": "tv",
+          "title": "Severance: Season 3",
+          "overview": "The innies return to Lumon.",
+          "posterPath": "/sev3.jpg",
+          "backdropPath": "/sev3-b.jpg",
+          "releaseDate": "2026-09-04",
+          "trailerKey": null,
+          "myVote": 0,
+          "upcoming": true,
+          "reminded": false
+        },
+        {
+          "tmdbId": 1004,
+          "mediaType": "movie",
+          "title": "Spider-Man: Brand New Day",
+          "overview": "Peter Parker returns to New York.",
+          "posterPath": "/spidey.jpg",
+          "backdropPath": "/spidey-b.jpg",
+          "releaseDate": "2026-07-31",
+          "trailerKey": "SPIDEY00001",
+          "myVote": 0,
+          "upcoming": true,
+          "reminded": false
+        }
+      ]
+    },
+    {
+      "id": "mylist",
+      "title": "My List",
+      "type": "mylist",
+      "items": [
+        {
+          "id": "00000026000000000000000000000001",
+          "name": "Andor",
+          "type": "Series",
+          "year": 2022,
+          "rating": 8.4,
+          "rated": "TV-14",
+          "overview": "Cassian Andor discovers the difference he can make against the Empire.",
+          "genres": [
+            "Science Fiction",
+            "Drama"
+          ],
+          "runtimeMinutes": 45,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 83867,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": true,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f88886",
+          "matchPercent": 69,
+          "reason": null,
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000000a000000000000000000000001",
+          "name": "Parasite",
+          "type": "Movie",
+          "year": 2019,
+          "rating": 8.5,
+          "rated": "R",
+          "overview": "All unemployed, Ki-taek's family takes peculiar interest in the wealthy and glamorous Parks.",
+          "genres": [
+            "Thriller",
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 132,
+          "badges": [
+            "#1 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "5xH0HfJHsaY",
+          "tmdbId": 496243,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": true,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6aaaa",
+          "matchPercent": 95,
+          "reason": null,
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000005000000000000000000000001",
+          "name": "Dune",
+          "type": "Movie",
+          "year": 2021,
+          "rating": 8,
+          "rated": "PG-13",
+          "overview": "A noble family becomes embroiled in a war for control over the galaxy's most valuable asset.",
+          "genres": [
+            "Science Fiction",
+            "Adventure"
+          ],
+          "runtimeMinutes": 155,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": "n9xhJrPXop4",
+          "tmdbId": 438631,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": true,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f65555",
+          "matchPercent": 44,
+          "reason": null,
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "genre-drama",
+      "title": "Drama Picks for You",
+      "type": "genre",
+      "items": [
+        {
+          "id": "00000021000000000000000000000001",
+          "name": "Succession",
+          "type": "Series",
+          "year": 2018,
+          "rating": 8.8,
+          "rated": "TV-MA",
+          "overview": "The Roy family is known for controlling the biggest media and entertainment company in the world.",
+          "genres": [
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 60,
+          "badges": [
+            "#1 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 76331,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f83331",
+          "matchPercent": 65,
+          "reason": "Top rated in Drama",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000027000000000000000000000001",
+          "name": "Chernobyl",
+          "type": "Series",
+          "year": 2019,
+          "rating": 9.1,
+          "rated": "TV-MA",
+          "overview": "The true story of one of the worst man-made catastrophes in history.",
+          "genres": [
+            "Drama",
+            "History"
+          ],
+          "runtimeMinutes": 62,
+          "badges": [
+            "#2 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 87108,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f89997",
+          "matchPercent": 56,
+          "reason": "Top rated in Drama",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000022000000000000000000000001",
+          "name": "Ted Lasso",
+          "type": "Series",
+          "year": 2020,
+          "rating": 8.8,
+          "rated": "TV-MA",
+          "overview": "An American football coach is hired to manage a British soccer team despite having no experience.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 30,
+          "badges": [
+            "#3 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 97546,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f84442",
+          "matchPercent": 39,
+          "reason": "Top rated in Drama",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "top10-shows",
+      "title": "Top 10 Shows on Home Cinema This Week",
+      "type": "top10",
+      "items": [
+        {
+          "id": "00000021000000000000000000000001",
+          "name": "Succession",
+          "type": "Series",
+          "year": 2018,
+          "rating": 8.8,
+          "rated": "TV-MA",
+          "overview": "The Roy family is known for controlling the biggest media and entertainment company in the world.",
+          "genres": [
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 60,
+          "badges": [
+            "#1 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 76331,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 1,
+          "imageTag": "a1b2c3d4e5f83331",
+          "matchPercent": 65,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000027000000000000000000000001",
+          "name": "Chernobyl",
+          "type": "Series",
+          "year": 2019,
+          "rating": 9.1,
+          "rated": "TV-MA",
+          "overview": "The true story of one of the worst man-made catastrophes in history.",
+          "genres": [
+            "Drama",
+            "History"
+          ],
+          "runtimeMinutes": 62,
+          "badges": [
+            "#2 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 87108,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 2,
+          "imageTag": "a1b2c3d4e5f89997",
+          "matchPercent": 56,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000022000000000000000000000001",
+          "name": "Ted Lasso",
+          "type": "Series",
+          "year": 2020,
+          "rating": 8.8,
+          "rated": "TV-MA",
+          "overview": "An American football coach is hired to manage a British soccer team despite having no experience.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 30,
+          "badges": [
+            "#3 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 97546,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 3,
+          "imageTag": "a1b2c3d4e5f84442",
+          "matchPercent": 39,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000024000000000000000000000001",
+          "name": "Fleabag",
+          "type": "Series",
+          "year": 2016,
+          "rating": 8.6,
+          "rated": "TV-MA",
+          "overview": "A dry-witted woman navigates life and love in London while grappling with a tragic loss.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 27,
+          "badges": [
+            "#4 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 67070,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 4,
+          "imageTag": "a1b2c3d4e5f86664",
+          "matchPercent": 48,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000001f000000000000000000000001",
+          "name": "Severance",
+          "type": "Series",
+          "year": 2022,
+          "rating": 8.7,
+          "rated": "TV-MA",
+          "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+          "genres": [
+            "Science Fiction",
+            "Drama",
+            "Thriller"
+          ],
+          "runtimeMinutes": 50,
+          "badges": [
+            "#5 in Shows",
+            "New Episodes",
+            "Top Rated"
+          ],
+          "trailerKey": "xEQP4VVuyrY",
+          "tmdbId": 95396,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": 5,
+          "imageTag": "a1b2c3d4e5f8110f",
+          "matchPercent": 78,
+          "reason": "Popular in your household",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "newseasons",
+      "title": "New Episodes",
+      "type": "newseasons",
+      "items": [
+        {
+          "id": "00000025000000000000000000000001",
+          "name": "The Bear",
+          "type": "Series",
+          "year": 2022,
+          "rating": 8.6,
+          "rated": "TV-MA",
+          "overview": "A young chef returns to Chicago to run his family's sandwich shop.",
+          "genres": [
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 35,
+          "badges": [
+            "New Episodes",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 136315,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f87775",
+          "matchPercent": 31,
+          "reason": "New season of The Bear",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "recent",
+      "title": "Recently Added",
+      "type": "recent",
+      "items": [
+        {
+          "id": "0000001f000000000000000000000001",
+          "name": "Severance",
+          "type": "Series",
+          "year": 2022,
+          "rating": 8.7,
+          "rated": "TV-MA",
+          "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+          "genres": [
+            "Science Fiction",
+            "Drama",
+            "Thriller"
+          ],
+          "runtimeMinutes": 50,
+          "badges": [
+            "#5 in Shows",
+            "New Episodes",
+            "Top Rated"
+          ],
+          "trailerKey": "xEQP4VVuyrY",
+          "tmdbId": 95396,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f8110f",
+          "matchPercent": 78,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000019000000000000000000000001",
+          "name": "Poor Things",
+          "type": "Movie",
+          "year": 2023,
+          "rating": 7.8,
+          "rated": "R",
+          "overview": "The incredible tale of Bella Baxter, brought back to life by a brilliant, unorthodox scientist.",
+          "genres": [
+            "Comedy",
+            "Science Fiction"
+          ],
+          "runtimeMinutes": 141,
+          "badges": [
+            "Recently Added"
+          ],
+          "trailerKey": null,
+          "tmdbId": 792307,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f7aaa9",
+          "matchPercent": 35,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000025000000000000000000000001",
+          "name": "The Bear",
+          "type": "Series",
+          "year": 2022,
+          "rating": 8.6,
+          "rated": "TV-MA",
+          "overview": "A young chef returns to Chicago to run his family's sandwich shop.",
+          "genres": [
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 35,
+          "badges": [
+            "New Episodes",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 136315,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f87775",
+          "matchPercent": 31,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000006000000000000000000000001",
+          "name": "Dune: Part Two",
+          "type": "Movie",
+          "year": 2024,
+          "rating": 8.3,
+          "rated": "PG-13",
+          "overview": "Paul Atreides unites with the Fremen while seeking revenge against those who destroyed his family.",
+          "genres": [
+            "Science Fiction",
+            "Adventure"
+          ],
+          "runtimeMinutes": 166,
+          "badges": [
+            "#7 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": "Way9Dexny3w",
+          "tmdbId": 693134,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f66666",
+          "matchPercent": 90,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000018000000000000000000000001",
+          "name": "Prisoners",
+          "type": "Movie",
+          "year": 2013,
+          "rating": 8.2,
+          "rated": "R",
+          "overview": "When his daughter goes missing, a father takes matters into his own hands.",
+          "genres": [
+            "Thriller",
+            "Crime"
+          ],
+          "runtimeMinutes": 153,
+          "badges": [
+            "#8 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 146233,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f79998",
+          "matchPercent": 82,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000017000000000000000000000001",
+          "name": "Gone Girl",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.1,
+          "rated": "R",
+          "overview": "With his wife's disappearance, Nick Dunne becomes the focus of an intense media circus.",
+          "genres": [
+            "Thriller",
+            "Drama"
+          ],
+          "runtimeMinutes": 149,
+          "badges": [
+            "#4 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 210577,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f78887",
+          "matchPercent": 99,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000027000000000000000000000001",
+          "name": "Chernobyl",
+          "type": "Series",
+          "year": 2019,
+          "rating": 9.1,
+          "rated": "TV-MA",
+          "overview": "The true story of one of the worst man-made catastrophes in history.",
+          "genres": [
+            "Drama",
+            "History"
+          ],
+          "runtimeMinutes": 62,
+          "badges": [
+            "#2 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 87108,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f89997",
+          "matchPercent": 56,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000015000000000000000000000001",
+          "name": "Spider-Man: Into the Spider-Verse",
+          "type": "Movie",
+          "year": 2018,
+          "rating": 8.4,
+          "rated": "PG",
+          "overview": "Teen Miles Morales becomes the Spider-Man of his universe and joins others from across the multiverse.",
+          "genres": [
+            "Animation",
+            "Action"
+          ],
+          "runtimeMinutes": 117,
+          "badges": [
+            "#6 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 324857,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f76665",
+          "matchPercent": 31,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000026000000000000000000000001",
+          "name": "Andor",
+          "type": "Series",
+          "year": 2022,
+          "rating": 8.4,
+          "rated": "TV-14",
+          "overview": "Cassian Andor discovers the difference he can make against the Empire.",
+          "genres": [
+            "Science Fiction",
+            "Drama"
+          ],
+          "runtimeMinutes": 45,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 83867,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": true,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f88886",
+          "matchPercent": 69,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000014000000000000000000000001",
+          "name": "Spirited Away",
+          "type": "Movie",
+          "year": 2001,
+          "rating": 8.5,
+          "rated": "PG",
+          "overview": "A young girl wanders into a world ruled by gods, witches and spirits, where humans are changed into beasts.",
+          "genres": [
+            "Animation",
+            "Family"
+          ],
+          "runtimeMinutes": 125,
+          "badges": [
+            "#3 in Movies",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 129,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f75554",
+          "matchPercent": 78,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000013000000000000000000000001",
+          "name": "John Wick",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 7.4,
+          "rated": "R",
+          "overview": "An ex-hitman comes out of retirement to track down the gangsters that took everything from him.",
+          "genres": [
+            "Action",
+            "Thriller"
+          ],
+          "runtimeMinutes": 101,
+          "badges": [
+            "#10 in Movies"
+          ],
+          "trailerKey": null,
+          "tmdbId": 245891,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f74443",
+          "matchPercent": 61,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000024000000000000000000000001",
+          "name": "Fleabag",
+          "type": "Series",
+          "year": 2016,
+          "rating": 8.6,
+          "rated": "TV-MA",
+          "overview": "A dry-witted woman navigates life and love in London while grappling with a tragic loss.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 27,
+          "badges": [
+            "#4 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 67070,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f86664",
+          "matchPercent": 48,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000012000000000000000000000001",
+          "name": "Mad Max: Fury Road",
+          "type": "Movie",
+          "year": 2015,
+          "rating": 7.6,
+          "rated": "R",
+          "overview": "In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search of her homeland.",
+          "genres": [
+            "Action",
+            "Adventure"
+          ],
+          "runtimeMinutes": 120,
+          "badges": [
+            "#2 in Movies"
+          ],
+          "trailerKey": null,
+          "tmdbId": 76341,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f73332",
+          "matchPercent": 86,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000011000000000000000000000001",
+          "name": "Knives Out",
+          "type": "Movie",
+          "year": 2019,
+          "rating": 7.9,
+          "rated": "PG-13",
+          "overview": "A detective investigates the death of a patriarch of an eccentric, combative family.",
+          "genres": [
+            "Mystery",
+            "Comedy"
+          ],
+          "runtimeMinutes": 130,
+          "badges": [],
+          "trailerKey": null,
+          "tmdbId": 546554,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f72221",
+          "matchPercent": 10,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000022000000000000000000000001",
+          "name": "Ted Lasso",
+          "type": "Series",
+          "year": 2020,
+          "rating": 8.8,
+          "rated": "TV-MA",
+          "overview": "An American football coach is hired to manage a British soccer team despite having no experience.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 30,
+          "badges": [
+            "#3 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 97546,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f84442",
+          "matchPercent": 39,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000010000000000000000000000001",
+          "name": "The Grand Budapest Hotel",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.1,
+          "rated": "R",
+          "overview": "A writer encounters the owner of an aging high-class hotel who tells of his early years as a lobby boy.",
+          "genres": [
+            "Comedy",
+            "Drama"
+          ],
+          "runtimeMinutes": 99,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 120467,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f71110",
+          "matchPercent": 14,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000000f000000000000000000000001",
+          "name": "Paddington 2",
+          "type": "Movie",
+          "year": 2017,
+          "rating": 7.8,
+          "rated": "PG",
+          "overview": "Paddington picks up a series of odd jobs to buy the perfect present for his Aunt Lucy's 100th birthday.",
+          "genres": [
+            "Comedy",
+            "Family"
+          ],
+          "runtimeMinutes": 103,
+          "badges": [],
+          "trailerKey": null,
+          "tmdbId": 346648,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6ffff",
+          "matchPercent": 5,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000021000000000000000000000001",
+          "name": "Succession",
+          "type": "Series",
+          "year": 2018,
+          "rating": 8.8,
+          "rated": "TV-MA",
+          "overview": "The Roy family is known for controlling the biggest media and entertainment company in the world.",
+          "genres": [
+            "Drama",
+            "Comedy"
+          ],
+          "runtimeMinutes": 60,
+          "badges": [
+            "#1 in Shows",
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 76331,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f83331",
+          "matchPercent": 65,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000000d000000000000000000000001",
+          "name": "The Father",
+          "type": "Movie",
+          "year": 2020,
+          "rating": 8.2,
+          "rated": "PG-13",
+          "overview": "A man refuses all assistance from his daughter as he ages and begins to doubt his own mind.",
+          "genres": [
+            "Drama"
+          ],
+          "runtimeMinutes": 97,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 600354,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6dddd",
+          "matchPercent": 27,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "0000000c000000000000000000000001",
+          "name": "Nomadland",
+          "type": "Movie",
+          "year": 2020,
+          "rating": 7.3,
+          "rated": "R",
+          "overview": "After losing everything in the Great Recession, a woman embarks on a journey through the American West.",
+          "genres": [
+            "Drama"
+          ],
+          "runtimeMinutes": 108,
+          "badges": [],
+          "trailerKey": null,
+          "tmdbId": 581734,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f6cccc",
+          "matchPercent": 18,
+          "reason": "Recently added",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    },
+    {
+      "id": "again",
+      "title": "Watch Again",
+      "type": "again",
+      "items": [
+        {
+          "id": "00000001000000000000000000000001",
+          "name": "Arrival",
+          "type": "Movie",
+          "year": 2016,
+          "rating": 7.9,
+          "rated": "PG-13",
+          "overview": "A linguist works with the military to communicate with alien visitors before the world slides into war.",
+          "genres": [
+            "Science Fiction",
+            "Drama"
+          ],
+          "runtimeMinutes": 116,
+          "badges": [],
+          "trailerKey": "tNQr0fKLvGE",
+          "tmdbId": 329865,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 2,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f61111",
+          "matchPercent": 82,
+          "reason": "You enjoyed this before",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000002000000000000000000000001",
+          "name": "Blade Runner 2049",
+          "type": "Movie",
+          "year": 2017,
+          "rating": 8,
+          "rated": "R",
+          "overview": "A young blade runner uncovers a long-buried secret that leads him to track down a missing legend.",
+          "genres": [
+            "Science Fiction",
+            "Thriller"
+          ],
+          "runtimeMinutes": 164,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": "gCcx85zbxz4",
+          "tmdbId": 335984,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f62222",
+          "matchPercent": 95,
+          "reason": "You enjoyed this before",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000009000000000000000000000001",
+          "name": "Whiplash",
+          "type": "Movie",
+          "year": 2014,
+          "rating": 8.4,
+          "rated": "R",
+          "overview": "A promising young drummer enrolls at a cut-throat music conservatory where his dreams are tested.",
+          "genres": [
+            "Drama",
+            "Music"
+          ],
+          "runtimeMinutes": 106,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 244786,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": true,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f69999",
+          "matchPercent": 14,
+          "reason": "You enjoyed this before",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000023000000000000000000000001",
+          "name": "Breaking Bad",
+          "type": "Series",
+          "year": 2008,
+          "rating": 8.9,
+          "rated": "TV-MA",
+          "overview": "A chemistry teacher diagnosed with cancer turns to manufacturing drugs to secure his family's future.",
+          "genres": [
+            "Drama",
+            "Crime"
+          ],
+          "runtimeMinutes": 47,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 1396,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f85553",
+          "matchPercent": 14,
+          "reason": "You enjoyed this before",
+          "seriesLabel": null,
+          "minutesLeft": null
+        },
+        {
+          "id": "00000016000000000000000000000001",
+          "name": "Se7en",
+          "type": "Movie",
+          "year": 1995,
+          "rating": 8.4,
+          "rated": "R",
+          "overview": "Two detectives hunt a serial killer who uses the seven deadly sins as his motives.",
+          "genres": [
+            "Thriller",
+            "Crime"
+          ],
+          "runtimeMinutes": 127,
+          "badges": [
+            "Top Rated"
+          ],
+          "trailerKey": null,
+          "tmdbId": 807,
+          "progress": null,
+          "hasBackdrop": true,
+          "hasLogo": false,
+          "myRating": 0,
+          "inMyList": false,
+          "rank": null,
+          "imageTag": "a1b2c3d4e5f77776",
+          "matchPercent": 14,
+          "reason": "You enjoyed this before",
+          "seriesLabel": null,
+          "minutesLeft": null
+        }
+      ],
+      "comingSoon": null
+    }
+  ]
+}

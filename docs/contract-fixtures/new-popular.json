@@ -1,0 +1,59 @@
+{
+  "comingSoon": [
+    {
+      "tmdbId": 1002,
+      "mediaType": "movie",
+      "title": "Supergirl",
+      "overview": "Kara Zor-El takes on a cosmic road trip.",
+      "posterPath": "/supergirl.jpg",
+      "backdropPath": "/supergirl-b.jpg",
+      "releaseDate": "2026-06-26",
+      "trailerKey": null,
+      "myVote": 1,
+      "upcoming": true,
+      "reminded": false
+    },
+    {
+      "tmdbId": 1001,
+      "mediaType": "movie",
+      "title": "The Odyssey",
+      "overview": "Christopher Nolan adapts Homer's epic about a king's ten-year voyage home.",
+      "posterPath": "/odyssey.jpg",
+      "backdropPath": "/odyssey-b.jpg",
+      "releaseDate": "2026-07-17",
+      "trailerKey": "ODYSSEY0001",
+      "myVote": 0,
+      "upcoming": true,
+      "reminded": true
+    },
+    {
+      "tmdbId": 1004,
+      "mediaType": "movie",
+      "title": "Spider-Man: Brand New Day",
+      "overview": "Peter Parker returns to New York.",
+      "posterPath": "/spidey.jpg",
+      "backdropPath": "/spidey-b.jpg",
+      "releaseDate": "2026-07-31",
+      "trailerKey": "SPIDEY00001",
+      "myVote": 0,
+      "upcoming": true,
+      "reminded": false
+    },
+    {
+      "tmdbId": 1003,
+      "mediaType": "tv",
+      "title": "Severance: Season 3",
+      "overview": "The innies return to Lumon.",
+      "posterPath": "/sev3.jpg",
+      "backdropPath": "/sev3-b.jpg",
+      "releaseDate": "2026-09-04",
+      "trailerKey": null,
+      "myVote": 0,
+      "upcoming": true,
+      "reminded": false
+    }
+  ],
+  "everyonesWatching": [],
+  "top10Movies": [],
+  "top10Shows": []
+}

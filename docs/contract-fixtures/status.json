@@ -1,0 +1,12 @@
+{
+  "serverName": "Home Cinema",
+  "accentColor": "#e5383b",
+  "tmdbConfigured": true,
+  "ollamaEnabled": false,
+  "trailersEnabled": true,
+  "webInjected": true,
+  "playerAssistEnabled": true,
+  "collectMetrics": true,
+  "tmdbAttribution": true,
+  "tmdbAttributionText": "This product uses the TMDB API but is not endorsed or certified by TMDB."
+}

@@ -1,0 +1,229 @@
+{
+  "item": {
+    "id": "0000001f000000000000000000000001",
+    "name": "Severance",
+    "type": "Series",
+    "year": 2022,
+    "rating": 8.7,
+    "rated": "TV-MA",
+    "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+    "genres": [
+      "Science Fiction",
+      "Drama",
+      "Thriller"
+    ],
+    "runtimeMinutes": 50,
+    "badges": [
+      "New Episodes",
+      "Top Rated"
+    ],
+    "trailerKey": "xEQP4VVuyrY",
+    "tmdbId": 95396,
+    "progress": null,
+    "hasBackdrop": true,
+    "hasLogo": false,
+    "myRating": 0,
+    "inMyList": false,
+    "rank": null,
+    "imageTag": "a1b2c3d4e5f8110f",
+    "matchPercent": 96,
+    "reason": "Because you watched Dark",
+    "seriesLabel": null,
+    "minutesLeft": null
+  },
+  "tagline": null,
+  "seasons": [
+    {
+      "id": "00000137000000000000000000000001",
+      "number": 1,
+      "name": "Season 1",
+      "episodeCount": 2,
+      "watchedCount": 2,
+      "episodes": [
+        {
+          "id": "00000c27000000000000000000000001",
+          "number": 1,
+          "name": "Good News About Hell",
+          "overview": "Mark is promoted after a colleague leaves.",
+          "runtimeMinutes": 55,
+          "progress": null,
+          "played": true,
+          "hasImage": true,
+          "airDate": "2022-02-18"
+        },
+        {
+          "id": "00000c28000000000000000000000001",
+          "number": 2,
+          "name": "Half Loop",
+          "overview": null,
+          "runtimeMinutes": 48,
+          "progress": null,
+          "played": true,
+          "hasImage": true,
+          "airDate": "2022-02-18"
+        }
+      ]
+    },
+    {
+      "id": "00000138000000000000000000000001",
+      "number": 2,
+      "name": "Season 2",
+      "episodeCount": 3,
+      "watchedCount": 1,
+      "episodes": [
+        {
+          "id": "00000c31000000000000000000000001",
+          "number": 1,
+          "name": "Hello, Ms. Cobel",
+          "overview": null,
+          "runtimeMinutes": 51,
+          "progress": null,
+          "played": true,
+          "hasImage": true,
+          "airDate": "2025-01-17"
+        },
+        {
+          "id": "00000c32000000000000000000000001",
+          "number": 2,
+          "name": "Goodbye, Mrs. Selvig",
+          "overview": "Mark searches for answers.",
+          "runtimeMinutes": 47,
+          "progress": 0.35,
+          "played": false,
+          "hasImage": true,
+          "airDate": "2025-01-24"
+        },
+        {
+          "id": "00000c33000000000000000000000001",
+          "number": 3,
+          "name": "Who Is Alive?",
+          "overview": null,
+          "runtimeMinutes": 52,
+          "progress": null,
+          "played": false,
+          "hasImage": false,
+          "airDate": "2025-01-31"
+        }
+      ]
+    },
+    {
+      "id": "00000136000000000000000000000001",
+      "number": 0,
+      "name": "Specials",
+      "episodeCount": 1,
+      "watchedCount": 0,
+      "episodes": [
+        {
+          "id": "00000c1d000000000000000000000001",
+          "number": 1,
+          "name": "Making of Severance",
+          "overview": null,
+          "runtimeMinutes": 22,
+          "progress": null,
+          "played": false,
+          "hasImage": true,
+          "airDate": "2022-03-01"
+        }
+      ]
+    }
+  ],
+  "nextUp": {
+    "episodeId": "00000c32000000000000000000000001",
+    "seasonNumber": 2,
+    "number": 2,
+    "name": "Goodbye, Mrs. Selvig",
+    "progress": 0.35
+  },
+  "people": [
+    {
+      "name": "Adam Scott",
+      "role": "Mark Scout",
+      "type": "Actor",
+      "id": "00000388000000000000000000000001",
+      "hasImage": true
+    },
+    {
+      "name": "Britt Lower",
+      "role": "Helly R.",
+      "type": "Actor",
+      "id": "00000389000000000000000000000001",
+      "hasImage": true
+    },
+    {
+      "name": "Ben Stiller",
+      "role": null,
+      "type": "Director",
+      "id": "0000038a000000000000000000000001",
+      "hasImage": false
+    }
+  ],
+  "trailers": [
+    {
+      "key": "xEQP4VVuyrY",
+      "name": "Official Trailer"
+    }
+  ],
+  "similar": [
+    {
+      "id": "00000020000000000000000000000001",
+      "name": "Dark",
+      "type": "Series",
+      "year": 2017,
+      "rating": 8.7,
+      "rated": "TV-MA",
+      "overview": "A missing child sets four families on a frantic hunt for answers as they unearth a mind-bending mystery.",
+      "genres": [
+        "Science Fiction",
+        "Drama",
+        "Mystery"
+      ],
+      "runtimeMinutes": 55,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": null,
+      "tmdbId": 70523,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 0,
+      "inMyList": false,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f82220",
+      "matchPercent": 90,
+      "reason": "Because you watched Dark",
+      "seriesLabel": null,
+      "minutesLeft": null
+    },
+    {
+      "id": "00000026000000000000000000000001",
+      "name": "Andor",
+      "type": "Series",
+      "year": 2022,
+      "rating": 8.4,
+      "rated": "TV-14",
+      "overview": "Cassian Andor discovers the difference he can make against the Empire.",
+      "genres": [
+        "Science Fiction",
+        "Drama"
+      ],
+      "runtimeMinutes": 45,
+      "badges": [
+        "Top Rated"
+      ],
+      "trailerKey": null,
+      "tmdbId": 83867,
+      "progress": null,
+      "hasBackdrop": true,
+      "hasLogo": true,
+      "myRating": 0,
+      "inMyList": true,
+      "rank": null,
+      "imageTag": "a1b2c3d4e5f88886",
+      "matchPercent": 84,
+      "reason": "More like this",
+      "seriesLabel": null,
+      "minutesLeft": null
+    }
+  ]
+}

@@ -37,7 +37,7 @@ public class NewPopularController : ControllerBase
     public IActionResult NewPopular()
         => SafeApi.Run(_log, "loading New & Popular", () =>
             UserClaim.TryGet(User, out var userId)
-                ? SafeApi.Json(_page.Build(userId, !string.IsNullOrWhiteSpace(_config.Current.TmdbApiKey), DateTime.UtcNow))
+                ? SafeApi.Json(_page.Build(userId, !string.IsNullOrWhiteSpace(_config.Current.TmdbApiKey), Clock.UtcNow))
                 : Unauthorized());
 
     [HttpPost("Remind")]
@@ -54,7 +54,7 @@ public class NewPopularController : ControllerBase
                 return SafeApi.Error(StatusCodes.Status400BadRequest, "That reminder could not be read.");
             }
 
-            return _reminders.Set(userId, request.TmdbId, request.MediaType ?? string.Empty, request.On, DateTime.UtcNow) switch
+            return _reminders.Set(userId, request.TmdbId, request.MediaType ?? string.Empty, request.On, Clock.UtcNow) switch
             {
                 RemindResult.Ok => NoContent(),
                 RemindResult.LimitReached => SafeApi.Error(StatusCodes.Status400BadRequest, $"You have reached the limit of {ReminderService.MaxRemindersPerUser} reminders. Remove an older one first."),

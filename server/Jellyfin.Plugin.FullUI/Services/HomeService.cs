@@ -92,13 +92,13 @@ public sealed class HomeService
     /// <summary>The user's home. Throws when it cannot be built, so the API can answer 5xx instead of an empty 200.</summary>
     public HomeResponse GetHomeStrict(Guid userId)
     {
-        if (_cache.TryGetValue(userId, out var hit) && DateTime.UtcNow - hit.At < Ttl)
+        if (_cache.TryGetValue(userId, out var hit) && Clock.UtcNow - hit.At < Ttl)
         {
             return hit.Home;
         }
 
         var home = Compose(userId);
-        _cache[userId] = (DateTime.UtcNow, home);
+        _cache[userId] = (Clock.UtcNow, home);
         return home;
     }
 
@@ -126,7 +126,7 @@ public sealed class HomeService
 
         var home = GetHome(userId);
         var inRow = home.Rows.SelectMany(r => r.Items).FirstOrDefault(c => c.Id == itemId.ToString("N"));
-        var now = DateTime.UtcNow;
+        var now = Clock.UtcNow;
         return _store.Read(d =>
         {
             var key = StoreData.UserItemKey(userId, itemId);
@@ -193,7 +193,7 @@ public sealed class HomeService
         var nextUpEpisodes = nextUpEntries.Where(e => e.Season is not null || e.Episode is not null)
             .ToDictionary(e => e.SeriesId, e => new NextUpEpisode(e.Season, e.Episode));
         var watch = SafeWatch(userId);
-        var now = DateTime.UtcNow;
+        var now = Clock.UtcNow;
         var kids = cfg?.ExcludeKidsFromSharedSignals ?? true
             ? KidUsers(catalog, userId)
             : new HashSet<Guid>();

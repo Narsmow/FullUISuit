@@ -64,7 +64,7 @@ public class DiscoveryController : ControllerBase
         }
 
         var inLibrary = ComingSoonView.LibraryKeys(_catalog.All);
-        var now = DateTime.UtcNow;
+        var now = Clock.UtcNow;
         var cards = _store.Read(d => ComingSoonView.Cards(d, userId, inLibrary, now, ComingSoonKind.Upcoming));
         List<ComingSoonCard>? recommended = _config.Current.ShowRecommendedNotInLibrary
             ? _store.Read(d => ComingSoonView.Cards(d, userId, inLibrary, now, ComingSoonKind.Released))
@@ -181,7 +181,7 @@ public class DiscoveryController : ControllerBase
             }
         }
 
-        var now = DateTime.UtcNow;
+        var now = Clock.UtcNow;
         var cards = _store.Read(d => hits.Select(h =>
         {
             var key = StoreData.UserItemKey(userId, h.Item.Id);

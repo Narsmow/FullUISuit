@@ -93,4 +93,4 @@ Movies have `seasons: []` and no `nextUp`. Season 0 (specials) is returned as `n
 
 ## Contract fixtures
 
-`docs/contract-fixtures/*.json` are real serialized responses produced by the server code (a test regenerates them and fails when the committed copies differ). The web mocks and TypeScript types must be built from these files, never hand-written.
+`docs/contract-fixtures/*.json` are real serialized responses produced by the server code (`ApiTests/ContractFixtureTests`: real controllers and services over a fixed household and clock, serialized through `SafeApi.Json`). The test fails when a committed copy differs from what the code produces; set `FULLUI_UPDATE_FIXTURES=1` to rewrite them. The web mocks and TypeScript types must be built from these files, never hand-written. `docs/contract-fixtures/README.md` lists the file for every route (Status, Home, MyServer, Item, Item Details for a series and a movie, ComingSoon, NewPopular, Reminders, Onboarding, Search keyword/semantic, Search/Suggest, Notifications, Events request/response, Admin/Metrics, Admin/Health and the four error shapes).

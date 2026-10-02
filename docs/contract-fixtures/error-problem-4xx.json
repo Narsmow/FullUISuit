@@ -1,0 +1,5 @@
+{
+  "title": "Invalid rating",
+  "status": 400,
+  "detail": "Rating must be -1, 0, 1 or 2."
+}

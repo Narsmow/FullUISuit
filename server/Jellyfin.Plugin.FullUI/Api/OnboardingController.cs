@@ -63,7 +63,7 @@ public class OnboardingController : ControllerBase
                 return SafeApi.Json(new OnboardingResponse(false, Array.Empty<ItemCard>(), Array.Empty<string>()));
             }
 
-            var now = DateTime.UtcNow;
+            var now = Clock.UtcNow;
             var items = _onboarding.Suggestions(userId);
             var visible = _catalog.VisibleTo(userId);
             var genres = _catalog.All.Where(i => visible.Contains(i.Id)).SelectMany(i => i.Genres).Where(g => !string.IsNullOrWhiteSpace(g))
