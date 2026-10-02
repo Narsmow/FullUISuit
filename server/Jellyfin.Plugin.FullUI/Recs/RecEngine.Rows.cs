@@ -61,11 +61,21 @@ public sealed partial class RecEngine
             used.UnionWith(pickHead.Select(p => p.Id));
         }
 
+        // Hidden Gems pick on rating, not taste, so they draw before the taste-based rows (at most a quarter of what is left).
+        var picksReserve = Math.Min(RowSize / 2, scored.Count);
+        var unusedNow = scored.Count(x => !used.Contains(x.Item.Id));
+        var hidden = HiddenGems(scored, used, Math.Min(RowSize, Math.Max(minRow, Math.Max(0, unusedNow - Math.Max(0, picksReserve - pickHead.Count)) / 4)));
+        if (hidden.Count >= minRow)
+        {
+            used.UnionWith(hidden.Select(i => i.Id));
+            rows.Add(new RecRow("hidden", "Hidden Gems", "hidden", OrderHidden, Wrap(hidden, reason: c => $"Rated {c.Rating:0.0}, and few people here have watched it")));
+        }
+
         if (!_cold)
         {
             // Keep at least ~10 titles for Top Picks; the rest can fund secondary rows of minRow+ titles each.
             var picksKeep = Math.Min(RowSize / 2, scored.Count);
-            var maxSecondary = Math.Max(0, (scored.Count - picksKeep) / minRow);
+            var maxSecondary = Math.Max(0, (scored.Count - picksKeep - (hidden.Count >= minRow ? hidden.Count : 0)) / minRow);
             var seeds = Seeds();
             var genres = TopGenres().Take(6).ToList();
             var seedRows = Math.Min(3, Math.Min(seeds.Count, maxSecondary));
@@ -190,13 +200,6 @@ public sealed partial class RecEngine
         if (recent.Count >= minRow)
         {
             rows.Add(new RecRow("recent", "Recently Added", "recent", OrderRecent, Wrap(recent, reason: _ => "Recently added")));
-        }
-
-        var hidden = HiddenGems(scored, used);
-        if (hidden.Count >= minRow)
-        {
-            used.UnionWith(hidden.Select(i => i.Id));
-            rows.Add(new RecRow("hidden", "Hidden Gems", "hidden", OrderHidden, Wrap(hidden, reason: c => $"Rated {c.Rating:0.0}, and few people here have watched it")));
         }
 
         var again = WatchAgain();
@@ -541,7 +544,7 @@ public sealed partial class RecEngine
     /// Well rated titles few people here have watched: not yet watched by this user, rated above the library median (and at least 7),
     /// watched by at most a quarter of the active household (never more than one person in a one- or two-user household).
     /// </summary>
-    private List<CatalogItem> HiddenGems(List<(CatalogItem Item, double Score)> scored, HashSet<Guid> used)
+    private List<CatalogItem> HiddenGems(List<(CatalogItem Item, double Score)> scored, HashSet<Guid> used, int take)
     {
         var rated = _catalog.Where(c => IsVisible(c) && c.Rating is not null).Select(c => c.Rating!.Value).OrderBy(r => r).ToList();
         if (rated.Count == 0)
@@ -556,7 +559,7 @@ public sealed partial class RecEngine
             .Where(x => !used.Contains(x.Item.Id) && x.Item.Rating is float r && r > median && r >= 7.0f
                         && _usersPerItem.GetValueOrDefault(x.Item.Id) <= maxWatchers)
             .OrderByDescending(x => x.Item.Rating).ThenByDescending(x => x.Score)
-            .Take(RowSize).Select(x => x.Item).ToList();
+            .Take(take).Select(x => x.Item).ToList();
     }
 
     /// <summary>Collections (BoxSets) where the user finished at least one movie and more unwatched ones remain, oldest member first.</summary>

@@ -309,9 +309,10 @@ public class RecEngineTests
         var types = rows.Select(r => r.Order).ToList();
         Assert.Equal(types.OrderBy(x => x).ToList(), types);
 
-        // The exact shape docs/api-contract.md promises (hidden gems/Coming Soon are absent for this data; Coming Soon is added by HomeService).
+        // The exact shape docs/api-contract.md promises (Coming Soon is added by HomeService). Behaviour change: Hidden Gems now draw
+        // BEFORE Top Picks is topped up, so this data (twenty well-rated, barely watched titles) gets its Hidden Gems row.
         Assert.Equal(
-            new[] { "continue", "toppicks", "top10", "because", "because", "because", "trending", "mylist", "genre", "genre", "genre", "top10", "newseasons", "recent", "again" },
+            new[] { "continue", "toppicks", "top10", "because", "because", "because", "trending", "mylist", "genre", "genre", "genre", "top10", "newseasons", "recent", "hidden", "again" },
             rows.Select(r => r.Type).ToArray());
         var ids = rows.Select(r => r.Id).ToList();
         Assert.Equal("top10-movies", ids[2]);

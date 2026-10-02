@@ -556,13 +556,15 @@ public sealed partial class RecEngine
     private double Similarity(CatalogItem a, CatalogItem b)
     {
         var feat = SparseVector.Cosine(Vec(a), Vec(b));
-        if (_in.Embeddings?.Cosine(a.Id, b.Id) is double cos)
+        var emb = _in.Embeddings;
+        if (emb is null || emb.Unit(a.Id) is null)
         {
-            var e = Math.Clamp((cos - 0.5) / 0.4, 0, 1);
-            return ((1 - EmbeddingWeight) * feat) + (EmbeddingWeight * e);
+            return feat;   // no vector for the reference title: features only, for every candidate alike
         }
 
-        return feat;
+        // A candidate without a vector gets a neutral embedding term so it neither wins nor loses against ones that have one.
+        var e = emb.Cosine(a.Id, b.Id) is double cos ? Math.Clamp((cos - 0.2) / 0.8, 0, 1) : 0.5;
+        return ((1 - EmbeddingWeight) * feat) + (EmbeddingWeight * e);
     }
 
     private double Score(CatalogItem c)
@@ -581,9 +583,10 @@ public sealed partial class RecEngine
         else
         {
             var affinity = (SparseVector.Cosine(_profile, Vec(c)) + 1) / 2;
-            if (_embProfile is not null && _in.Embeddings?.Unit(c.Id) is float[] cv && EmbeddingIndex.Dot(_embProfile, cv) is double dcos)
+            if (_embProfile is not null)
             {
-                affinity = ((1 - EmbeddingWeight) * affinity) + (EmbeddingWeight * EmbeddingSim(dcos));
+                var es = _in.Embeddings?.Unit(c.Id) is float[] cv && EmbeddingIndex.Dot(_embProfile, cv) is double dcos ? EmbeddingSim(dcos) : 0.5;
+                affinity = ((1 - EmbeddingWeight) * affinity) + (EmbeddingWeight * es);
             }
 
             var wAff = CfEnabled ? 0.55 : 0.80;
