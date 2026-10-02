@@ -13,12 +13,15 @@ Installer/CI review: done (section at the bottom; IDs B-75 and up).
 
 - **FIXED (server, merged, 197 tests pass):** B-02, B-05, B-06, B-07, B-15, B-16, B-17, B-18, B-19, B-20, B-21, B-22, B-23, B-36, B-44, B-45, B-47, B-49, B-55, B-77, B-82
 - **PARTIAL (server):** B-24 (TTL shortened, restricted-user check needs a live server), B-43 (task registration changed, dashboard check needs a live server), B-46 (request URLs no longer logged; Ollama/Test URL left as acceptable admin-only), B-48 (ETag/no-cache and youtu.be fixed; replayed-movie Continue Watching and Compose copy remain)
-- **NOT DONE (server):** B-94 (pinning Jellyfin.Controller to 10.11.0 does not compile; the code uses APIs from later 10.11.x, so decide the oldest supported server version and test on it)
 - **FIXED (web, merged, 36 unit + 56 e2e pass):** B-01, B-08, B-09, B-25, B-26, B-27, B-28, B-29, B-30, B-32, B-33, B-50, B-52, B-53, B-54, B-57, B-58, B-59, B-60, B-62, B-63
 - **PARTIAL (web):** B-10 (referrer-safe iframe built; needs real YouTube test), B-31 (card/hero handoff fixed; no offscreen pause), B-51 (Escape clears search, no history.back; TV parts deferred), B-56 (client supports `imageTag`; server now supplies it), B-61 (done before the desktop-only scope; rest deferred)
 - **Needs a real Jellyfin to confirm:** B-06/B-77 (injection registration), B-24, B-25 (Play button selectors), B-27 (overlay timing), B-10 (YouTube), `#/login` fallback route
 - **DEFERRED (desktop-only scope):** Fire TV and TV items (see scope note)
-- **IN PROGRESS:** installer and CI (B-75 to B-103 and B-13/B-81/B-82 CI parts)
+- **FIXED (installer/CI, merged, 94 scenarios + consistency/release/bundle tests pass; B-75 and B-76 and B-79 verified to fail on the old code):** B-13, B-75, B-76, B-78, B-79, B-81, B-83, B-84, B-85, B-86, B-87, B-89, B-91, B-92, B-93, B-97, B-99, B-100, B-101, B-102; also fixed but unverified on Windows PowerShell 5.1 / cmd.exe: B-80, B-82 (CI workflows never executed), B-90, B-98
+- **PARTIAL (installer/CI):** B-88 (disclosure, Authenticode check and SHA256SUMS done; Linux `curl | sh` for Ollama remains; signer name not enforced), B-96 (docs recommend env vars; short secrets not redacted from free text), B-103 (consistency test and triggers done; actions not pinned by SHA)
+- **Also done server-side from the installer review:** B-77, B-87 (script path), B-95
+- **Supported Jellyfin versions: 10.11.6 and later.** Plugin compiled against 10.11.6; `UserManagerCompat` bridges the `UsersIds` -> `GetUsersIds()` change; `tools/abi-matrix.sh` shows 0 problems on 10.11.6 through 10.11.11; installer refuses older servers; manifest `targetAbi` 10.11.6.0. B-94 is closed by this policy (pin to 10.11.6, not 10.11.0).
+- **Needs a real Windows PC / real Jellyfin to confirm:** Windows PowerShell 5.1 behaviour, `cmd.exe` launcher and SmartScreen, File Transformation's real plugin GUID and status strings after update/uninstall, `GET/POST /Repositories`, GitHub Actions runs (manifest push to a protected `main`), Ollama downloads.
 
 ## CRITICAL
 
@@ -144,7 +147,7 @@ Installer/CI review: done (section at the bottom; IDs B-75 and up).
 | B-91 | MEDIUM | `release.yml:97,7`, version mapping | Changelog range matches `firetv-v*` tags; `v1.2.3-rc1` maps to the same version as final; write token granted to every job; heredoc delimiter `EOF` can be broken by a commit subject. | `--match 'v[0-9]*'`; map prereleases distinctly; scope `permissions` to the release job; random delimiter. |
 | B-92 | MEDIUM | `INSTALL.md:111`, `install.ps1:928`, Python `:951` | Wrong data/config paths in uninstall docs and messages (real: `<data>/fullui/store.json`, `plugins/configurations/Jellyfin.Plugin.FullUI.xml`). | Correct them. |
 | B-93 | LOW | `make_release.py:26`, `test_release.py` | `EXTRA_DLLS = ["Dapper.dll"]` is stale (no Dapper is used); a class library does not copy NuGet DLLs, and Newtonsoft ships with Jellyfin, so the zip is complete today. | Remove, and add a build-output check that fails on any unaccounted dependency DLL. |
-| B-94 | LOW | server csproj | `Jellyfin.Controller 10.11.*` floats (built against 10.11.11) while `targetAbi` is 10.11.0.0. | Pin to the oldest API actually needed; verify it still compiles. |
+| B-94 | LOW | server csproj | `Jellyfin.Controller 10.11.*` floats (built against 10.11.11) while `targetAbi` is 10.11.0.0. | Pin to the oldest supported version (10.11.6), bridge API changes in `Compat/`, verify with `tools/abi-matrix.sh`. **FIXED** |
 | B-95 | LOW | `docs/api-contract.md` | Status is documented "public-ish" but is `[Authorize]` (same as B-49). | Update the doc. |
 | B-96 | LOW | `-Password`, `-ApiKey`, `-TmdbKey`, `INSTALL.md:117`, `.cmd` | Secrets visible on the command line/history; redaction skips secrets shorter than 3 chars; `echo %*` breaks on `"`, `&`, `^`. | Prefer `FULLUI_*` env vars; fix quoting. |
 | B-97 | LOW | `Restart-AndWait` (`install.ps1:560`) | "Still up after 20 s" counts as a successful restart. | Require the server to go down then up, or check uptime. |
