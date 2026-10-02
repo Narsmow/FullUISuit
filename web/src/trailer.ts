@@ -1,3 +1,4 @@
+import { t } from './i18n';
 // Single-instance YouTube trailer player. We create the <iframe> ourselves (so we control its referrer
 // policy; jellyfin-web sends `Referrer-Policy: no-referrer`, which makes YouTube refuse many embeds with
 // errors 150/152/153) and then attach the IFrame API's YT.Player to it. The API script loads lazily.
@@ -6,6 +7,8 @@ interface YTPlayer {
   mute(): void;
   unMute(): void;
   playVideo(): void;
+  pauseVideo(): void;
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
   destroy(): void;
 }
 interface YTNamespace {
@@ -91,6 +94,10 @@ export interface TrailerCallbacks {
   onFail?: () => void;
   /** Another owner's trailer took over; the owner should drop its "trailer is showing" state. */
   onStop?: () => void;
+  /** The trailer played to the end (YouTube state ENDED). It does not loop. */
+  onEnded?: () => void;
+  /** Asked before a displaced trailer is brought back; return false to leave it stopped (paused by the user, off screen). */
+  shouldResume?: () => boolean;
 }
 
 interface Active {
@@ -101,6 +108,11 @@ interface Active {
   player: YTPlayer | null;
   dead: boolean;
   muted: boolean;
+  /** The IFrame API reported onReady: its methods only exist from then on. */
+  ready: boolean;
+  /** pause requested (possibly before the player was ready) */
+  hold: boolean;
+  ended: boolean;
 }
 
 let active: Active | null = null;
@@ -137,6 +149,7 @@ export function stopTrailer(owner?: unknown): void {
   if (owner !== undefined && displaced && displaced.container.isConnected && !document.hidden) {
     const d = displaced;
     displaced = null;
+    if (d.cb.shouldResume && !d.cb.shouldResume()) return;
     clearTimeout(resumeT);
     resumeT = setTimeout(() => {
       if (!d.container.isConnected) return;
@@ -156,8 +169,6 @@ function embedSrc(key: string): string {
     'playsinline=1',
     'modestbranding=1',
     'disablekb=1',
-    'loop=1',
-    'playlist=' + encodeURIComponent(key),
     'iv_load_policy=3',
     'origin=' + encodeURIComponent(location.origin),
   ];
@@ -172,7 +183,7 @@ export function playTrailer(owner: unknown, container: HTMLElement, key: string,
     kill(prev);
     if (prev.owner !== owner) {
       // remember the first thing we displaced so it can come back afterwards
-      if (!displaced && !resumed) displaced = prev;
+      if (!displaced && !resumed && !prev.ended) displaced = prev; // shouldResume() decides later whether it really comes back
       prev.cb.onStop?.();
     }
   }
@@ -180,7 +191,7 @@ export function playTrailer(owner: unknown, container: HTMLElement, key: string,
     cb.onFail?.();
     return;
   }
-  const a: Active = { owner, container, key, cb, player: null, dead: false, muted: true };
+  const a: Active = { owner, container, key, cb, player: null, dead: false, muted: true, ready: false, hold: false, ended: false };
   active = a;
   const fail = () => {
     if (a.dead) return;
@@ -198,7 +209,7 @@ export function playTrailer(owner: unknown, container: HTMLElement, key: string,
       frame.className = 'fui-yt-frame';
       frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
       frame.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
-      frame.setAttribute('title', 'Trailer');
+      frame.setAttribute('title', t('hero.trailer'));
       frame.setAttribute('tabindex', '-1');
       frame.setAttribute('aria-hidden', 'true');
       frame.setAttribute('frameborder', '0');
@@ -209,14 +220,21 @@ export function playTrailer(owner: unknown, container: HTMLElement, key: string,
           events: {
             onReady: (e: { target: YTPlayer }) => {
               if (a.dead) return;
+              a.ready = true;
               e.target.mute();
-              e.target.playVideo();
+              if (!a.hold) e.target.playVideo();
             },
             onStateChange: (e: { data: number }) => {
               if (a.dead) return;
               if (e.data === 1) {
                 clearTimeout(timer);
+                a.ended = false;
                 cb.onPlaying?.();
+              } else if (e.data === 0) {
+                // ENDED: stay on the last frame's poster; the owner fades back to its artwork
+                clearTimeout(timer);
+                a.ended = true;
+                cb.onEnded?.();
               } else if (e.data === 3) {
                 // buffering: give it a fresh full window before giving up
                 clearTimeout(timer);
@@ -254,4 +272,41 @@ export function setTrailerMuted(owner: unknown, muted: boolean): void {
 
 export function isTrailerMuted(owner: unknown): boolean {
   return !active || active.owner !== owner || active.muted;
+}
+
+// ---- pause / resume / replay (hero lifecycle) -----------------------------------------------
+function call(a: Active, fn: (p: YTPlayer) => void): void {
+  if (!a.player || !a.ready) return; // API methods do not exist before onReady
+  try {
+    fn(a.player);
+  } catch {
+    /* a half-initialised player must never break the page */
+  }
+}
+
+/** Pause the owner's trailer (tab hidden, scrolled away, or the user's pause button). */
+export function pauseTrailer(owner: unknown): void {
+  if (!active || active.owner !== owner) return;
+  active.hold = true;
+  call(active, (p) => p.pauseVideo());
+}
+
+/** Continue a paused trailer. Does nothing after it ended (use replayTrailer). */
+export function resumeTrailer(owner: unknown): void {
+  if (!active || active.owner !== owner) return;
+  active.hold = false;
+  if (active.ended) return;
+  call(active, (p) => p.playVideo());
+}
+
+/** Restart an ended/paused trailer from the beginning; false when this owner has no live player. */
+export function replayTrailer(owner: unknown): boolean {
+  if (!active || active.owner !== owner || !active.ready) return false;
+  active.hold = false;
+  active.ended = false;
+  call(active, (p) => {
+    p.seekTo(0, true);
+    p.playVideo();
+  });
+  return true;
 }

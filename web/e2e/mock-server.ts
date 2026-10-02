@@ -96,6 +96,22 @@ export class Mock {
   votes = new Map<number, number>();
   /** Artificial delay (ms) on Rate, to test rapid clicks. */
   rateDelay = 0;
+  /** Per-item overrides merged into every ItemCard sent (matchPercent, reason, seriesLabel, minutesLeft...). */
+  cardExtra: Record<string, Partial<ItemCard>> = {};
+  /** Add this many generic genre rows to Home (to test lazy rows). */
+  extraRows = 0;
+  /** `<html lang>` of the served page (jellyfin-web sets it from the user's language). */
+  lang = 'en';
+  /** Optional `groups` in Search responses (people / genre grouping, server-driven). */
+  searchGroups: unknown = undefined;
+  /** What GET /MediaSegments/{id} does: ok | 404 | 500 | garbage (not JSON) | malformed (JSON, wrong shape). */
+  segmentsMode: 'ok' | '404' | '500' | 'garbage' | 'malformed' = 'ok';
+  /** Segments served by 'ok' mode, in ticks like the real API. */
+  segments: Array<{ Type: string; StartTicks: number; EndTicks: number }> = [];
+  /** Requests made to the core API (MediaSegments, Sessions) with their auth header. */
+  coreCalls: Array<{ path: string; auth: string | undefined }> = [];
+  /** The item the Sessions API reports as now playing. */
+  nowPlayingId = G('s1');
 
   reset(): void {
     this.calls = [];
@@ -112,6 +128,13 @@ export class Mock {
     this.experimental = false;
     this.token = 'tok';
     this.rateDelay = 0;
+    this.cardExtra = {};
+    this.extraRows = 0;
+    this.lang = 'en';
+    this.searchGroups = undefined;
+    this.segmentsMode = 'ok';
+    this.segments = [];
+    this.coreCalls = [];
     this.ratings.clear();
     this.list.clear();
     this.votes.clear();
@@ -123,7 +146,7 @@ export class Mock {
   }
 
   private view(i: ItemCard, extra: Partial<ItemCard> = {}): ItemCard {
-    return { ...i, myRating: this.ratings.get(i.id) ?? 0, inMyList: this.list.has(i.id), ...extra };
+    return { ...i, myRating: this.ratings.get(i.id) ?? 0, inMyList: this.list.has(i.id), ...(this.cardExtra[i.id] || {}), ...extra };
   }
   private soon(): ComingSoonCard[] {
     return SOON.map((c) => ({ ...c, myVote: this.votes.get(c.tmdbId) ?? 0 }));
@@ -139,6 +162,9 @@ export class Mock {
       { id: 'comingsoon', title: 'Coming Soon', type: 'comingsoon', items: [], comingSoon: this.soon() },
       { id: 'empty', title: 'Empty', type: 'recent', items: [] },
     ];
+    for (let n = 0; n < this.extraRows; n++) {
+      rows.push({ id: 'extra' + n, title: `Extra row ${n}`, type: 'genre', items: [v('a1'), v('a2'), v('s1'), v('a3'), v('s2')] });
+    }
     return { serverName: 'MowFlix', accentColor: this.accent, rows };
   }
 
@@ -189,7 +215,7 @@ export class Mock {
     }
     if (p === '/' || p === '/index.html') {
       res.writeHead(200, { 'content-type': 'text/html' });
-      res.end(page({ base: this.base, token: this.token, experimental: this.experimental }));
+      res.end(page({ base: this.base, token: this.token, experimental: this.experimental, lang: this.lang }));
       return;
     }
     if (p === '/fullui.js' || p === '/fullui.css') {
@@ -203,6 +229,31 @@ export class Mock {
       res.writeHead(200, { 'content-type': 'image/svg+xml' });
       res.end(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="hsl(${hue},45%,35%)"/></svg>`);
       return;
+    }
+    if (p.startsWith('/MediaSegments/') || p === '/Sessions') {
+      const auth = req.headers['authorization'] as string | undefined;
+      this.coreCalls.push({ path: p + url.search, auth });
+      const m = /^MediaBrowser Token="([^"]*)"$/.exec(auth || '');
+      if (!m || !USERS[m[1]]) return this.problem(res, 401);
+      if (p === '/Sessions') {
+        const dev = url.searchParams.get('DeviceId');
+        return this.json(res, 200, dev ? [{ DeviceId: dev, NowPlayingItem: { Id: this.nowPlayingId } }] : []);
+      }
+      const id = p.slice('/MediaSegments/'.length);
+      if (!GUID_RE.test(id)) return this.message(res, 400, 'The value is not a valid Guid.');
+      switch (this.segmentsMode) {
+        case '404':
+          return this.message(res, 404, 'Not found');
+        case '500':
+          return this.problem(res, 500);
+        case 'garbage':
+          res.writeHead(200, { 'content-type': 'application/json' });
+          return void res.end('<<not json>>');
+        case 'malformed':
+          return this.json(res, 200, { Items: 'nope', TotalRecordCount: 'x' });
+        default:
+          return this.json(res, 200, { Items: this.segments.map((x) => ({ Id: G('seg'), ItemId: id, ...x })), TotalRecordCount: this.segments.length });
+      }
     }
     if (!p.startsWith('/FullUI/')) {
       res.writeHead(404);
@@ -257,7 +308,10 @@ export class Mock {
       case 'GET Search': {
         if (this.failSearch) return this.problem(res, 500);
         const q = (url.searchParams.get('q') || '').toLowerCase();
-        return this.json(res, 200, { mode: this.ollamaEnabled ? 'semantic' : 'keyword', items: ITEMS.filter((i) => i.name.toLowerCase().includes(q)).map((i) => this.view(i)) });
+        const found = ITEMS.filter((i) => i.name.toLowerCase().includes(q)).map((i) => this.view(i));
+        const body: Record<string, unknown> = { mode: this.ollamaEnabled ? 'semantic' : 'keyword', items: found };
+        if (this.searchGroups !== undefined && found.length) body.groups = this.searchGroups;
+        return this.json(res, 200, body);
       }
       case 'GET Notifications':
         if (this.failNotifications) return this.problem(res, 500);
@@ -277,6 +331,7 @@ export class Mock {
 }
 
 interface PageOpts {
+  lang: string;
   base: string;
   token: string | null;
   experimental: boolean;
@@ -285,7 +340,7 @@ interface PageOpts {
 /** Minimal stand-in for jellyfin-web: native chrome, hash routing, viewshow events, ApiClient. */
 function page(o: PageOpts): string {
   const user = o.token ? USERS[o.token] : undefined;
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  return `<!doctype html><html lang="${o.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Jellyfin (mock)</title><link rel="stylesheet" href="${o.base}/fullui.css"></head>
 <body style="margin:0;background:#101010;color:#ddd;font-family:sans-serif">
 <div class="skinHeader" id="nativeHeader" style="padding:10px;background:#202020">Native header <a href="#/home">home</a> <a href="#/dashboard">dashboard</a></div>
@@ -296,6 +351,10 @@ ${o.experimental ? '<header class="MuiAppBar-root" id="muiAppBar" style="padding
   <div id="nativeDetails" class="page" hidden>Native details page <button class="btnPlay" id="nativePlay" onclick="window.__played=(window.__played||0)+1">Play</button></div>
   <div id="nativeDash" class="page" hidden>Native dashboard</div>
   <div id="nativeLogin" class="page" hidden>Native login</div>
+  <div id="nativeVideo" class="page" hidden>Native video page
+    <div class="videoOsdBottom"><button class="btnPlayPause" id="nativePlayPause">Pause</button><button class="btnNextTrack hide" id="nativeNext">Next</button></div>
+    <div class="upNextContainer hide"></div>
+  </div>
 </div>
 <script>
 window.__logout = 0;
@@ -312,8 +371,40 @@ window.ApiClient = {
   accessToken: function () { return window.__token; },
   getCurrentUserId: function () { var u = window.__users[window.__token]; return u ? u.id : null; },
   getCurrentUser: function () { var u = window.__users[window.__token]; return Promise.resolve({ Name: u ? u.name : '', Policy: { IsAdministrator: !!(u && u.admin) } }); },
-  logout: function () { window.__logout++; window.__token = null; return Promise.resolve(); }
+  logout: function () { window.__logout++; window.__token = null; return Promise.resolve(); },
+  deviceId: function () { return 'dev-1'; }
 };
+// Stand-in for jellyfin-web's video player: a real <video> whose playback state is scripted so tests can prove we never touch it.
+// currentTime behaves like the real setter: it clamps to the duration and throws on non-finite values.
+window.__player = {
+  t: 0, duration: 1400, paused: false, writes: [], nextClicks: 0, throwOnRead: false, hasNext: true,
+  src: location.origin + BASE + '/Videos/${G('s1')}/stream.mp4?static=true',
+  tick: function (t) { if (t != null) window.__player.t = t; var v = document.querySelector('video'); if (v) v.dispatchEvent(new Event('timeupdate')); },
+  end: function () { var v = document.querySelector('video'); if (v) v.dispatchEvent(new Event('ended')); },
+  nativeSkip: function (visible) {
+    var c = document.querySelector('.skip-button-container');
+    if (!c) { c = document.createElement('div'); c.className = 'skip-button-container'; var b = document.createElement('button'); b.className = 'skip-button'; b.textContent = 'Skip'; c.appendChild(b); document.body.appendChild(c); }
+    var btn = c.firstChild; btn.className = visible ? 'skip-button' : 'skip-button hide skip-button-hidden';
+  }
+};
+function setupVideo() {
+  var host = document.getElementById('nativeVideo');
+  var old = host.querySelector('video'); if (old) old.remove();
+  if (/novideo/.test(location.hash)) return;
+  var P = window.__player;
+  var v = document.createElement('video'); v.className = 'htmlvideoplayer';
+  Object.defineProperty(v, 'currentTime', {
+    get: function () { if (P.throwOnRead) throw new Error('native getter exploded'); return P.t; },
+    set: function (x) { if (!isFinite(x)) throw new TypeError('The provided double value is non-finite.'); P.writes.push(x); P.t = Math.max(0, Math.min(P.duration, Number(x))); }
+  });
+  Object.defineProperty(v, 'duration', { get: function () { return P.duration; } });
+  Object.defineProperty(v, 'paused', { get: function () { return P.paused; } });
+  Object.defineProperty(v, 'currentSrc', { get: function () { return P.src; } });
+  host.appendChild(v);
+  var next = document.getElementById('nativeNext');
+  next.className = P.hasNext ? 'btnNextTrack' : 'btnNextTrack hide';
+}
+document.getElementById('nativeNext').addEventListener('click', function () { window.__player.nextClicks++; });
 // Dashboard.logout() is what jellyfin-web uses: clears the session and navigates to the login page.
 window.Dashboard = { logout: function () { window.__logout++; window.__token = null; location.hash = '#/login'; return Promise.resolve(); } };
 function route() {
@@ -322,6 +413,10 @@ function route() {
   document.getElementById('nativeDetails').hidden = h.indexOf('#/details') !== 0;
   document.getElementById('nativeDash').hidden = h.indexOf('#/dashboard') !== 0;
   document.getElementById('nativeLogin').hidden = h.indexOf('#/login') !== 0;
+  var wasVideo = !document.getElementById('nativeVideo').hidden;
+  document.getElementById('nativeVideo').hidden = h.indexOf('#/video') !== 0;
+  if (h.indexOf('#/video') === 0 && !wasVideo) setupVideo();
+  if (h.indexOf('#/video') !== 0) { var ov = document.querySelector('#nativeVideo video'); if (ov) ov.remove(); }
   document.dispatchEvent(new CustomEvent('viewshow', { bubbles: true }));
 }
 window.addEventListener('hashchange', route);
@@ -334,7 +429,7 @@ if (!location.hash) location.hash = ${JSON.stringify(user ? '#/home' : '#/login'
 
 /** Stand-in for https://www.youtube.com/iframe_api (the sandbox cannot reach YouTube). */
 export const YT_STUB = `
-window.__yt = Object.assign({ created: 0, alive: 0, muted: [], failNext: false, frames: [] }, window.__yt || {});
+window.__yt = Object.assign({ created: 0, alive: 0, muted: [], failNext: false, frames: [], paused: 0, resumed: 0, seeks: [], players: [] }, window.__yt || {});
 window.YT = { Player: function (el, opts) {
   // The plugin creates the <iframe> itself and attaches the API to it (like the real YT.Player).
   if (el.tagName !== 'IFRAME') throw new Error('expected the plugin-created iframe');
@@ -346,14 +441,23 @@ window.YT = { Player: function (el, opts) {
   el.setAttribute('data-video', m ? m[1] : '');
   window.__yt.created++; window.__yt.alive++;
   var self = this;
-  this.mute = function () { window.__yt.muted.push(true); };
-  this.unMute = function () { window.__yt.muted.push(false); };
-  this.playVideo = function () {};
-  this.destroy = function () { el.remove(); window.__yt.alive--; };
+  this.state = -1;
+  this.destroy = function () { el.remove(); window.__yt.alive--; self.dead = true; };
+  // test hook: simulate YouTube reporting a state (0 ended, 1 playing, 2 paused)
+  this.emit = function (s) { self.state = s; opts.events.onStateChange({ data: s }); };
+  window.__yt.players.push(this);
   setTimeout(function () {
+    if (self.dead) return;
     if (window.__yt.failNext) { window.__yt.failNext = false; opts.events.onError({ data: 150 }); return; }
+    // Like the real API, control methods only exist once the player is ready: calling them earlier is a TypeError.
+    self.mute = function () { window.__yt.muted.push(true); };
+    self.unMute = function () { window.__yt.muted.push(false); };
+    // Like YouTube, a state event fires only when the state really changes (playing a playing video is silent).
+    self.playVideo = function () { window.__yt.resumed++; setTimeout(function () { if (!self.dead && self.state !== 1) self.emit(1); }, 5); };
+    self.pauseVideo = function () { window.__yt.paused++; setTimeout(function () { if (!self.dead && self.state !== 2) self.emit(2); }, 5); };
+    self.seekTo = function (sec) { window.__yt.seeks.push(sec); };
     opts.events.onReady({ target: self });
-    opts.events.onStateChange({ data: 1 });
+    self.emit(1);
   }, 30);
 } };
 setTimeout(function () { window.onYouTubeIframeAPIReady && window.onYouTubeIframeAPIReady(); }, 0);

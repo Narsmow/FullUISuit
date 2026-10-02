@@ -49,6 +49,10 @@ interface Opts {
   experimental?: boolean;
   /** Start signed out (login page). */
   signedOut?: boolean;
+  /** devicePixelRatio of the browser context. */
+  dpr?: number;
+  /** `<html lang>` the served page declares (jellyfin-web sets it from the user's language). */
+  lang?: string;
   /** Mock settings applied before the page loads. */
   setup?: (m: Mock) => void;
 }
@@ -58,6 +62,7 @@ async function open(o: Opts = {}): Promise<Page> {
   mock.base = o.base ?? '';
   mock.experimental = !!o.experimental;
   mock.token = o.signedOut ? null : 'tok';
+  mock.lang = o.lang ?? 'en';
   o.setup?.(mock);
   errors = [];
   ctx = await browser.newContext({
@@ -65,6 +70,7 @@ async function open(o: Opts = {}): Promise<Page> {
     hasTouch: !!o.mobile,
     isMobile: !!o.mobile,
     reducedMotion: o.reducedMotion ? 'reduce' : 'no-preference',
+    deviceScaleFactor: o.dpr ?? 1,
   });
   await ctx.route('https://www.youtube.com/iframe_api', (r) => r.fulfill({ contentType: 'text/javascript', body: YT_STUB }));
   await ctx.route('https://image.tmdb.org/**', (r) =>
@@ -90,6 +96,8 @@ const card = (page: Page, id: string, row = 'toppicks') => page.locator(`[data-r
 async function homeReady(page: Page): Promise<void> {
   await page.waitForSelector(`${root} .fui-hero`);
   await page.waitForSelector(`${root} .fui-row`);
+  // rows below the first few are built lazily when they get near the viewport
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('.fui-row-sk')).every((e) => e.getBoundingClientRect().top > innerHeight * 2.5));
 }
 
 describe('shell + nav', () => {
@@ -924,6 +932,8 @@ describe('trailers (B-10, B-57, B-31)', () => {
     await page.waitForSelector(`[data-id="${G('a2')}"] .yt-stub`, { timeout: 5000 });
     expect(await page.locator('.fui-hero.trailer-on').count()).toBe(0); // no dead "playing" state
     expect(await page.locator('.fui-hero-mute').isVisible()).toBe(false);
+    // the hero only plays while it is on screen: scroll back up, then let the card trailer go
+    await page.evaluate(() => (document.getElementById('fullui-root')!.scrollTop = 0));
     await page.mouse.move(5, 5);
     await page.waitForSelector('.fui-hero.trailer-on', { timeout: 5000 }); // hero resumed
     expect(await page.evaluate(() => (window as any).__yt.alive)).toBe(1);
@@ -1073,5 +1083,798 @@ describe('look and robustness (B-55, B-59, B-60, B-32, B-54, B-50)', () => {
     await page.keyboard.press('Enter');
     await page.waitForSelector('.fui-notes:not(.fui-hidden) .fui-note');
     expect(await page.locator('.fui-notes [role="menu"] .fui-link').count()).toBe(0);
+  });
+});
+
+
+// ===================================================================================================
+// Netflix-feel wave 1: hero lifecycle, card/row polish, player assist, i18n, TMDB attribution, search
+// ===================================================================================================
+
+const setHidden = (page: Page, hidden: boolean) =>
+  page.evaluate((v) => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, hidden);
+const yt = (page: Page) =>
+  page.evaluate(() => {
+    const y = (window as any).__yt;
+    return { paused: y.paused as number, resumed: y.resumed as number, seeks: y.seeks as number[], alive: y.alive as number };
+  });
+const scrollRoot = (page: Page, top: number | 'end') =>
+  page.evaluate((t) => {
+    const r = document.getElementById('fullui-root')!;
+    r.scrollTop = t === 'end' ? r.scrollHeight : t;
+  }, top);
+
+describe('hero lifecycle (WCAG 2.2.2, pause off-screen, replay)', () => {
+  it('pauses when the tab is hidden and resumes when it is visible again', async () => {
+    const page = await open();
+    await homeReady(page);
+    await page.waitForSelector('.fui-hero.trailer-on');
+    const base = await yt(page);
+    await setHidden(page, true);
+    await page.waitForFunction((n) => (window as any).__yt.paused > n, base.paused);
+    await setHidden(page, false);
+    await page.waitForFunction((n) => (window as any).__yt.resumed > n, base.resumed);
+    expect(await page.locator('.fui-hero.trailer-on').count()).toBe(1);
+    noConsoleErrors();
+  });
+
+  it('pauses when the hero scrolls out of view and resumes when it is back', async () => {
+    const page = await open({ setup: (m) => (m.extraRows = 6) });
+    await homeReady(page);
+    await page.waitForSelector('.fui-hero.trailer-on');
+    const base = await yt(page);
+    await scrollRoot(page, 'end');
+    await page.waitForFunction((n) => (window as any).__yt.paused > n, base.paused);
+    await scrollRoot(page, 0);
+    await page.waitForFunction((n) => (window as any).__yt.resumed > n, base.resumed);
+    noConsoleErrors();
+  });
+
+  it('the trailer does not loop: when it ends the hero fades back to the poster and offers Replay', async () => {
+    const page = await open();
+    await homeReady(page);
+    await page.waitForSelector('.fui-hero.trailer-on');
+    expect(await page.evaluate(() => (window as any).__yt.frames[0].src)).not.toContain('loop=1');
+    await page.evaluate(() => (window as any).__yt.players.at(-1).emit(0)); // YouTube ENDED
+    await page.waitForSelector('.fui-hero:not(.trailer-on)');
+    expect(await page.locator('.fui-hero-img').isVisible()).toBe(true);
+    expect(await page.locator('.fui-hero-replay').isVisible()).toBe(true);
+    expect(await page.locator('.fui-hero-pause').isVisible()).toBe(false);
+    expect(await page.locator('.fui-hero-mute').isVisible()).toBe(false);
+    expect(await page.locator('.fui-hero-replay').getAttribute('aria-label')).toBe('Replay trailer');
+    await page.click('.fui-hero-replay');
+    await page.waitForSelector('.fui-hero.trailer-on');
+    expect((await yt(page)).seeks).toEqual([0]);
+    expect(await page.locator('.fui-hero-replay').isVisible()).toBe(false);
+    expect(await page.locator('.fui-hero-pause').isVisible()).toBe(true);
+    noConsoleErrors();
+  });
+
+  it('has an accessible pause/play control with aria-pressed that the viewer always wins with', async () => {
+    const page = await open();
+    await homeReady(page);
+    await page.waitForSelector('.fui-hero.trailer-on');
+    const btn = page.locator('.fui-hero-pause');
+    expect(await btn.getAttribute('aria-pressed')).toBe('false');
+    expect(await btn.getAttribute('aria-label')).toBe('Pause trailer');
+    const base = await yt(page);
+    await btn.click();
+    expect(await btn.getAttribute('aria-pressed')).toBe('true');
+    expect(await btn.getAttribute('aria-label')).toBe('Pause trailer'); // constant label: state lives in aria-pressed
+    await page.waitForFunction((n) => (window as any).__yt.paused > n, base.paused);
+    // hiding and showing the tab must NOT restart a trailer the viewer paused
+    await setHidden(page, true);
+    await setHidden(page, false);
+    await page.waitForTimeout(300);
+    expect((await yt(page)).resumed).toBe(base.resumed);
+    await btn.click();
+    expect(await btn.getAttribute('aria-pressed')).toBe('false');
+    await page.waitForFunction((n) => (window as any).__yt.resumed > n, base.resumed);
+    // keyboard operable
+    await btn.focus();
+    await page.keyboard.press('Enter');
+    expect(await btn.getAttribute('aria-pressed')).toBe('true');
+    noConsoleErrors();
+  });
+
+  it('a viewer-paused trailer stays paused after a card trailer takes over and leaves', async () => {
+    const page = await open();
+    await homeReady(page);
+    await page.waitForSelector('.fui-hero.trailer-on');
+    await page.click('.fui-hero-pause');
+    const c = card(page, G('a2'));
+    await c.scrollIntoViewIfNeeded();
+    await c.hover();
+    await page.waitForSelector(`[data-id="${G('a2')}"] .yt-stub`, { timeout: 5000 });
+    await scrollRoot(page, 0);
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(1500);
+    expect(await page.locator('.fui-hero.trailer-on').count()).toBe(0); // not restarted behind the viewer's back
+  });
+
+  it('shows no trailer controls with prefers-reduced-motion', async () => {
+    const page = await open({ reducedMotion: true });
+    await homeReady(page);
+    await page.waitForTimeout(1200);
+    expect(await page.locator('.fui-hero-pause, .fui-hero-replay, .fui-hero-mute').evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent !== null).length)).toBe(0);
+  });
+
+  it('boxed maturity badge, green match % and the reason on the hero; graceful when absent', async () => {
+    const page = await open({ setup: (m) => (m.cardExtra[G('a1')] = { matchPercent: 97, reason: 'Because you watched Dark' }) });
+    await homeReady(page);
+    expect(await page.locator('.fui-hero .fui-rated').textContent()).toBe('PG-13');
+    expect(await page.locator('.fui-hero .fui-rated').evaluate((e) => getComputedStyle(e).borderTopStyle)).toBe('solid');
+    expect(await page.locator('.fui-hero .fui-match').textContent()).toBe('97% Match');
+    expect(await page.locator('.fui-hero .fui-match').evaluate((e) => getComputedStyle(e).color)).toBe('rgb(70, 211, 105)');
+    expect(await page.locator('.fui-hero .fui-reason').textContent()).toBe('Because you watched Dark');
+    const page2 = await open();
+    await homeReady(page2);
+    expect(await page2.locator('.fui-hero .fui-why').count()).toBe(0);
+    expect(await page2.locator('.fui-hero .fui-rated').count()).toBe(1);
+  });
+
+  it('expanded cards show match % and reason; Continue Watching shows episode label and time left', async () => {
+    const page = await open({
+      setup: (m) => {
+        m.cardExtra[G('a2')] = { matchPercent: 88, reason: 'Because you liked Dune' };
+        m.cardExtra[G('c1')] = { seriesLabel: 'S2:E5', minutesLeft: 42 };
+      },
+    });
+    await homeReady(page);
+    const c = card(page, G('a2'));
+    await c.scrollIntoViewIfNeeded();
+    await c.hover();
+    await page.waitForSelector(`[data-row-id="toppicks"] .fui-card[data-id="${G('a2')}"].expanded`);
+    expect(await c.locator('.fui-match').textContent()).toBe('88% Match');
+    expect(await c.locator('.fui-reason').textContent()).toBe('Because you liked Dune');
+    expect(await c.locator('.fui-info .fui-rated').textContent()).toBe('PG-13');
+    const cw = card(page, G('c1'), 'continue');
+    expect(await cw.locator('.fui-cwlabel').textContent()).toBe('S2:E5 · 42m left');
+    // a title without the optional fields renders exactly as before
+    const c3 = card(page, G('a3'));
+    await c3.scrollIntoViewIfNeeded();
+    await c3.hover();
+    await page.waitForSelector(`[data-row-id="toppicks"] .fui-card[data-id="${G('a3')}"].expanded`);
+    expect(await c3.locator('.fui-why').count()).toBe(0);
+    noConsoleErrors();
+  });
+});
+
+describe('card and row polish', () => {
+  for (const width of [1280, 800]) {
+    it(`expanded cards are never clipped, first/middle/last, at ${width}px; neighbours do not move`, async () => {
+      const page = await open({ width });
+      await homeReady(page);
+      for (const rowId of ['toppicks', 'top10-movies', 'trending']) {
+        const sel = `[data-row-id="${rowId}"] .fui-card`;
+        const n = await page.locator(sel).count();
+        for (const which of ['start', 'end']) {
+          await page.evaluate(
+            ([s, w]) => {
+              const strip = document.querySelector(`[data-row-id="${s}"] .fui-strip`) as HTMLElement;
+              strip.scrollLeft = w === 'end' ? strip.scrollWidth : 0;
+            },
+            [rowId, which],
+          );
+          const idx = which === 'end' ? n - 1 : 0;
+          const c = page.locator(sel).nth(idx);
+          await c.scrollIntoViewIfNeeded();
+          const nextBefore = n > idx + 1 ? await page.locator(sel).nth(idx + 1).evaluate((e) => (e as HTMLElement).offsetLeft) : null;
+          await c.hover();
+          await page.waitForSelector(`[data-row-id="${rowId}"] .fui-card.expanded`);
+          await page.waitForTimeout(350); // transform transition
+          const box = await c.evaluate((el) => {
+            const r = (el.querySelector('.fui-info') as HTMLElement).getBoundingClientRect();
+            const a = (el.querySelector('.fui-art') as HTMLElement).getBoundingClientRect();
+            return { left: Math.min(r.left, a.left), right: Math.max(r.right, a.right), origin: (el as HTMLElement).dataset.origin };
+          });
+          expect(['left', 'center', 'right']).toContain(box.origin);
+          expect(box.left, `${rowId} ${which} left`).toBeGreaterThanOrEqual(-1);
+          expect(box.right, `${rowId} ${which} right`).toBeLessThanOrEqual(width + 1);
+          if (nextBefore !== null) expect(await page.locator(sel).nth(idx + 1).evaluate((e) => (e as HTMLElement).offsetLeft)).toBe(nextBefore);
+          await page.mouse.move(2, 2);
+          await page.waitForSelector(`[data-row-id="${rowId}"] .fui-card.expanded`, { state: 'detached', timeout: 3000 });
+        }
+      }
+      noConsoleErrors();
+    });
+  }
+
+  it('Top 10 cards: a TOP 10 glyph on the poster and "#N today" in the expanded panel', async () => {
+    const page = await open();
+    await homeReady(page);
+    expect(await page.locator('.fui-row-top10 .fui-top10-glyph').allTextContents()).toEqual(['TOP 10', 'TOP 10', 'TOP 10']);
+    const c = page.locator('.fui-row-top10 .fui-card').nth(1);
+    await c.scrollIntoViewIfNeeded();
+    await c.hover();
+    await page.waitForSelector('.fui-row-top10 .fui-card.expanded');
+    expect(await c.locator('.fui-rankcap').textContent()).toBe('#2 today');
+    expect(await c.locator('.fui-art').getAttribute('aria-label')).toContain('number 2 today');
+  });
+
+  it('"Explore all" opens a full grid of the row from the cached Home, and Back returns', async () => {
+    const page = await open();
+    await homeReady(page);
+    const link = page.locator('[data-row-id="toppicks"] .fui-row-explore');
+    expect(await link.getAttribute('aria-label')).toBe('Explore all: Top Picks for Sam');
+    expect(await page.locator('[data-row-id="comingsoon"] .fui-row-explore').count()).toBe(0); // only 2 cards
+    await link.evaluate((e) => (e as HTMLElement).focus());
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-row-id="toppicks"] .fui-row-explore')!).opacity === '1'); // keyboard focus reveals it
+    await link.click();
+    await page.waitForSelector('.fui-page-row .fui-grid');
+    expect(await page.locator('.fui-page-row .fui-card').count()).toBe(6);
+    expect(await page.locator('.fui-page-row h1').textContent()).toBe('Top Picks for Sam');
+    expect(await page.evaluate(() => location.hash)).toContain('fui=row');
+    expect(mock.callsTo('GET', 'Home').length).toBe(1); // client-side only
+    await page.click('.fui-row-back');
+    await page.waitForSelector('.fui-hero');
+    expect(await page.locator('.fui-tab.active').textContent()).toBe('Home');
+    noConsoleErrors();
+  });
+
+  it('an unknown row gives a friendly page with Try again and classic view', async () => {
+    const page = await open({ hash: '/home?fui=row&q=nope' });
+    await page.waitForSelector('.fui-error');
+    expect(await page.locator('.fui-error h2').textContent()).toContain('find that row');
+    expect(await page.locator('.fui-error button').allTextContents()).toEqual(['Try again', 'Use classic view']);
+    await page.click('.fui-error .fui-btn-primary');
+    await page.waitForSelector('.fui-hero');
+  });
+
+  it('40 rows stay cheap: below-the-fold rows are placeholders until they approach the viewport, without layout shift', async () => {
+    const page = await open({ setup: (m) => (m.extraRows = 40) });
+    await page.waitForSelector(`${root} .fui-hero`);
+    await page.waitForSelector(`${root} .fui-row`);
+    await page.waitForTimeout(300);
+    const initial = await page.evaluate(() => ({ sk: document.querySelectorAll('.fui-row-sk').length, cards: document.querySelectorAll('.fui-card').length, rows: document.querySelectorAll('.fui-row').length }));
+    expect(initial.rows).toBe(45);
+    expect(initial.sk).toBeGreaterThan(25);
+    expect(initial.cards).toBeLessThan(60);
+    expect(await page.locator('.fui-row-title').count()).toBe(45); // titles exist even for placeholders
+    expect(await page.locator('.fui-row-sk').first().getAttribute('aria-busy')).toBe('true');
+    await page.evaluate(() => {
+      (window as any).__cls = 0;
+      new PerformanceObserver((l) => {
+        for (const e of l.getEntries() as any[]) if (!e.hadRecentInput) (window as any).__cls += e.value;
+      }).observe({ type: 'layout-shift', buffered: true });
+    });
+    for (let i = 1; i <= 14; i++) {
+      await page.evaluate((k) => {
+        const r = document.getElementById('fullui-root')!;
+        r.scrollTop = (r.scrollHeight / 14) * k;
+      }, i);
+      await page.waitForTimeout(120);
+    }
+    await scrollRoot(page, 'end');
+    await page.waitForFunction(() => document.querySelectorAll('.fui-row-sk').length === 0, undefined, { timeout: 8000 });
+    expect(await page.locator('.fui-card').count()).toBeGreaterThan(200);
+    expect(await page.evaluate(() => (window as any).__cls as number)).toBeLessThan(0.1);
+    noConsoleErrors();
+  });
+
+  for (const dpr of [1, 2]) {
+    it(`image URLs are size-aware at devicePixelRatio ${dpr}; hero has fetchpriority and a preconnect`, async () => {
+      const ctxOpts = { dpr };
+      const page = await open(ctxOpts);
+      await homeReady(page);
+      await page.waitForTimeout(500);
+      const widths = (kind: string) =>
+        [...new Set(mock.images.filter((u) => u.startsWith('/Items/') && u.includes(`/Images/${kind}?`)).map((u) => Number(/maxWidth=(\d+)/.exec(u)![1])))].sort((a, b) => a - b);
+      const allowed = [240, 320, 480, 720, 960, 1280, 1920];
+      for (const w of [...widths('Backdrop'), ...widths('Primary')]) expect(allowed).toContain(w);
+      // 16em cards (256px) x 1.35 expansion x dpr
+      expect(widths('Backdrop')).toContain(dpr === 1 ? 480 : 720);
+      expect(widths('Backdrop')).toContain(dpr === 1 ? 1280 : 1920); // hero
+      expect(widths('Primary')).toContain(dpr === 1 ? 240 : 480); // Top 10 posters (9em)
+      expect(await page.locator('.fui-hero-img').getAttribute('fetchpriority')).toBe('high');
+      expect(await page.locator(`link[rel="preconnect"][href="${mock.origin}"]`).count()).toBe(1);
+    });
+  }
+
+  it('images fade in when loaded', async () => {
+    const page = await open();
+    await homeReady(page);
+    await page.waitForSelector('.fui-hero-img.loaded');
+    await page.waitForSelector('.fui-art img.loaded');
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.fui-art img.loaded')!).opacity === '1');
+  });
+});
+
+describe('player assist on the native video page', () => {
+  const ticks = (s: number) => s * 10_000_000;
+  const INTRO = { Type: 'Intro', StartTicks: ticks(10), EndTicks: ticks(70) };
+  const OUTRO = { Type: 'Outro', StartTicks: ticks(1300), EndTicks: ticks(1400) };
+  /** Rows of text for everything native on the page (our overlay and the FullUI root excluded). */
+  const nativeSnap = (page: Page) =>
+    page.evaluate(() => {
+      const out: string[] = [];
+      document.body.childNodes.forEach((n) => {
+        const e = n as HTMLElement;
+        if (e.id === 'fullui-assist' || e.id === 'fullui-root' || e.id === 'fullui-banner') return;
+        out.push(e.outerHTML || e.textContent || '');
+      });
+      return out.join('\n');
+    });
+  const tickAt = async (page: Page, t: number) => {
+    await page.waitForTimeout(300); // the assist throttles timeupdate to 4 per second
+    await page.evaluate((x) => (window as any).__player.tick(x), t);
+  };
+  const overlay = (page: Page) => page.locator('#fullui-assist');
+  const skip = (page: Page) => page.locator('#fullui-assist .fui-assist-skip');
+  const next = (page: Page) => page.locator('#fullui-assist .fui-assist-next');
+  const player = (page: Page) =>
+    page.evaluate(() => {
+      const P = (window as any).__player;
+      const v = document.querySelector('video') as HTMLVideoElement | null;
+      return { writes: P.writes as number[], nextClicks: P.nextClicks as number, t: P.t as number, paused: v ? v.paused : null };
+    });
+  const withSegments = (...s: Array<{ Type: string; StartTicks: number; EndTicks: number }>) => (m: Mock) => (m.segments = s);
+  const NET = /Failed to load resource/;
+
+  async function ready(page: Page) {
+    await page.waitForSelector('#fullui-assist', { state: 'attached' });
+    await page.waitForTimeout(150);
+  }
+
+  it('shows Skip Intro only inside the segment and a click sets currentTime to the segment end (the only native write)', async () => {
+    const page = await open({ hash: '/video', setup: withSegments(INTRO) });
+    await ready(page);
+    const before = await nativeSnap(page);
+    await tickAt(page, 1);
+    expect(await skip(page).isVisible()).toBe(false);
+    await tickAt(page, 20);
+    await skip(page).waitFor({ state: 'visible' });
+    expect(await skip(page).textContent()).toBe('Skip Intro');
+    expect(await nativeSnap(page)).toBe(before); // no native node touched
+    expect((await player(page)).writes).toEqual([]); // showing a button writes nothing
+    await skip(page).click();
+    const after = await player(page);
+    expect(after.writes).toEqual([70]);
+    expect(after.paused).toBe(false);
+    await tickAt(page, 80);
+    expect(await skip(page).isVisible()).toBe(false);
+    // the request used the real Jellyfin route and the ApiClient token
+    const call = mock.coreCalls.find((c) => c.path.startsWith('/MediaSegments/'))!;
+    expect(call.path).toBe(`/MediaSegments/${G('s1')}`);
+    expect(call.auth).toBe('MediaBrowser Token="tok"');
+    expect(await nativeSnap(page)).toBe(before);
+    noConsoleErrors();
+  });
+
+  it('labels Recap and Credits segments', async () => {
+    const page = await open({ hash: '/video', setup: withSegments({ Type: 'Recap', StartTicks: 0, EndTicks: ticks(30) }, OUTRO) });
+    await ready(page);
+    await tickAt(page, 5);
+    await skip(page).waitFor({ state: 'visible' });
+    expect(await skip(page).textContent()).toBe('Skip Recap');
+    await tickAt(page, 1320);
+    await page.waitForFunction(() => document.querySelector('#fullui-assist .fui-assist-skip')!.textContent === 'Skip Credits');
+  });
+
+  it('next episode: countdown card, Play now clicks the native next control, Cancel keeps it away', async () => {
+    const page = await open({ hash: '/video', setup: withSegments(OUTRO) });
+    await ready(page);
+    await tickAt(page, 1000);
+    expect(await next(page).isVisible()).toBe(false);
+    await tickAt(page, 1310);
+    await next(page).waitFor({ state: 'visible' });
+    expect(await page.locator('.fui-assist-next-text').textContent()).toBe('Next episode in 10 seconds');
+    await tickAt(page, 1315);
+    await page.waitForFunction(() => document.querySelector('.fui-assist-next-text')!.textContent === 'Next episode in 5 seconds');
+    expect(await page.locator('.fui-assist-playnow').textContent()).toBe('Play now');
+    expect(await page.locator('.fui-assist-cancel').textContent()).toBe('Cancel');
+    await page.click('.fui-assist-playnow');
+    expect((await player(page)).nextClicks).toBe(1);
+    expect((await player(page)).writes).toEqual([]);
+    // Cancel
+    const page2 = await open({ hash: '/video', setup: withSegments(OUTRO) });
+    await ready(page2);
+    await tickAt(page2, 1310);
+    await next(page2).waitFor({ state: 'visible' });
+    await page2.click('.fui-assist-cancel');
+    await tickAt(page2, 1330);
+    await tickAt(page2, 1340);
+    expect(await next(page2).isVisible()).toBe(false);
+    expect((await player(page2)).nextClicks).toBe(0);
+  });
+
+  it('the countdown presses the native next control exactly once when it reaches zero', async () => {
+    const page = await open({ hash: '/video', setup: withSegments(OUTRO) });
+    await ready(page);
+    await tickAt(page, 1380); // 20 s left => 10 s countdown... starts here
+    await next(page).waitFor({ state: 'visible' });
+    await tickAt(page, 1391);
+    await tickAt(page, 1392);
+    await tickAt(page, 1393);
+    expect((await player(page)).nextClicks).toBe(1);
+  });
+
+  it('no native next control (last episode) means no countdown card at all', async () => {
+    const page = await open({ hash: '/video', setup: withSegments(OUTRO) });
+    await ready(page);
+    await page.evaluate(() => (document.getElementById('nativeNext')!.className = 'btnNextTrack hide'));
+    await tickAt(page, 1390);
+    expect(await next(page).isVisible()).toBe(false);
+    expect(await skip(page).isVisible()).toBe(true); // credits can still be skipped
+    // and the native up-next dialog being on screen also keeps ours away
+    await page.evaluate(() => {
+      document.getElementById('nativeNext')!.className = 'btnNextTrack';
+      const c = document.querySelector('.upNextContainer')!;
+      c.className = 'upNextContainer';
+      c.appendChild(document.createElement('div'));
+    });
+    await tickAt(page, 1392);
+    expect(await next(page).isVisible()).toBe(false);
+  });
+
+  it('stays out of the way when the native player shows its own skip button', async () => {
+    const page = await open({ hash: '/video', setup: withSegments(INTRO, { Type: 'Recap', StartTicks: ticks(100), EndTicks: ticks(160) }) });
+    await ready(page);
+    await page.evaluate(() => (window as any).__player.nativeSkip(true));
+    await tickAt(page, 20);
+    expect(await skip(page).isVisible()).toBe(false);
+    // the native button times out (8 s) but ours must not pop up for that same segment
+    await page.evaluate(() => (window as any).__player.nativeSkip(false));
+    await tickAt(page, 30);
+    expect(await skip(page).isVisible()).toBe(false);
+    // a later segment the native player did not offer: ours may show
+    await tickAt(page, 110);
+    await skip(page).waitFor({ state: 'visible' });
+    expect(await skip(page).textContent()).toBe('Skip Recap');
+  });
+
+  it('is invisible to the page: fixed, click-through except its own buttons, below the native controls', async () => {
+    const page = await open({ hash: '/video', setup: withSegments(INTRO, OUTRO) });
+    await ready(page);
+    await tickAt(page, 20);
+    await skip(page).waitFor({ state: 'visible' });
+    await tickAt(page, 1310);
+    await next(page).waitFor({ state: 'visible' });
+    const css = await page.evaluate(() => {
+      const o = document.getElementById('fullui-assist')!;
+      const cs = getComputedStyle(o);
+      const b = getComputedStyle(o.querySelector('.fui-assist-skip')!);
+      // the countdown card's padding is not a button: events must reach whatever is underneath
+      const r = o.querySelector('.fui-assist-next')!.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + 2, r.top + 2);
+      return { position: cs.position, pe: cs.pointerEvents, btnPe: b.pointerEvents, z: Number(cs.zIndex), hitInside: !!hit && !!hit.closest('#fullui-assist'), role: o.getAttribute('role') };
+    });
+    expect(css.position).toBe('fixed');
+    expect(css.pe).toBe('none');
+    expect(css.btnPe).toBe('auto');
+    expect(css.z).toBeLessThanOrEqual(1);
+    expect(css.hitInside).toBe(false);
+    expect(css.role).toBe('region');
+  });
+
+  it('with prefers-reduced-motion the overlay has no transitions or animations', async () => {
+    const page = await open({ hash: '/video', setup: withSegments(INTRO), reducedMotion: true });
+    await ready(page);
+    await tickAt(page, 20);
+    await skip(page).waitFor({ state: 'visible' });
+    expect(await skip(page).evaluate((e) => getComputedStyle(e).transitionDuration)).toMatch(/^0s$/);
+    await skip(page).click();
+    expect((await player(page)).writes).toEqual([70]);
+  });
+
+  describe('fault injection: playback is never affected', () => {
+    it('no <video> element: nothing is created, nothing throws', async () => {
+      const page = await open({ hash: '/video?novideo=1' });
+      await page.waitForTimeout(1500);
+      expect(await overlay(page).count()).toBe(0);
+      noConsoleErrors();
+    });
+
+    for (const mode of ['404', '500', 'garbage', 'malformed'] as const) {
+      it(`segments ${mode}: no button, native untouched, no uncaught errors`, async () => {
+        const page = await open({ hash: '/video', setup: (m) => (m.segmentsMode = mode), allowErrors: NET });
+        await ready(page);
+        const before = await nativeSnap(page);
+        await tickAt(page, 20);
+        await tickAt(page, 40);
+        expect(await skip(page).isVisible()).toBe(false);
+        expect(await next(page).isVisible()).toBe(false);
+        expect(await nativeSnap(page)).toBe(before);
+        expect((await player(page)).writes).toEqual([]);
+        expect(mock.coreCalls.length).toBeGreaterThan(0); // it did ask
+        noConsoleErrors(NET);
+      });
+    }
+
+    it('a throwing handler switches the assist off after 3 errors with one warning; the native player is untouched', async () => {
+      const warns: string[] = [];
+      const page = await open({ hash: '/video', setup: withSegments(INTRO), allowErrors: /native getter exploded/ });
+      page.on('console', (m) => {
+        if (m.type() === 'warning') warns.push(m.text());
+      });
+      await ready(page);
+      const before = await nativeSnap(page);
+      await page.evaluate(() => ((window as any).__player.throwOnRead = true)); // only OUR reads explode
+      for (let i = 0; i < 5; i++) await tickAt(page, 20);
+      await page.waitForFunction(() => sessionStorage.getItem('fullui-assist-off') === '1');
+      expect(await overlay(page).count()).toBe(0);
+      expect(warns.filter((w) => w.includes('Player assist turned itself off'))).toHaveLength(1);
+      await page.evaluate(() => ((window as any).__player.throwOnRead = false));
+      const p = await player(page);
+      expect(p.writes).toEqual([]);
+      expect(p.paused).toBe(false);
+      expect(await nativeSnap(page)).toBe(before);
+      // stays off for the whole session, also after leaving and re-entering the player
+      await page.evaluate(() => (location.hash = '#/home'));
+      await page.waitForSelector('.fui-hero');
+      await page.evaluate(() => (location.hash = '#/video'));
+      await page.waitForTimeout(1200);
+      expect(await overlay(page).count()).toBe(0);
+      expect(errors.filter((e) => !/native getter exploded/.test(e))).toEqual([]);
+    });
+
+    it('leaving the player mid-playback removes the overlay; coming back re-attaches', async () => {
+      const page = await open({ hash: '/video', setup: withSegments(INTRO) });
+      await ready(page);
+      await tickAt(page, 20);
+      await skip(page).waitFor({ state: 'visible' });
+      await page.evaluate(() => (location.hash = '#/home'));
+      await page.waitForSelector('.fui-hero');
+      expect(await overlay(page).count()).toBe(0);
+      await page.evaluate(() => (location.hash = '#/video'));
+      await ready(page);
+      await tickAt(page, 25);
+      await skip(page).waitFor({ state: 'visible' });
+      noConsoleErrors();
+    });
+
+    it('is removed when the video ends and does not run on other native pages', async () => {
+      const page = await open({ hash: '/video', setup: withSegments(INTRO) });
+      await ready(page);
+      await page.evaluate(() => (window as any).__player.end());
+      expect(await overlay(page).count()).toBe(0);
+      await page.evaluate(() => (location.hash = '#/dashboard'));
+      await page.waitForTimeout(1800);
+      expect(await overlay(page).count()).toBe(0);
+      await page.evaluate(() => (location.hash = `#/details?id=${'0'.repeat(32)}`));
+      await page.waitForTimeout(700);
+      expect(await overlay(page).count()).toBe(0);
+      noConsoleErrors();
+    });
+
+    it('the admin kill switch (Status.playerAssistEnabled:false) means no overlay and no segment requests', async () => {
+      const page = await open({ hash: '/video', setup: (m) => ((m.statusExtra = { playerAssistEnabled: false }), withSegments(INTRO)(m)) });
+      await page.waitForTimeout(1500);
+      expect(await overlay(page).count()).toBe(0);
+      expect(mock.coreCalls).toEqual([]);
+    });
+
+    it('signed out: no overlay and no requests', async () => {
+      const page = await open({ hash: '/video', signedOut: true });
+      await page.waitForTimeout(1200);
+      expect(await overlay(page).count()).toBe(0);
+      expect(mock.coreCalls).toEqual([]);
+      expect(mock.calls).toEqual([]);
+    });
+
+    it('HLS (blob: URL): finds the playing item through the Sessions API for this device', async () => {
+      const page = await open({ hash: '/home', setup: withSegments(INTRO) });
+      await homeReady(page);
+      await page.evaluate(() => {
+        (window as any).__player.src = 'blob:http://example/1234';
+        location.hash = '#/video';
+      });
+      await ready(page);
+      await tickAt(page, 20);
+      await skip(page).waitFor({ state: 'visible' });
+      expect(mock.coreCalls.map((c) => c.path)).toEqual(['/Sessions?DeviceId=dev-1', `/MediaSegments/${G('s1')}`]);
+    });
+
+    it('a different episode in the same <video>: segments are fetched again, old ones are dropped', async () => {
+      const page = await open({ hash: '/video', setup: withSegments(INTRO) });
+      await ready(page);
+      await tickAt(page, 20);
+      await skip(page).waitFor({ state: 'visible' });
+      mock.segments = [];
+      await page.evaluate((id) => {
+        const P = (window as any).__player;
+        P.src = location.origin + '/Videos/' + id + '/stream.mp4';
+        P.duration = 1500;
+      }, G('s2'));
+      await tickAt(page, 20); // new key: reset
+      expect(await skip(page).isVisible()).toBe(false);
+      await page.waitForTimeout(300);
+      await tickAt(page, 21);
+      expect(await skip(page).isVisible()).toBe(false); // the new episode has no segments
+      expect(mock.coreCalls.filter((c) => c.path.startsWith('/MediaSegments/')).map((c) => c.path)).toEqual([`/MediaSegments/${G('s1')}`, `/MediaSegments/${G('s2')}`]);
+    });
+  });
+});
+
+describe('i18n in the browser', () => {
+  it('follows the language jellyfin-web set on <html> (es)', async () => {
+    const page = await open({ lang: 'es-MX' });
+    await homeReady(page);
+    expect(await page.locator('.fui-tab').allTextContents()).toEqual(['Inicio', 'Series', 'Películas', 'Mi MowFlix']);
+    expect(await page.locator('.fui-hero-play').textContent()).toBe('Reproducir');
+    expect(await page.locator('.fui-classic').textContent()).toBe('Usar la vista clásica');
+    expect(await page.locator('.fui-hero-more').textContent()).toBe('Más información');
+    expect(await page.locator('[data-row-id="comingsoon"] .fui-ribbon').first().textContent()).toMatch(/mar/i); // Intl month name, not "Mar 5, 2027"
+    expect(await page.locator('[data-row-id="comingsoon"] .fui-ribbon').first().textContent()).not.toBe('Mar 5, 2027');
+    await page.click('.fui-bell');
+    await page.waitForSelector('.fui-note');
+    expect(await page.locator('.fui-note-time').first().textContent()).not.toMatch(/ago/);
+    expect(await page.getAttribute('.fui-hero-pause', 'aria-label')).toBe('Pausar el tráiler');
+    noConsoleErrors();
+  });
+
+  it('failure states are translated too, with Try again', async () => {
+    const page = await open({ lang: 'fr', hash: '/home?fui=search&q=zz', setup: (m) => (m.failSearch = true) });
+    await page.waitForSelector('.fui-search-status .fui-retry');
+    expect(await page.locator('.fui-search-status').textContent()).toContain('La recherche ne fonctionne pas pour le moment');
+    expect(await page.locator('.fui-retry').textContent()).toBe('Réessayer');
+    const page2 = await open({ lang: 'de', setup: (m) => (m.failHome = true) });
+    await page2.waitForSelector('#fullui-banner:not(.fui-hidden) button');
+    expect(await page2.locator('#fullui-banner').textContent()).toContain('Die neue Startseite konnte gerade nicht geladen werden');
+    expect(await page2.locator('#fullui-banner button').textContent()).toBe('Erneut versuchen');
+  });
+
+  it('an unsupported language falls back to English', async () => {
+    const page = await open({ lang: 'zz' });
+    await homeReady(page);
+    expect(await page.locator('.fui-tab').allTextContents()).toEqual(['Home', 'Shows', 'Movies', 'My MowFlix']);
+  });
+});
+
+describe('TMDB attribution', () => {
+  it('shows the sentence under Coming Soon cards; adds an inline (not hotlinked) logo when Status asks for it', async () => {
+    const hosts = new Set<string>();
+    const page = await open({ setup: (m) => (m.statusExtra = { tmdbAttribution: true }) });
+    page.on('request', (r) => hosts.add(new URL(r.url()).host));
+    await page.reload();
+    await homeReady(page);
+    const f = page.locator('[data-row-id="comingsoon"] .fui-tmdb');
+    expect(await f.textContent()).toContain('This product uses the TMDB API but is not endorsed or certified by TMDB.');
+    expect(await f.locator('svg.fui-tmdb-logo').count()).toBe(1);
+    expect(await f.locator('img').count()).toBe(0);
+    await page.waitForTimeout(300);
+    expect([...hosts].filter((h) => /themoviedb|tmdb/.test(h) && h !== 'image.tmdb.org')).toEqual([]);
+    const page2 = await open();
+    await homeReady(page2);
+    const f2 = page2.locator('[data-row-id="comingsoon"] .fui-tmdb');
+    expect(await f2.textContent()).toContain('This product uses the TMDB API');
+    expect(await f2.locator('svg').count()).toBe(0);
+    expect(await page2.locator('.fui-tmdb').count()).toBe(1); // only under Coming Soon
+  });
+
+  it('is also shown on the Explore all grid of a Coming Soon row and on I Want This', async () => {
+    const page = await open({ hash: '/home?fui=row&q=comingsoon' });
+    await page.waitForSelector('.fui-page-row .fui-tmdb');
+    expect(await page.locator('.fui-page-row .fui-card').count()).toBe(2);
+    const page2 = await open({ hash: '/home?fui=myserver', setup: (m) => m.votes.set(501, 1) });
+    await page2.waitForSelector('.fui-page-myserver .fui-tmdb');
+  });
+});
+
+describe('search upgrades (client-only)', () => {
+  const gotoSearch = async (page: Page) => {
+    await homeReady(page);
+    await page.click('.fui-nav-search');
+    await page.waitForSelector('.fui-search-input');
+  };
+
+  it('remembers recent searches per user (max 8), lets you remove and clear them, never shows another user\'s', async () => {
+    const page = await open();
+    await gotoSearch(page);
+    expect(await page.locator('.fui-qchip-q').count()).toBe(0);
+    await page.fill('.fui-search-input', 'dune');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.fui-search-results .fui-card');
+    await page.fill('.fui-search-input', 'second');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.fui-search-results .fui-card');
+    await page.waitForTimeout(150);
+    // back to the empty search: the terms are offered again, newest first
+    await page.fill('.fui-search-input', '');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.fui-qchip-q');
+    expect(await page.locator('.fui-qchip-q').allTextContents()).toEqual(['second', 'dune']);
+    expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('fullui-recent')))).toEqual([`fullui-recent:${G('u1')}`]);
+    expect(await page.evaluate(() => JSON.stringify(localStorage).includes('tok'))).toBe(false); // no token in storage
+    await page.click('.fui-qchip-q');
+    await page.waitForSelector('.fui-search-results .fui-card');
+    // a different user on the same browser sees nothing
+    await page.evaluate(() => ((window as any).__token = 'tok2'));
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('viewshow', { bubbles: true })));
+    await page.waitForTimeout(300);
+    // the page was rebuilt for the new user (and re-ran the URL's query as that user); u1's list must not leak
+    await page.fill('.fui-search-input', '');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    expect(await page.locator('.fui-qchip-q').allTextContents()).toEqual(['second']); // only u2's own search
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('fullui-recent:' + (window as any).__users.tok2.id) || '[]'))).toEqual(['second']);
+    // back to the first user: remove, then clear
+    await page.evaluate(() => ((window as any).__token = 'tok'));
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('viewshow', { bubbles: true })));
+    await page.waitForTimeout(300);
+    for (const q of ['hero', 'third', 'show one', 'show two', 'show three', 'continue', 'dune', 'movie']) {
+      await page.fill('.fui-search-input', q);
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('.fui-search-results .fui-card');
+      await page.waitForTimeout(150);
+    }
+    await page.fill('.fui-search-input', '');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.fui-qchip-q');
+    expect(await page.locator('.fui-qchip-q').count()).toBe(8); // 9 searches in total, the oldest dropped
+    await page.click('.fui-recent-clear');
+    expect(await page.locator('.fui-qchip-q').count()).toBe(0);
+    expect(await page.evaluate((k) => localStorage.getItem(k), `fullui-recent:${G('u1')}`)).toBeNull();
+  });
+
+  it('"Try:" genre chips come from the cached Home rows and filter locally (no Search request)', async () => {
+    const page = await open();
+    await gotoSearch(page);
+    const chips = await page.locator('.fui-qchip-try').allTextContents();
+    expect(chips).toEqual(['Drama', 'Sci-Fi']);
+    await page.locator('.fui-qchip-try', { hasText: 'Sci-Fi' }).click();
+    await page.waitForSelector('.fui-search-results .fui-card');
+    expect(await page.locator('.fui-group-title').textContent()).toBe('Sci-Fi');
+    expect(await page.locator('.fui-search-results .fui-card').count()).toBeGreaterThan(3);
+    expect(mock.calls.filter((c) => c.path.startsWith('Search'))).toEqual([]);
+    noConsoleErrors();
+  });
+
+  it('no results: friendly text and a "You might like" row from cached Home rows', async () => {
+    const page = await open();
+    await gotoSearch(page);
+    await page.fill('.fui-search-input', 'zzzzz');
+    await page.waitForSelector('.fui-search-results .fui-row');
+    expect(await page.locator('.fui-search-status').textContent()).toContain('No results for "zzzzz".');
+    expect(await page.locator('.fui-search-results .fui-row-title').textContent()).toBe('You might like');
+    expect(await page.locator('.fui-search-results .fui-card').count()).toBeGreaterThan(2);
+    // nothing was remembered for a search without results
+    expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('fullui-recent')))).toEqual([]);
+    noConsoleErrors();
+  });
+
+  it('renders server-driven groups when the response has them, and then mentions people in the placeholder', async () => {
+    const page = await open({
+      setup: (m) =>
+        (m.searchGroups = [
+          { type: 'people', label: 'Cast & crew', items: [{ ...(m.home().rows[1].items[0] as object) }] },
+          { type: 'genres', items: [] },
+          { type: 'titles', items: [{ ...(m.home().rows[1].items[1] as object) }] },
+        ]),
+    });
+    await gotoSearch(page);
+    expect(await page.getAttribute('.fui-search-input', 'placeholder')).not.toMatch(/person|actor|people/i);
+    await page.fill('.fui-search-input', 'second');
+    await page.waitForSelector('.fui-group-title');
+    expect(await page.locator('.fui-group-title').allTextContents()).toEqual(['Cast & crew', 'Titles']);
+    expect(await page.getAttribute('.fui-search-input', 'placeholder')).toMatch(/person/);
+    noConsoleErrors();
+  });
+
+  it('without groups the response is rendered flat and the placeholder never promises people or genres', async () => {
+    const page = await open();
+    await gotoSearch(page);
+    await page.fill('.fui-search-input', 'second');
+    await page.waitForSelector('.fui-search-results .fui-card');
+    expect(await page.locator('.fui-group-title').count()).toBe(0);
+    expect(await page.getAttribute('.fui-search-input', 'placeholder')).toBe('Search by title or keyword');
+  });
+});
+
+describe('only known endpoints are called (new server endpoints are feature-detected, not assumed)', () => {
+  it('visits every page without calling anything outside the current server contract', async () => {
+    const page = await open({ setup: (m) => (m.extraRows = 2) });
+    await homeReady(page);
+    await page.click('.fui-nav-search');
+    await page.fill('.fui-search-input', 'second');
+    await page.waitForSelector('.fui-search-results .fui-card');
+    await page.click('.fui-tab[data-kind="myserver"]');
+    await page.waitForSelector('.fui-page-myserver');
+    await page.waitForTimeout(500);
+    const known = /^(Status|Home|MyServer|Notifications|Search\?q=.*|Rate|MyList|Vote|Notifications\/Read|Item\/.*)$/;
+    expect(mock.calls.map((c) => c.path).filter((p) => !known.test(p))).toEqual([]);
   });
 });

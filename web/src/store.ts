@@ -1,6 +1,7 @@
 import { api } from './api';
+import { t } from './i18n';
 import { nextRating, nextVote } from './util';
-import type { ComingSoonCard, ItemCard } from './types';
+import type { ComingSoonCard, ItemCard, RouteKind } from './types';
 
 // Canonical per-page state so the same title shown in several rows stays in sync, plus the
 // optimistic actions (rate / my list / vote) with rollback.
@@ -16,6 +17,15 @@ const listeners = new Map<string, Set<Listener>>();
 let toastFn: (msg: string) => void = () => {};
 export function setToast(fn: (msg: string) => void): void {
   toastFn = fn;
+}
+
+let goFn: (kind: RouteKind, q?: string) => void = () => {};
+/** main.ts registers the in-app navigator (switches FullUI pages without a hash change). */
+export function setNavigator(fn: (kind: RouteKind, q?: string) => void): void {
+  goFn = fn;
+}
+export function goTo(kind: RouteKind, q = ''): void {
+  goFn(kind, q);
 }
 
 /** Call whenever a new page is rendered. */
@@ -134,7 +144,7 @@ export function setRating(card: ItemCard, clicked: number): Promise<void> {
     next as number,
     (v) => api.rate(card.id, v),
     (v) => setItem(card, { myRating: v }),
-    "Couldn't save your rating. Try again.",
+    t('error.rating'),
   );
 }
 
@@ -147,7 +157,7 @@ export function toggleMyList(card: ItemCard): Promise<void> {
     !prev,
     (v) => api.myList(card.id, v),
     (v) => setItem(card, { inMyList: v }),
-    "Couldn't update My List. Try again.",
+    t('error.myList'),
   );
 }
 
@@ -161,6 +171,6 @@ export function setVote(card: ComingSoonCard, clicked: number): Promise<void> {
     next as number,
     (v) => api.vote(card, v),
     (v) => setSoon(card, v),
-    "Couldn't save your vote. Try again.",
+    t('error.vote'),
   );
 }

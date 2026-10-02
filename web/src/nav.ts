@@ -1,5 +1,6 @@
 import { api, client, serverBase, sessionKey } from './api';
 import { h, icon, ICONS, setChildren } from './dom';
+import { t } from './i18n';
 import { openDetails } from './card';
 import type { NotificationDto, RouteKind } from './types';
 import { badgeText, joinUrl, routeHash, safeAccent, timeAgo, unreadCount } from './util';
@@ -16,18 +17,18 @@ export interface Nav {
 }
 
 /** Native jellyfin-web destinations that FullUI's own tabs do not cover (routes verified against release-10.11.z). */
-export const LIBRARY_LINKS: Array<{ label: string; href: string }> = [
-  { label: 'Movies library', href: '#/movies' },
-  { label: 'TV Shows library', href: '#/tv' },
-  { label: 'Music', href: '#/music' },
-  { label: 'Live TV', href: '#/livetv' },
-  { label: 'Favorites', href: '#/home?tab=1' },
+export const LIBRARY_LINKS: Array<{ id: 'lib.movies' | 'lib.tv' | 'lib.music' | 'lib.livetv' | 'lib.favorites'; href: string }> = [
+  { id: 'lib.movies', href: '#/movies' },
+  { id: 'lib.tv', href: '#/tv' },
+  { id: 'lib.music', href: '#/music' },
+  { id: 'lib.livetv', href: '#/livetv' },
+  { id: 'lib.favorites', href: '#/home?tab=1' },
 ];
 
 const POLL_MS = 60000;
 
 export function createNav(opts: { onClassic: () => void; onSignOut: () => void; onGo: (kind: RouteKind) => void }): Nav {
-  let serverName = 'FullUI';
+  let serverName = t('nav.defaultName');
   let notes: NotificationDto[] = [];
   let notesFailed = false;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -50,11 +51,11 @@ export function createNav(opts: { onClassic: () => void; onSignOut: () => void; 
   internal(wordmark, 'home');
   const tab = (kind: RouteKind, label: string) =>
     internal(h('a', { class: 'fui-tab', href: routeHash(kind), data: { kind }, text: label }), kind);
-  const tabHome = tab('home', 'Home');
-  const tabShows = tab('shows', 'Shows');
-  const tabMovies = tab('movies', 'Movies');
-  const tabMy = tab('myserver', 'My ' + serverName);
-  const tabs = h('nav', { class: 'fui-tabs', 'aria-label': 'Main' }, tabHome, tabShows, tabMovies, tabMy);
+  const tabHome = tab('home', t('nav.home'));
+  const tabShows = tab('shows', t('nav.shows'));
+  const tabMovies = tab('movies', t('nav.movies'));
+  const tabMy = tab('myserver', t('nav.my', { server: serverName }));
+  const tabs = h('nav', { class: 'fui-tabs', 'aria-label': t('nav.main') }, tabHome, tabShows, tabMovies, tabMy);
 
   // Libraries: a visible way to the native library pages (not reachable from the recommendation tabs)
   const libsBtn = h('button', {
@@ -62,19 +63,19 @@ export function createNav(opts: { onClassic: () => void; onSignOut: () => void; 
     class: 'fui-libs-btn',
     'aria-haspopup': 'true',
     'aria-expanded': 'false',
-    text: 'Libraries',
+    text: t('nav.libraries'),
   });
   const libsMenu = h(
     'div',
-    { class: 'fui-panel fui-libs-menu fui-hidden', role: 'menu', 'aria-label': 'Libraries' },
-    ...LIBRARY_LINKS.map((l) => h('a', { class: 'fui-libs-item', href: l.href, role: 'menuitem', text: l.label })),
+    { class: 'fui-panel fui-libs-menu fui-hidden', role: 'menu', 'aria-label': t('nav.libraries') },
+    ...LIBRARY_LINKS.map((l) => h('a', { class: 'fui-libs-item', href: l.href, role: 'menuitem', text: t(l.id) })),
   );
   const libsWrap = h('div', { class: 'fui-nav-item fui-libs' }, libsBtn, libsMenu);
   libsMenu.addEventListener('click', () => closeAll());
 
-  const classicLink = h('button', { type: 'button', class: 'fui-classic', text: 'Use classic view', title: 'Switch back to the standard Jellyfin home' });
+  const classicLink = h('button', { type: 'button', class: 'fui-classic', text: t('nav.classic'), title: t('nav.classicTitle') });
   classicLink.addEventListener('click', () => opts.onClassic());
-  const searchBtn = h('a', { class: 'fui-ibtn fui-nav-search', href: routeHash('search'), 'aria-label': 'Search', title: 'Search' });
+  const searchBtn = h('a', { class: 'fui-ibtn fui-nav-search', href: routeHash('search'), 'aria-label': t('nav.search'), title: t('nav.search') });
   searchBtn.appendChild(icon(ICONS.search));
   internal(searchBtn, 'search');
 
@@ -82,21 +83,21 @@ export function createNav(opts: { onClassic: () => void; onSignOut: () => void; 
   const bellBtn = h('button', {
     type: 'button',
     class: 'fui-ibtn fui-bell',
-    'aria-label': 'Notifications',
+    'aria-label': t('nav.notifications'),
     'aria-haspopup': 'true',
     'aria-expanded': 'false',
   });
   bellBtn.appendChild(icon(ICONS.bell));
   const count = h('span', { class: 'fui-bell-count fui-hidden', 'aria-hidden': 'true' });
   bellBtn.appendChild(count);
-  const panel = h('div', { class: 'fui-panel fui-notes fui-hidden', 'aria-label': 'Notifications' });
+  const panel = h('div', { class: 'fui-panel fui-notes fui-hidden', 'aria-label': t('nav.notifications') });
   const bellWrap = h('div', { class: 'fui-nav-item' }, bellBtn, panel);
 
   // Profile
   const avatarBtn = h('button', {
     type: 'button',
     class: 'fui-avatar',
-    'aria-label': 'Profile menu',
+    'aria-label': t('nav.profile'),
     'aria-haspopup': 'true',
     'aria-expanded': 'false',
   });
@@ -116,25 +117,25 @@ export function createNav(opts: { onClassic: () => void; onSignOut: () => void; 
     const n = unreadCount(notes);
     count.classList.toggle('fui-hidden', n === 0);
     count.textContent = n ? badgeText(n) : '';
-    bellBtn.setAttribute('aria-label', n ? `Notifications, ${n} unread` : 'Notifications');
+    bellBtn.setAttribute('aria-label', n ? t('nav.notificationsUnread', { n }) : t('nav.notifications'));
   }
 
   function renderNotes(): void {
     // keep keyboard focus across the rebuild
     const focusedIdx = Array.from(panel.querySelectorAll('button')).indexOf(document.activeElement as HTMLButtonElement);
     setChildren(panel);
-    const head = h('div', { class: 'fui-panel-head' }, h('strong', { text: 'Notifications' }));
+    const head = h('div', { class: 'fui-panel-head' }, h('strong', { text: t('nav.notifications') }));
     if (unreadCount(notes) > 0) {
-      const all = h('button', { type: 'button', class: 'fui-link', text: 'Mark all read' });
+      const all = h('button', { type: 'button', class: 'fui-link', text: t('nav.markAllRead') });
       all.addEventListener('click', () => void markRead(null));
       head.appendChild(all);
     }
     panel.appendChild(head);
     if (notesFailed) {
-      panel.appendChild(h('p', { class: 'fui-panel-empty', text: "We couldn't load your notifications." }));
-      panel.appendChild(h('button', { type: 'button', class: 'fui-link fui-notes-retry', text: 'Try again', on: { click: () => void refreshNotes() } }));
-    } else if (!notes.length) panel.appendChild(h('p', { class: 'fui-panel-empty', text: 'No notifications yet.' }));
-    const list = h('div', { role: 'menu', 'aria-label': 'Notification list' });
+      panel.appendChild(h('p', { class: 'fui-panel-empty', text: t('nav.notificationsFailed') }));
+      panel.appendChild(h('button', { type: 'button', class: 'fui-link fui-notes-retry', text: t('common.tryAgain'), on: { click: () => void refreshNotes() } }));
+    } else if (!notes.length) panel.appendChild(h('p', { class: 'fui-panel-empty', text: t('nav.notificationsEmpty') }));
+    const list = h('div', { role: 'menu', 'aria-label': t('nav.notificationList') });
     for (const n of notes.slice(0, 20)) {
       const item = h(
         'button',
@@ -270,12 +271,12 @@ export function createNav(opts: { onClassic: () => void; onSignOut: () => void; 
   function buildMenu(isAdmin: boolean): void {
     setChildren(menu);
     const link = (text: string, href: string) => h('a', { class: 'fui-menu-item', href, role: 'menuitem', text });
-    menu.appendChild(link('Settings', '#/mypreferencesmenu'));
-    const cl = h('button', { type: 'button', class: 'fui-menu-item', role: 'menuitem', text: 'Use classic view' });
+    menu.appendChild(link(t('nav.settings'), '#/mypreferencesmenu'));
+    const cl = h('button', { type: 'button', class: 'fui-menu-item', role: 'menuitem', text: t('nav.classic') });
     cl.addEventListener('click', () => opts.onClassic());
     menu.appendChild(cl);
-    if (isAdmin) menu.appendChild(link('Dashboard', '#/dashboard'));
-    const out = h('button', { type: 'button', class: 'fui-menu-item', role: 'menuitem', text: 'Sign out' });
+    if (isAdmin) menu.appendChild(link(t('nav.dashboard'), '#/dashboard'));
+    const out = h('button', { type: 'button', class: 'fui-menu-item', role: 'menuitem', text: t('nav.signOut') });
     out.addEventListener('click', () => {
       closeAll();
       opts.onSignOut();
@@ -332,7 +333,7 @@ export function createNav(opts: { onClassic: () => void; onSignOut: () => void; 
     setBranding(name, accent) {
       serverName = name || serverName;
       wordmark.textContent = serverName;
-      tabMy.textContent = 'My ' + serverName;
+      tabMy.textContent = t('nav.my', { server: serverName });
       document.documentElement.style.setProperty('--fullui-accent', safeAccent(accent));
     },
     start() {

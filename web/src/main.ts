@@ -2,10 +2,13 @@ import './style.css';
 import { ApiError, api, client, hasSession, sessionKey } from './api';
 import { collapseExpanded, disposeCards } from './card';
 import { h, setChildren } from './dom';
+import { refreshLocale, t } from './i18n';
 import { createNav } from './nav';
-import { errorState, homePage, myServerPage, searchPage, skeleton, type Page } from './pages';
+import { setAttribution } from './attribution';
+import { errorState, homePage, myServerPage, rowPage, searchPage, skeleton, type Page } from './pages';
+import { createPlayerAssist } from './playerAssist';
 import { installSpatial } from './spatial';
-import { resetStore, setOnMutate, setToast } from './store';
+import { resetStore, setNavigator, setOnMutate, setToast } from './store';
 import { setTrailersEnabled, stopTrailer } from './trailer';
 import type { HomeResponse, PluginStatus, Route, RouteKind } from './types';
 import { parseRoute, routeHash, rowHasContent } from './util';
@@ -45,6 +48,8 @@ function start(): void {
   let token = 0;
   let owning = false;
   let current: Route = { kind: 'native', q: '' };
+  // Fail-safe skip-intro / next-episode helper for the native player; only runs when Status says so.
+  const assist = createPlayerAssist({ isEnabled: () => !!status && status.playerAssistEnabled !== false });
   let home: { data: HomeResponse; at: number; session: string } | null = null;
   let homeFailedAt = 0;
   let serverName = '';
@@ -75,7 +80,7 @@ function start(): void {
 
   const brand = (name: string, accent?: string) => {
     if (name) serverName = name;
-    nav.setBranding(serverName || 'FullUI', accent);
+    nav.setBranding(serverName || t('nav.defaultName'), accent);
   };
 
   function disposePage(): void {
@@ -101,17 +106,22 @@ function start(): void {
         status = s;
         brand(s.serverName, s.accentColor);
         setTrailersEnabled(s.trailersEnabled !== false);
+        setAttribution(s.tmdbAttribution);
+        assist.sync();
       },
       () => {},
     );
   }
 
   function resetSession(key: string): void {
+    refreshLocale();
     home = null;
     homeFailedAt = 0;
     status = null;
     scrollMemo.clear();
     setTrailersEnabled(true);
+    setAttribution(null);
+    assist.stop();
     nav.reset();
     resetStore();
     if (owning || renderedKey) {
@@ -183,14 +193,12 @@ function start(): void {
     setChildren(
       banner,
       h('span', {
-        text: classic
-          ? "You're using the classic view."
-          : "The new home couldn't load right now, so you're seeing the classic view.",
+        text: classic ? t('banner.classic') : t('banner.failed'),
       }),
       h('button', {
         type: 'button',
         class: 'fui-banner-btn',
-        text: classic ? 'Switch to the new view' : 'Try again',
+        text: classic ? t('banner.switchBack') : t('common.tryAgain'),
         on: { click: () => setClassic(false) },
       }),
     );
@@ -260,6 +268,7 @@ function start(): void {
               if (location.hash !== target) history.replaceState(history.state, '', target);
             },
             !!(status && status.ollamaEnabled),
+            { rows: home && home.session === sessionKey() ? home.data.rows : [] },
           ),
           key,
         );
@@ -268,11 +277,16 @@ function start(): void {
       if (route.kind === 'myserver') {
         const data = await api.myServer();
         if (stale()) return;
-        mount(myServerPage(serverName || 'Server', data), key);
+        mount(myServerPage(serverName || t('nav.serverFallback'), data), key);
         return;
       }
       const data = await getHome(force);
       if (stale()) return;
+      if (route.kind === 'row') {
+        const row = data.rows.find((x) => x.id === route.q);
+        mount(rowPage(row, () => go('home'), () => setClassic(true)), key);
+        return;
+      }
       if (route.kind === 'home' && !data.rows.some(rowHasContent)) {
         // An empty home is indistinguishable from a failed build: use the classic home instead of a blank page.
         home = null;
@@ -293,7 +307,7 @@ function start(): void {
       disposePage();
       setChildren(
         main,
-        errorState("We couldn't load this page. This is usually temporary, so please try again.", () => setClassic(true), () => {
+        errorState(t('error.page'), () => setClassic(true), () => {
           renderedKey = null;
           sync(true);
         }),
@@ -304,6 +318,7 @@ function start(): void {
   function sync(force = false, viaViewshow = false): void {
     try {
       checkSession();
+      assist.sync(); // never throws; does nothing off the native video route
       const route = parseRoute(location.hash);
       current = route;
       if (signingOut) {
@@ -322,7 +337,7 @@ function start(): void {
       clearTimeout(releaseT);
       releaseT = undefined;
       if (route.kind === 'home' && Date.now() - homeFailedAt < FAIL_BACKOFF_MS) return release();
-      const key = route.kind;
+      const key = route.kind === 'row' ? 'row:' + route.q : route.kind;
       owning = true;
       document.documentElement.classList.add(OWN_CLASS);
       root.classList.remove('fui-hidden');
@@ -339,6 +354,7 @@ function start(): void {
     }
   }
 
+  setNavigator((kind, q) => go(kind, q));
   installSpatial(root, {
     isActive: () => owning && !root.classList.contains('fui-hidden'),
     closeMenus: () => nav.closeMenus(),
