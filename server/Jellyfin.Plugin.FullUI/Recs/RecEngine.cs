@@ -471,7 +471,9 @@ public sealed partial class RecEngine
             }
         }
 
-        var max = _cf.Count == 0 ? 0 : _cf.Values.Max();
+        // Normalise by the strongest signal, but never by less than CfFloor: one other person with a small overlap must not
+        // be able to give "their" titles the full collaborative bonus.
+        var max = _cf.Count == 0 ? 0 : Math.Max(_cf.Values.Max(), CfFloor);
         if (max > 0)
         {
             foreach (var k in _cf.Keys.ToList())
@@ -480,6 +482,9 @@ public sealed partial class RecEngine
             }
         }
     }
+
+    /// <summary>Raw collaborative score that counts as a full-strength signal (roughly two people each sharing a few favourites).</summary>
+    public const double CfFloor = 2.5;
 
     /// <summary>Another user must share at least this many positively-rated titles with the target (or all of the target's, if fewer).</summary>
     public const int MinOverlap = 2;

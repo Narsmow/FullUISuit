@@ -95,7 +95,7 @@ public sealed partial class RecEngine
                 var sims = scored
                     .Where(x => !used.Contains(x.Item.Id) && x.Item.Id != seed.Id)
                     .Select(x => (x.Item, Sim: Similarity(seed, x.Item)))
-                    .Where(x => x.Sim >= 0.1)
+                    .Where(x => x.Sim >= MinSeedSimilarity)
                     .OrderByDescending(x => x.Sim + (0.1 * Quality(x.Item)))
                     .ThenBy(x => x.Item.Name, StringComparer.OrdinalIgnoreCase)
                     .Take(target)
@@ -210,6 +210,9 @@ public sealed partial class RecEngine
 
         return rows.OrderBy(r => r.Order).ToList();
     }
+
+    /// <summary>A neighbour must be at least this similar to its seed (shared genre / cast, not just the same decade and rating).</summary>
+    public const double MinSeedSimilarity = 0.3;
 
     private string? ChartReason() => CfEnabled ? "Popular in your household" : null;
 
